@@ -17,7 +17,7 @@ from aiohttp import web
 APP_NAME = "larpdog-server"
 DEFAULT_CONFIG: dict[str, Any] = {
     "server": {
-        "host": "localhost",
+        "host": "127.0.0.1",
         "port": 8473,
         "overlay_path": "../larpdog-overlay.html",
     },
@@ -34,7 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "client_id": "",
         "client_secret": "",
-        "redirect_uri": "http://localhost:8473/callback",
+        "redirect_uri": "http://127.0.0.1:8473/callback",
         "cache_path": ".spotify_cache",
         "poll_seconds": 3,
     },
@@ -416,7 +416,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         spotify_worker.start()
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
         log(f"Serving overlay: {overlay_path}")
-        log(f"OBS URL: http://localhost:{config['server']['port']}/")
+        log(f"OBS URL: http://{config['server']['host']}:{config['server']['port']}/")
 
     async def on_cleanup(cleanup_app: web.Application) -> None:
         cleanup_app["audio_worker"].stop()
