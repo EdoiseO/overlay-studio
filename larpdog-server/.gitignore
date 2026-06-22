@@ -1,0 +1,8 @@
+config.json
+.spotify_cache
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec.bak

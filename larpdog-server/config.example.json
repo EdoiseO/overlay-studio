@@ -1,0 +1,24 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 8473,
+    "overlay_path": "../larpdog-overlay.html"
+  },
+  "audio": {
+    "enabled": true,
+    "device_match": "",
+    "sample_rate": 48000,
+    "block_size": 1024,
+    "fps": 45,
+    "sensitivity": 1.0,
+    "bass_bins": 14
+  },
+  "spotify": {
+    "enabled": true,
+    "client_id": "",
+    "client_secret": "",
+    "redirect_uri": "http://localhost:8473/callback",
+    "cache_path": ".spotify_cache",
+    "poll_seconds": 3
+  }
+}
