@@ -91,7 +91,7 @@
     min-width: var(--card-width);
     max-width: var(--card-width);
     margin-bottom: 14px;
-    padding: 14px 18px 14px 14px;
+    padding: 12px 18px 12px 14px;
     display: flex; align-items: center; gap: 14px;
     background: var(--card-fill);
     border: 1px solid rgba(255,255,255,0.10);
@@ -136,24 +136,47 @@
   }
   .eyebrow {
     display: flex; align-items: center; gap: 7px;
-    font-size: 11px; font-weight: 600; letter-spacing: .18em;
+    font-size: 9px; font-weight: 700; letter-spacing: .16em;
     text-transform: uppercase;
     color: var(--text-dim);
-    margin-bottom: 3px;
+    margin-bottom: 2px;
   }
   .eyebrow .dot {
-    width: 7px; height: 7px; border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
     background: rgb(var(--a-rgb));
     box-shadow: 0 0 calc(4px + var(--pulse)*10px) rgb(var(--a-rgb));
     transition: background .6s ease;
   }
   .title {
-    font-size: 19px; font-weight: 600; line-height: 1.15;
+    font-size: 18px; font-weight: 600; line-height: 1.12;
     color: var(--text);
   }
   .artist {
-    font-size: 14px; font-weight: 400;
+    font-size: 13px; font-weight: 400;
     color: var(--text-dim);
+  }
+  .progress {
+    width: 100%;
+    height: 4px;
+    margin-top: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.14);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .progress-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgb(var(--a-rgb)), rgb(var(--b-rgb)), rgb(var(--c-rgb)));
+    box-shadow: 0 0 calc(5px + var(--pulse) * 9px) rgba(var(--a-rgb), 0.70);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform .28s linear, background .6s ease, box-shadow .08s linear;
+  }
+  .card.idle .progress-fill {
+    transform: scaleX(0);
   }
   .track-line {
     max-width: 100%;
@@ -188,7 +211,7 @@
 </style>
 
 <div id="stage" data-pos="bottom-left">
-  <div class="card" id="card">
+  <div class="card idle" id="card">
     <div class="art" id="art">
       <div class="eq" id="eq"><i></i><i></i><i></i><i></i><i></i></div>
     </div>
@@ -196,6 +219,7 @@
       <div class="eyebrow"><span class="dot"></span><span id="status">Now playing</span></div>
       <div class="title track-line" id="title"><span class="marquee-text">waiting for a song...</span></div>
       <div class="artist track-line" id="artist"><span class="marquee-text"></span></div>
+      <div class="progress" id="progress" aria-hidden="true"><span class="progress-fill" id="progressFill"></span></div>
     </div>
   </div>
 
@@ -396,7 +420,13 @@ function startStandaloneNowPlaying() {
 
   // instant test override: ?song=Title&artist=Name&art=URL
   if (Q.has("song")) {
-    showSong({ title: Q.get("song"), artist: Q.get("artist"), art: Q.get("art") });
+    showSong({
+      title: Q.get("song"),
+      artist: Q.get("artist"),
+      art: Q.get("art"),
+      progressMs: num("progress", 0),
+      durationMs: num("duration", 0),
+    });
   } else if (CONFIG.nowPlaying.mode === "off") {
     document.getElementById("card").classList.add("hidden");
   } else if (CONFIG.nowPlaying.mode === "spotify") {
@@ -452,7 +482,15 @@ function connectLarpdogServer() {
         paintServerAudio(msg);
       } else if (msg.type === "track") {
         window.__larpdog.lastTrackAt = Date.now();
-        if (msg.isPlaying) showSong({ title: msg.title, artist: msg.artist, art: msg.art });
+        if (msg.isPlaying) {
+          showSong({
+            title: msg.title,
+            artist: msg.artist,
+            art: msg.art,
+            progressMs: msg.progressMs,
+            durationMs: msg.durationMs,
+          });
+        }
         else showIdle();
       }
     };
@@ -549,8 +587,11 @@ function applyArtwork(url) {
 const $title = document.getElementById("title");
 const $artist = document.getElementById("artist");
 const $status = document.getElementById("status");
+const $card = document.getElementById("card");
 const $art = document.getElementById("art");
 const $eq = document.getElementById("eq");
+const $progressFill = document.getElementById("progressFill");
+let trackProgress = { progressMs: 0, durationMs: 0, startedAt: 0, active: false };
 
 function setTrackLine(el, text) {
   const inner = el.querySelector(".marquee-text");
@@ -572,10 +613,35 @@ function setTrackLine(el, text) {
   });
 }
 
-function showSong({ title, artist, art }) {
+function setProgress(progressMs, durationMs) {
+  const progress = Math.max(0, Number(progressMs) || 0);
+  const duration = Math.max(0, Number(durationMs) || 0);
+  const active = duration > 0;
+  trackProgress = {
+    progressMs: Math.min(progress, duration || progress),
+    durationMs: duration,
+    startedAt: performance.now(),
+    active,
+  };
+  $card.classList.toggle("idle", !active);
+}
+
+function paintProgress() {
+  let ratio = 0;
+  if (trackProgress.active) {
+    const elapsed = performance.now() - trackProgress.startedAt;
+    ratio = (trackProgress.progressMs + elapsed) / trackProgress.durationMs;
+  }
+  $progressFill.style.transform = `scaleX(${clamp01(ratio).toFixed(4)})`;
+  requestAnimationFrame(paintProgress);
+}
+requestAnimationFrame(paintProgress);
+
+function showSong({ title, artist, art, progressMs, durationMs }) {
   showDancingDog();
   setTrackLine($title, title || "-");
   setTrackLine($artist, artist || "");
+  setProgress(progressMs, durationMs);
   $status.textContent = "Now playing";
   if (art) {
     $art.innerHTML = `<img src="${art}" alt="">`;
@@ -589,6 +655,7 @@ function showIdle(msg) {
   showRestingDog();
   setTrackLine($title, msg || "waiting for a song...");
   setTrackLine($artist, "");
+  setProgress(0, 0);
   $status.textContent = "Standing by";
   applyPalette(dogPalette);
 }
@@ -601,7 +668,13 @@ async function pollFile() {
     if (!raw) return showIdle();
     try {                                  // JSON form: {title, artist, art}
       const j = JSON.parse(raw);
-      showSong({ title: j.title || j.song, artist: j.artist, art: j.art || j.albumArt });
+      showSong({
+        title: j.title || j.song,
+        artist: j.artist,
+        art: j.art || j.albumArt,
+        progressMs: j.progressMs || j.progress || 0,
+        durationMs: j.durationMs || j.duration || 0,
+      });
     } catch {                              // plain text: whole line is the title
       showSong({ title: raw });
     }
@@ -623,7 +696,9 @@ async function pollSpotify() {
     showSong({
       title: d.item.name,
       artist: (d.item.artists || []).map(a => a.name).join(", "),
-      art: d.item.album?.images?.[0]?.url
+      art: d.item.album?.images?.[0]?.url,
+      progressMs: d.progress_ms,
+      durationMs: d.item.duration_ms,
     });
   } catch (e) { showIdle("Spotify error"); }
 }
