@@ -424,6 +424,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
     app.router.add_get("/", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
+    assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
+    if assets_dir.exists():
+        app.router.add_static("/assets", assets_dir, show_index=False)
     app.router.add_get("/ws", ws_handler)
     app.router.add_get("/callback", spotify_callback)
     app.router.add_get("/health", health)

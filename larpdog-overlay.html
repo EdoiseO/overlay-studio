@@ -191,12 +191,27 @@ CONFIG.fallbackBpm = num("bpm", CONFIG.fallbackBpm);
 
 const root  = document.documentElement;
 const stage = document.getElementById("stage");
+const dogImg = document.getElementById("dog");
+const DANCING_DOG_SRC = Q.get("dog") || dogImg.src;
+const RESTING_DOG_SRC = Q.get("rest") || "assets/resting-dog.png";
 if (Q.has("pos"))   stage.dataset.pos = Q.get("pos");
 root.style.setProperty("--scale", num("scale", 1));
-if (Q.get("dog"))   document.getElementById("dog").src = Q.get("dog");
+dogImg.src = DANCING_DOG_SRC;
 if (Q.get("only") === "dog")  document.getElementById("card").classList.add("hidden");
 if (Q.get("only") === "song") document.getElementById("dogWrap").classList.add("hidden");
 if (CONFIG.nowPlaying.mode === "off") document.getElementById("card").classList.add("hidden");
+
+function setDogImage(src) {
+  if (dogImg.getAttribute("src") !== src) dogImg.src = src;
+}
+
+function showDancingDog() {
+  setDogImage(DANCING_DOG_SRC);
+}
+
+function showRestingDog() {
+  setDogImage(RESTING_DOG_SRC);
+}
 
 /* =====================================================================
    AUDIO ENGINE — listens to the selected input, squashes the dog on the
@@ -455,9 +470,11 @@ function applyArtwork(url) {
 
 // seed the default palette from the dog as soon as the gif is ready
 (function seedDogPalette() {
-  const dog = document.getElementById("dog");
+  const dog = new Image();
+  dog.crossOrigin = "anonymous";
   const grab = () => { dogPalette = extractPalette(dog) || null; if (dogPalette) applyPalette(dogPalette); };
-  if (dog.complete) grab(); else dog.onload = grab;
+  dog.onload = grab;
+  dog.src = DANCING_DOG_SRC;
 })();
 
 /* =====================================================================
@@ -470,6 +487,7 @@ const $art = document.getElementById("art");
 const $eq = document.getElementById("eq");
 
 function showSong({ title, artist, art }) {
+  showDancingDog();
   $title.textContent = title || "—";
   $artist.textContent = artist || "";
   $status.textContent = "Now playing";
@@ -482,6 +500,7 @@ function showSong({ title, artist, art }) {
   }
 }
 function showIdle(msg) {
+  showRestingDog();
   $title.textContent = msg || "waiting for a song…";
   $artist.textContent = "";
   $status.textContent = "Standing by";
