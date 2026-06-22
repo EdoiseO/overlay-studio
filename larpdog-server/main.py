@@ -335,6 +335,8 @@ class SpotifyWorker:
                 "title": item.get("name") or "",
                 "artist": artists,
                 "art": art,
+                "progressMs": data.get("progress_ms") or 0,
+                "durationMs": item.get("duration_ms") or 0,
             }
 
         signature = json.dumps(payload, sort_keys=True)
