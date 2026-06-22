@@ -9,3 +9,5 @@ larpdog-server/server.pid
 larpdog-server/build/
 larpdog-server/dist/
 larpdog-server/*.spec.bak
+user-assets/*
+!user-assets/.gitkeep

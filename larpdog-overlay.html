@@ -286,6 +286,7 @@ const CONFIG = {
   ui: {
     cardWidth: 335,
     asset: "both",           // "both" | "dog" | "player"
+    colorMode: "auto",       // "auto" | "fixed" | "art"
   },
   nowPlaying: {
     mode: "file",            // "file" | "spotify" | "off"
@@ -313,41 +314,72 @@ if (Q.has("noaudio"))CONFIG.audio.enabled = false;
 CONFIG.audio.sensitivity = num("sensitivity", CONFIG.audio.sensitivity);
 CONFIG.fallbackBpm = num("bpm", CONFIG.fallbackBpm);
 CONFIG.ui.cardWidth = num("cardWidth", CONFIG.ui.cardWidth);
+CONFIG.ui.colorMode = (Q.get("colorMode") || CONFIG.ui.colorMode).toLowerCase();
+if (!["auto", "fixed", "art"].includes(CONFIG.ui.colorMode)) CONFIG.ui.colorMode = "auto";
 const assetParam = (Q.get("asset") || Q.get("only") || CONFIG.ui.asset).toLowerCase();
 CONFIG.ui.asset = assetParam === "song" || assetParam === "card" ? "player" : assetParam;
 if (!["both", "dog", "player"].includes(CONFIG.ui.asset)) CONFIG.ui.asset = "both";
 
 const root  = document.documentElement;
 const stage = document.getElementById("stage");
-const dogImg = document.getElementById("dog");
+let dogMedia = document.getElementById("dog");
 const dogWrap = document.getElementById("dogWrap");
-const DANCING_DOG_SRC = Q.get("dog") || dogImg.src;
+const DANCING_DOG_SRC = Q.get("dog") || dogMedia.getAttribute("src") || dogMedia.src;
 const RESTING_DOG_SRC = Q.get("rest") || "assets/resting-dog.png";
+const DEFAULT_PALETTE = [[255, 77, 157], [255, 210, 74], [94, 224, 255]];
+const USER_PALETTE = getUserPalette();
 if (Q.has("pos"))   stage.dataset.pos = Q.get("pos");
 stage.dataset.asset = CONFIG.ui.asset;
 root.style.setProperty("--scale", num("scale", 1));
 root.style.setProperty("--card-width", CONFIG.ui.cardWidth + "px");
-dogImg.src = RESTING_DOG_SRC;
+setDogMedia(RESTING_DOG_SRC);
 if (CONFIG.ui.asset === "dog") document.getElementById("card").classList.add("hidden");
 if (CONFIG.ui.asset === "player") dogWrap.classList.add("hidden");
 if (CONFIG.nowPlaying.mode === "off") document.getElementById("card").classList.add("hidden");
 dogWrap.classList.add("resting");
 let dogResting = true;
 
-function setDogImage(src) {
-  if (dogImg.getAttribute("src") !== src) dogImg.src = src;
+function isVideoAsset(src) {
+  return /\.(webm|mov|mp4)(?:[?#].*)?$/i.test(src || "");
+}
+
+function createDogMedia(src) {
+  const media = isVideoAsset(src) ? document.createElement("video") : new Image();
+  media.className = "dog-img";
+  media.id = "dog";
+  media.dataset.src = src;
+  if (media.tagName === "VIDEO") {
+    media.muted = true;
+    media.loop = true;
+    media.autoplay = true;
+    media.playsInline = true;
+    media.preload = "auto";
+    media.setAttribute("aria-label", "larpdog character");
+  } else {
+    media.alt = "larpdog character";
+  }
+  media.src = src;
+  return media;
+}
+
+function setDogMedia(src) {
+  if (dogMedia?.dataset.src === src) return;
+  const nextMedia = createDogMedia(src);
+  dogMedia.replaceWith(nextMedia);
+  dogMedia = nextMedia;
+  if (nextMedia.tagName === "VIDEO") nextMedia.play().catch(() => {});
 }
 
 function showDancingDog() {
   dogResting = false;
   dogWrap.classList.remove("resting");
-  setDogImage(DANCING_DOG_SRC);
+  setDogMedia(DANCING_DOG_SRC);
 }
 
 function showRestingDog() {
   dogResting = true;
   dogWrap.classList.add("resting");
-  setDogImage(RESTING_DOG_SRC);
+  setDogMedia(RESTING_DOG_SRC);
 }
 
 /* =====================================================================
@@ -610,6 +642,26 @@ function extractPalette(img, maxColors = 3) {
   return picked.length ? picked.map(p => p.rgb) : null;
 }
 
+function normalizeHex(value) {
+  const raw = String(value || "").trim().replace(/^#/, "");
+  return /^[0-9a-f]{6}$/i.test(raw) ? raw : null;
+}
+
+function hexToRgb(value) {
+  const hex = normalizeHex(value);
+  if (!hex) return null;
+  const n = parseInt(hex, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function getUserPalette() {
+  const a = hexToRgb(Q.get("a"));
+  const b = hexToRgb(Q.get("b"));
+  const c = hexToRgb(Q.get("c"));
+  if (!a && !b && !c) return null;
+  return [a || DEFAULT_PALETTE[0], b || a || DEFAULT_PALETTE[1], c || a || DEFAULT_PALETTE[2]];
+}
+
 function applyPalette(pal) {
   if (!pal) return;
   const [a, b = pal[0], c = pal[0]] = pal;
@@ -618,22 +670,51 @@ function applyPalette(pal) {
   root.style.setProperty("--c-rgb", c.join(","));
 }
 
+function fallbackPalette() {
+  if (CONFIG.ui.colorMode === "art") return USER_PALETTE || DEFAULT_PALETTE;
+  return USER_PALETTE || dogPalette || DEFAULT_PALETTE;
+}
+
 function applyArtwork(url) {
+  if (CONFIG.ui.colorMode === "fixed") {
+    applyPalette(fallbackPalette());
+    return;
+  }
   // try to recolor from the album cover; if blocked, keep the dog palette
   const im = new Image();
   im.crossOrigin = "anonymous";
-  im.onload = () => { const p = extractPalette(im); applyPalette(p || dogPalette); };
-  im.onerror = () => applyPalette(dogPalette);
+  im.onload = () => { const p = extractPalette(im); applyPalette(p || fallbackPalette()); };
+  im.onerror = () => applyPalette(fallbackPalette());
   im.src = url;
+}
+
+function samplePaletteFromSource(src, onPalette) {
+  if (isVideoAsset(src)) {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.onloadeddata = () => onPalette(extractPalette(video));
+    video.onerror = () => onPalette(null);
+    video.src = src;
+    video.load();
+    return;
+  }
+
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.onload = () => onPalette(extractPalette(image));
+  image.onerror = () => onPalette(null);
+  image.src = src;
 }
 
 // seed the default palette from the dog as soon as the gif is ready
 (function seedDogPalette() {
-  const dog = new Image();
-  dog.crossOrigin = "anonymous";
-  const grab = () => { dogPalette = extractPalette(dog) || null; if (dogPalette) applyPalette(dogPalette); };
-  dog.onload = grab;
-  dog.src = DANCING_DOG_SRC;
+  samplePaletteFromSource(DANCING_DOG_SRC, pal => {
+    dogPalette = pal || null;
+    applyPalette(CONFIG.ui.colorMode === "fixed" ? fallbackPalette() : (dogPalette || fallbackPalette()));
+  });
 })();
 
 /* =====================================================================
@@ -715,7 +796,7 @@ function showSong({ title, artist, art, progressMs, durationMs }) {
     applyArtwork(art);                 // recolor card from the cover
   } else {
     $art.replaceChildren($eq);
-    applyPalette(dogPalette);          // no cover → fall back to the dog's colors
+    applyPalette(fallbackPalette());   // no cover -> fall back to user/dog colors
   }
 }
 function showIdle(msg) {
@@ -724,7 +805,7 @@ function showIdle(msg) {
   setTrackLine($artist, "");
   setProgress(0, 0);
   $status.textContent = "Standing by";
-  applyPalette(dogPalette);
+  applyPalette(fallbackPalette());
 }
 
 async function pollFile() {

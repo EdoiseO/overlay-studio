@@ -56,6 +56,32 @@ http://127.0.0.1:8473/?asset=player
 
 Then start Spotify playback. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
 
+## Custom character assets
+
+Drop custom files into the top-level `user-assets` folder, then point the overlay at them with URL params:
+
+```text
+http://127.0.0.1:8473/?dog=user-assets/dancing.webm&rest=user-assets/resting.png
+```
+
+Image assets can be `gif`, `webp`, `apng`, or `png`. Video assets can be `webm`, `mp4`, or `mov`; the overlay swaps the character image for a muted looping video automatically. For best transparency and small files, export transparent WebM:
+
+```bat
+ffmpeg -i in.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 30 user-assets\dancing.webm
+```
+
+## Color controls
+
+By default, the overlay recolors itself from album art and falls back to the character palette. You can override that with hex params:
+
+```text
+http://127.0.0.1:8473/?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
+```
+
+- `colorMode=auto`: album art first, then character/user colors.
+- `colorMode=fixed`: always use `a`, `b`, and `c`.
+- `colorMode=art`: album art first, then `a`, `b`, and `c`.
+
 ## Config notes
 
 - `audio.sensitivity`: higher values react to quieter kicks.

@@ -382,8 +382,16 @@ class SpotifyWorker:
             await asyncio.sleep(sleep_seconds)
 
 
+@web.middleware
+async def static_cors_middleware(request: web.Request, handler: Any) -> web.StreamResponse:
+    response = await handler(request)
+    if request.path.startswith(("/assets/", "/user-assets/")):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[static_cors_middleware])
     hub = ClientHub()
     callback_queue: asyncio.Queue[str] = asyncio.Queue()
     app["hub"] = hub
@@ -449,6 +457,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)
+    user_assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "user-assets"
+    user_assets_dir.mkdir(exist_ok=True)
+    app.router.add_static("/user-assets", user_assets_dir, show_index=False)
     app.router.add_get("/ws", ws_handler)
     app.router.add_get("/callback", spotify_callback)
     app.router.add_get("/health", health)
