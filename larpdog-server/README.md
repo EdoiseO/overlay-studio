@@ -78,7 +78,7 @@ By default, the overlay recolors itself from album art and falls back to the cha
 http://127.0.0.1:8473/?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
 ```
 
-- `colorMode=auto`: album art first, then character/user colors.
+- `colorMode=auto`: album art first, then user colors, then the character palette.
 - `colorMode=fixed`: always use `a`, `b`, and `c`.
 - `colorMode=art`: album art first, then `a`, `b`, and `c`.
 
