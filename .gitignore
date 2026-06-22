@@ -1,0 +1,11 @@
+larpdog-server/config.json
+larpdog-server/.spotify_cache
+larpdog-server/.venv/
+larpdog-server/__pycache__/
+larpdog-server/*.pyc
+larpdog-server/server.log
+larpdog-server/server.err
+larpdog-server/server.pid
+larpdog-server/build/
+larpdog-server/dist/
+larpdog-server/*.spec.bak
