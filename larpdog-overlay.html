@@ -338,6 +338,7 @@ if (CONFIG.ui.asset === "player") dogWrap.classList.add("hidden");
 if (CONFIG.nowPlaying.mode === "off") document.getElementById("card").classList.add("hidden");
 dogWrap.classList.add("resting");
 let dogResting = true;
+const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || false;
 
 function isVideoAsset(src) {
   return /\.(webm|mov|mp4)(?:[?#].*)?$/i.test(src || "");
@@ -350,11 +351,17 @@ function createDogMedia(src) {
   media.dataset.src = src;
   if (media.tagName === "VIDEO") {
     media.muted = true;
-    media.loop = true;
-    media.autoplay = true;
     media.playsInline = true;
-    media.preload = "auto";
+    media.loop = !REDUCED_MOTION;
+    media.autoplay = !REDUCED_MOTION;
+    media.preload = REDUCED_MOTION ? "metadata" : "auto";
     media.setAttribute("aria-label", "larpdog character");
+    if (REDUCED_MOTION) {
+      media.addEventListener("loadeddata", () => {
+        media.pause();
+        media.currentTime = 0;
+      }, { once: true });
+    }
   } else {
     media.alt = "larpdog character";
   }
@@ -367,7 +374,7 @@ function setDogMedia(src) {
   const nextMedia = createDogMedia(src);
   dogMedia.replaceWith(nextMedia);
   dogMedia = nextMedia;
-  if (nextMedia.tagName === "VIDEO") nextMedia.play().catch(() => {});
+  if (nextMedia.tagName === "VIDEO" && !REDUCED_MOTION) nextMedia.play().catch(() => {});
 }
 
 function showDancingDog() {
@@ -711,9 +718,13 @@ function samplePaletteFromSource(src, onPalette) {
 
 // seed the default palette from the dog as soon as the gif is ready
 (function seedDogPalette() {
+  if (CONFIG.ui.colorMode === "fixed") {
+    applyPalette(fallbackPalette());
+    return;
+  }
   samplePaletteFromSource(DANCING_DOG_SRC, pal => {
     dogPalette = pal || null;
-    applyPalette(CONFIG.ui.colorMode === "fixed" ? fallbackPalette() : (dogPalette || fallbackPalette()));
+    applyPalette(dogPalette || fallbackPalette());
   });
 })();
 
