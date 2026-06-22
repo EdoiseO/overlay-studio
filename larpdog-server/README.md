@@ -2,7 +2,7 @@
 
 Local companion for `larpdog-overlay.html`.
 
-It serves the overlay at `http://localhost:8473/`, captures Windows system audio through WASAPI loopback, sends beat/EQ data over `/ws`, and polls Spotify with a cached refresh token after one login.
+It serves the overlay at `http://127.0.0.1:8473/`, captures Windows system audio through WASAPI loopback, sends beat/EQ data over `/ws`, and polls Spotify with a cached refresh token after one login.
 
 ## One-time setup
 
@@ -24,7 +24,7 @@ py -3 -m venv .venv
 4. Add this Redirect URI to the Spotify app:
 
 ```text
-http://localhost:8473/callback
+http://127.0.0.1:8473/callback
 ```
 
 5. Copy `config.example.json` to `config.json`, then paste your Spotify `client_id` and `client_secret` into `config.json`.
@@ -44,7 +44,7 @@ On first Spotify use, the server opens a browser login. After approval, Spotipy 
 Add a Browser source with this URL:
 
 ```text
-http://localhost:8473/
+http://127.0.0.1:8473/
 ```
 
 Then start Spotify playback. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.

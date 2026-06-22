@@ -1,6 +1,6 @@
 {
   "server": {
-    "host": "localhost",
+    "host": "127.0.0.1",
     "port": 8473,
     "overlay_path": "../larpdog-overlay.html"
   },
@@ -17,7 +17,7 @@
     "enabled": true,
     "client_id": "",
     "client_secret": "",
-    "redirect_uri": "http://localhost:8473/callback",
+    "redirect_uri": "http://127.0.0.1:8473/callback",
     "cache_path": ".spotify_cache",
     "poll_seconds": 3
   }
