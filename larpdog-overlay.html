@@ -20,6 +20,8 @@
     --c-rgb: 94, 224, 255;   /* tertiary  */
     --card-ink: #14101a;
     --card-fill: rgba(20, 16, 26, 0.62);
+    --glass-rim: rgba(255, 255, 255, 0.34);
+    --glass-sheen: rgba(255, 255, 255, 0.24);
     --text: #fff7ef;
     --text-dim: rgba(255, 247, 239, 0.62);
     --pulse: 0;              /* 0..1, driven live by the audio engine */
@@ -93,22 +95,59 @@
     margin-bottom: 14px;
     padding: 12px 18px 12px 14px;
     display: flex; align-items: center; gap: 14px;
-    background: var(--card-fill);
-    border: 1px solid rgba(255,255,255,0.10);
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.07) 32%, rgba(255,255,255,0.14) 53%, rgba(255,255,255,0.05)),
+      linear-gradient(115deg, rgba(var(--a-rgb),0.22), rgba(var(--c-rgb),0.10) 52%, rgba(0,0,0,0.22)),
+      var(--card-fill);
+    border: 1px solid var(--glass-rim);
     border-radius: 20px;
-    backdrop-filter: blur(14px) saturate(1.2);
-    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.35) contrast(1.08);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35) contrast(1.08);
     /* glow swells with the beat */
     box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.38),
+      inset 12px 0 20px rgba(255,255,255,0.08),
+      inset -18px -18px 28px rgba(0,0,0,0.22),
       0 10px 30px rgba(0,0,0,.40),
       0 0 calc(8px + var(--pulse) * 34px) calc(var(--pulse) * 2px) rgba(var(--a-rgb), calc(.25 + var(--pulse) * .55));
     transform: scale(calc(1 + var(--pulse) * 0.03));
     transition: transform .04s linear;
   }
+  .card::before,
+  .card::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 0;
+  }
+  .card::before {
+    inset: -45% -25%;
+    background:
+      linear-gradient(110deg, transparent 8%, var(--glass-sheen) 21%, rgba(255,255,255,0.08) 32%, transparent 46%),
+      linear-gradient(70deg, transparent 0%, rgba(var(--b-rgb),0.12) 38%, transparent 68%);
+    mix-blend-mode: screen;
+    opacity: 0.54;
+    transform: translateX(-16%) rotate(4deg);
+    animation: glass-flow 8s ease-in-out infinite;
+  }
+  .card::after {
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.22), transparent 38%, rgba(255,255,255,0.06) 72%, rgba(255,255,255,0.16)),
+      linear-gradient(90deg, rgba(255,255,255,0.20), transparent 16%, transparent 82%, rgba(255,255,255,0.12));
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.14),
+      inset 0 -10px 18px rgba(255,255,255,0.05);
+  }
   .card.hidden, .dog-wrap.hidden { display: none; }
 
   /* album art (or the live EQ if no art) */
   .art {
+    position: relative;
+    z-index: 1;
     flex: 0 0 auto;
     width: 56px; height: 56px;
     border-radius: 12px;
@@ -130,6 +169,8 @@
   }
 
   .meta {
+    position: relative;
+    z-index: 1;
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
@@ -202,7 +243,15 @@
     0%, 16% { transform: translateX(0); }
     84%, 100% { transform: translateX(var(--marquee-distance, -40px)); }
   }
+  @keyframes glass-flow {
+    0%, 100% { transform: translateX(-16%) rotate(4deg); opacity: 0.42; }
+    50% { transform: translateX(12%) rotate(4deg); opacity: 0.62; }
+  }
   @media (prefers-reduced-motion: reduce) {
+    .card::before {
+      animation: none;
+      transform: translateX(0) rotate(4deg);
+    }
     .track-line.is-overflowing .marquee-text {
       animation: none;
       transform: none;
