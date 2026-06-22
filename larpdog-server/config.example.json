@@ -16,7 +16,6 @@
   "spotify": {
     "enabled": true,
     "client_id": "",
-    "client_secret": "",
     "redirect_uri": "http://127.0.0.1:8473/callback",
     "cache_path": ".spotify_cache",
     "poll_seconds": 3

@@ -33,7 +33,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "spotify": {
         "enabled": True,
         "client_id": "",
-        "client_secret": "",
         "redirect_uri": "http://127.0.0.1:8473/callback",
         "cache_path": ".spotify_cache",
         "poll_seconds": 3,
@@ -181,7 +180,7 @@ class AudioLoopbackWorker:
             return
 
         sample_rate = int(self.config.get("sample_rate", 48000))
-        block_size = int(self.config.get("block_size", 2048))
+        block_size = int(self.config.get("block_size", 1024))
         fps = max(1, float(self.config.get("fps", 45)))
         sensitivity = max(0.3, float(self.config.get("sensitivity", 1.0)))
         bass_bins = max(1, int(self.config.get("bass_bins", 14)))
@@ -211,6 +210,7 @@ class AudioLoopbackWorker:
                     if spectrum.size < bass_bins:
                         continue
 
+                    # Keep smoothing/threshold/band math in sync with startRealAudio() in larpdog-overlay.html.
                     bass = float(np.mean(spectrum[:bass_bins]))
                     bass_avg = bass_avg * 0.92 + bass * 0.08
                     threshold = bass_avg * (1.35 / sensitivity)
@@ -280,17 +280,16 @@ class SpotifyWorker:
                 await self.task
 
     def _has_credentials(self) -> bool:
-        return bool(self.config.get("client_id") and self.config.get("client_secret"))
+        return bool(str(self.config.get("client_id") or "").strip())
 
     def _build_client(self) -> None:
         from spotipy import Spotify
-        from spotipy.oauth2 import CacheFileHandler, SpotifyOAuth
+        from spotipy.oauth2 import CacheFileHandler, SpotifyPKCE
 
         cache_path = resolve_path(str(self.config.get("cache_path") or ".spotify_cache"), self.base_dir)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_manager = SpotifyOAuth(
+        self.auth_manager = SpotifyPKCE(
             client_id=str(self.config["client_id"]),
-            client_secret=str(self.config["client_secret"]),
             redirect_uri=str(self.config["redirect_uri"]),
             scope="user-read-currently-playing user-read-playback-state",
             cache_handler=CacheFileHandler(cache_path=str(cache_path)),
@@ -313,9 +312,24 @@ class SpotifyWorker:
             webbrowser.open(auth_url)
 
         code = await self.callback_queue.get()
-        await asyncio.to_thread(self.auth_manager.get_access_token, code, True)
+        await asyncio.to_thread(self.auth_manager.get_access_token, code, False)
         log("Spotify authorization saved. Future starts should reuse the cached refresh token.")
         return True
+
+    @staticmethod
+    def _spotify_retry_after(exc: Exception, fallback_seconds: float) -> float | None:
+        if getattr(exc, "http_status", None) != 429:
+            return None
+
+        retry_after = None
+        headers = getattr(exc, "headers", {}) or {}
+        if isinstance(headers, dict):
+            retry_after = headers.get("Retry-After") or headers.get("retry-after")
+
+        with contextlib.suppress(TypeError, ValueError):
+            if retry_after is not None:
+                return max(fallback_seconds, float(retry_after))
+        return max(fallback_seconds, 30.0)
 
     async def _poll_once(self) -> None:
         data = await asyncio.to_thread(self.client.current_user_playing_track)
@@ -346,20 +360,26 @@ class SpotifyWorker:
 
     async def _run(self) -> None:
         if not self._has_credentials():
-            log("Spotify credentials missing. Fill config.json to enable now-playing.")
+            log("Spotify client_id missing. Fill config.json to enable now-playing.")
             await self.hub.broadcast({"type": "track", "isPlaying": False, "title": "", "artist": "", "art": None})
             return
 
         poll_seconds = max(1.0, float(self.config.get("poll_seconds", 3)))
         while True:
+            sleep_seconds = poll_seconds
             try:
                 if await self._ensure_authorized():
                     await self._poll_once()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                log(f"Spotify polling error: {exc}")
-            await asyncio.sleep(poll_seconds)
+                retry_after = self._spotify_retry_after(exc, poll_seconds)
+                if retry_after is not None:
+                    sleep_seconds = retry_after
+                    log(f"Spotify rate limited; backing off for {retry_after:g}s.")
+                else:
+                    log(f"Spotify polling error: {exc}")
+            await asyncio.sleep(sleep_seconds)
 
 
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
