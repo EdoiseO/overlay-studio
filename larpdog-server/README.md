@@ -27,7 +27,7 @@ py -3 -m venv .venv
 http://127.0.0.1:8473/callback
 ```
 
-5. Copy `config.example.json` to `config.json`, then paste your Spotify `client_id` and `client_secret` into `config.json`.
+5. Copy `config.example.json` to `config.json`, then paste your Spotify `client_id` into `config.json`.
 
 `config.json` and `.spotify_cache` are ignored by git. Do not commit them.
 
@@ -37,7 +37,7 @@ http://127.0.0.1:8473/callback
 run.bat
 ```
 
-On first Spotify use, the server opens a browser login. After approval, Spotipy stores a refresh token in `.spotify_cache`, so later restarts do not need a new login.
+On first Spotify use, the server opens a browser login using Spotify PKCE, so this local desktop overlay does not need a client secret. After approval, Spotipy stores a refresh token in `.spotify_cache`, so later restarts do not need a new login.
 
 ## OBS
 
@@ -45,6 +45,13 @@ Add a Browser source with this URL:
 
 ```text
 http://127.0.0.1:8473/
+```
+
+For separate OBS sources, use:
+
+```text
+http://127.0.0.1:8473/?asset=dog
+http://127.0.0.1:8473/?asset=player
 ```
 
 Then start Spotify playback. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
