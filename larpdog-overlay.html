@@ -24,6 +24,7 @@
     --text-dim: rgba(255, 247, 239, 0.62);
     --pulse: 0;              /* 0..1, driven live by the audio engine */
     --scale: 1;             /* overall overlay scale, set from ?scale= */
+    --card-width: 335px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -86,7 +87,9 @@
   /* ---- now-playing card ---- */
   .card {
     position: relative;
-    min-width: 260px; max-width: 420px;
+    width: var(--card-width);
+    min-width: var(--card-width);
+    max-width: var(--card-width);
     margin-bottom: 14px;
     padding: 14px 18px 14px 14px;
     display: flex; align-items: center; gap: 14px;
@@ -126,7 +129,11 @@
     transform-origin: bottom;
   }
 
-  .meta { min-width: 0; }
+  .meta {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
   .eyebrow {
     display: flex; align-items: center; gap: 7px;
     font-size: 11px; font-weight: 600; letter-spacing: .18em;
@@ -143,14 +150,40 @@
   .title {
     font-size: 19px; font-weight: 600; line-height: 1.15;
     color: var(--text);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: 320px;
   }
   .artist {
     font-size: 14px; font-weight: 400;
     color: var(--text-dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: 320px;
+  }
+  .track-line {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .marquee-text {
+    display: inline-block;
+    min-width: 100%;
+    white-space: nowrap;
+    will-change: transform;
+  }
+  .track-line.is-overflowing {
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 84%, transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0%, #000 84%, transparent 100%);
+  }
+  .track-line.is-overflowing .marquee-text {
+    min-width: max-content;
+    padding-right: 34px;
+    animation: scroll-text var(--marquee-duration, 12s) ease-in-out infinite;
+  }
+  @keyframes scroll-text {
+    0%, 16% { transform: translateX(0); }
+    84%, 100% { transform: translateX(var(--marquee-distance, -40px)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .track-line.is-overflowing .marquee-text {
+      animation: none;
+      transform: none;
+    }
   }
 </style>
 
@@ -161,8 +194,8 @@
     </div>
     <div class="meta">
       <div class="eyebrow"><span class="dot"></span><span id="status">Now playing</span></div>
-      <div class="title" id="title">waiting for a song…</div>
-      <div class="artist" id="artist"></div>
+      <div class="title track-line" id="title"><span class="marquee-text">waiting for a song...</span></div>
+      <div class="artist track-line" id="artist"><span class="marquee-text"></span></div>
     </div>
   </div>
 
@@ -176,6 +209,9 @@
    CONFIG — tweak here, or override any value with a ?param in the URL
    ===================================================================== */
 const CONFIG = {
+  ui: {
+    cardWidth: 335,
+  },
   nowPlaying: {
     mode: "file",            // "file" | "spotify" | "off"
     file: "nowplaying.txt",  // FILE mode: a .txt next to this html (raw line, or JSON {title,artist,art})
@@ -201,6 +237,7 @@ if (Q.has("device")) CONFIG.audio.deviceMatch = Q.get("device");
 if (Q.has("noaudio"))CONFIG.audio.enabled = false;
 CONFIG.audio.sensitivity = num("sensitivity", CONFIG.audio.sensitivity);
 CONFIG.fallbackBpm = num("bpm", CONFIG.fallbackBpm);
+CONFIG.ui.cardWidth = num("cardWidth", CONFIG.ui.cardWidth);
 
 const root  = document.documentElement;
 const stage = document.getElementById("stage");
@@ -210,6 +247,7 @@ const DANCING_DOG_SRC = Q.get("dog") || dogImg.src;
 const RESTING_DOG_SRC = Q.get("rest") || "assets/resting-dog.png";
 if (Q.has("pos"))   stage.dataset.pos = Q.get("pos");
 root.style.setProperty("--scale", num("scale", 1));
+root.style.setProperty("--card-width", CONFIG.ui.cardWidth + "px");
 dogImg.src = RESTING_DOG_SRC;
 if (Q.get("only") === "dog")  document.getElementById("card").classList.add("hidden");
 if (Q.get("only") === "song") dogWrap.classList.add("hidden");
@@ -428,10 +466,6 @@ function connectLarpdogServer() {
   });
 }
 
-(async () => {
-  const usingServer = await connectLarpdogServer();
-  if (!usingServer) startStandaloneSources();
-})();
 
 /* =====================================================================
    COLOR ENGINE — pulls a vivid palette from an image (album art, or the
@@ -518,10 +552,30 @@ const $status = document.getElementById("status");
 const $art = document.getElementById("art");
 const $eq = document.getElementById("eq");
 
+function setTrackLine(el, text) {
+  const inner = el.querySelector(".marquee-text");
+  if (!inner) return;
+
+  inner.textContent = text || "";
+  el.classList.remove("is-overflowing");
+  el.style.removeProperty("--marquee-distance");
+  el.style.removeProperty("--marquee-duration");
+
+  requestAnimationFrame(() => {
+    const overflow = inner.scrollWidth - el.clientWidth;
+    if (overflow <= 2) return;
+    const distance = Math.ceil(overflow + 34);
+    const duration = Math.min(18, Math.max(9, distance / 18));
+    el.style.setProperty("--marquee-distance", `-${distance}px`);
+    el.style.setProperty("--marquee-duration", `${duration}s`);
+    el.classList.add("is-overflowing");
+  });
+}
+
 function showSong({ title, artist, art }) {
   showDancingDog();
-  $title.textContent = title || "—";
-  $artist.textContent = artist || "";
+  setTrackLine($title, title || "-");
+  setTrackLine($artist, artist || "");
   $status.textContent = "Now playing";
   if (art) {
     $art.innerHTML = `<img src="${art}" alt="">`;
@@ -533,8 +587,8 @@ function showSong({ title, artist, art }) {
 }
 function showIdle(msg) {
   showRestingDog();
-  $title.textContent = msg || "waiting for a song…";
-  $artist.textContent = "";
+  setTrackLine($title, msg || "waiting for a song...");
+  setTrackLine($artist, "");
   $status.textContent = "Standing by";
   applyPalette(dogPalette);
 }
@@ -573,4 +627,13 @@ async function pollSpotify() {
     });
   } catch (e) { showIdle("Spotify error"); }
 }
+
+(async () => {
+  if (Q.has("song") || Q.has("noserver")) {
+    startStandaloneSources();
+    return;
+  }
+  const usingServer = await connectLarpdogServer();
+  if (!usingServer) startStandaloneSources();
+})();
 </script>
