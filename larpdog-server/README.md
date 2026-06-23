@@ -2,7 +2,7 @@
 
 Local companion for `larpdog-overlay.html`.
 
-It serves the overlay at `http://127.0.0.1:8473/`, captures Windows system audio through WASAPI loopback, sends beat/EQ data over `/ws`, and polls Spotify with a cached refresh token after one login.
+It serves the overlay at `http://127.0.0.1:8473/`, captures Windows system audio through WASAPI loopback, and sends beat/EQ plus Windows now-playing data over `/ws`.
 
 ## One-time setup
 
@@ -20,16 +20,9 @@ py -3 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-3. Create a Spotify app at https://developer.spotify.com/dashboard.
-4. Add this Redirect URI to the Spotify app:
+3. Copy `config.example.json` to `config.json` if you need to change the port, audio device, or media polling options.
 
-```text
-http://127.0.0.1:8473/callback
-```
-
-5. Copy `config.example.json` to `config.json`, then paste your Spotify `client_id` into `config.json`.
-
-`config.json` and `.spotify_cache` are ignored by git. Do not commit them.
+`config.json` and `.spotify_cache*` are ignored by git. Old Spotify cache files may still exist locally from earlier versions; do not commit them.
 
 ## Run
 
@@ -37,7 +30,13 @@ http://127.0.0.1:8473/callback
 run.bat
 ```
 
-On first Spotify use, the server opens a browser login using Spotify PKCE, so this local desktop overlay does not need a client secret. After approval, Spotipy stores a refresh token in `.spotify_cache`, so later restarts do not need a new login.
+The server reads now-playing data from Windows media sessions, so Spotify desktop playback works without a Spotify developer app, OAuth login, refresh token, or browser extension.
+
+To verify Windows media metadata before starting the server, run:
+
+```bat
+.venv\Scripts\python check-media-session.py
+```
 
 ## OBS
 
@@ -54,7 +53,7 @@ http://127.0.0.1:8473/?asset=dog
 http://127.0.0.1:8473/?asset=player
 ```
 
-Then start Spotify playback. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
+Then start Spotify desktop playback on this PC. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
 
 ## Custom character assets
 
@@ -87,7 +86,9 @@ http://127.0.0.1:8473/?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
 - `audio.sensitivity`: higher values react to quieter kicks.
 - `audio.device_match`: optional substring if you need a specific loopback device.
 - `server.overlay_path`: defaults to `../larpdog-overlay.html`, which works when this folder sits beside the overlay file.
-- `spotify.poll_seconds`: default is 3 seconds.
+- `media.poll_seconds`: default is 2 seconds.
+- `media.preferred_source`: default is `spotify`; used to pick Spotify when multiple media apps are active.
+- `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
 
 ## Optional EXE build
 

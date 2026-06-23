@@ -26,6 +26,6 @@ http://127.0.0.1:8473/?asset=player
 - `assets/dancing-dog.gif` is shown while music is playing.
 - `assets/resting-dog.png` is shown when no track is playing.
 - `user-assets/` is where streamers can drop custom local character files.
-- `larpdog-server/` serves the overlay, captures system audio through WASAPI loopback, and sends Spotify now-playing data over a local websocket.
+- `larpdog-server/` serves the overlay, captures system audio through WASAPI loopback, and sends Windows now-playing data over a local websocket.
 
 More setup detail lives in `larpdog-server/README.md`.

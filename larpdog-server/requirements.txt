@@ -1,4 +1,8 @@
 aiohttp>=3.9,<4
 numpy>=1.26
 soundcard>=0.4.3
-spotipy>=2.24
+winrt-runtime==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Media.Control==3.2.1
+winrt-Windows.Storage.Streams==3.2.1

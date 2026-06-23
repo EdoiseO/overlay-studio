@@ -1,17 +1,31 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_all
+
+
 block_cipher = None
+
+winrt_datas, winrt_binaries, winrt_hiddenimports = collect_all("winrt")
 
 a = Analysis(
     ["main.py"],
     pathex=[],
-    binaries=[],
+    binaries=winrt_binaries,
     datas=[
         ("config.example.json", "."),
         ("requirements.txt", "."),
         ("README.md", "."),
+        ("check-media-session.py", "."),
+    ] + winrt_datas,
+    hiddenimports=[
+        "soundcard",
+        "aiohttp",
+        "numpy",
+        "winrt.runtime",
+        "winrt.windows.media.control",
+        "winrt.windows.storage.streams",
+        *winrt_hiddenimports,
     ],
-    hiddenimports=["soundcard", "spotipy", "aiohttp", "numpy"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
