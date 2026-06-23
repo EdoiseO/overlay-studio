@@ -2,6 +2,10 @@
 
 Beat-reactive OBS browser-source overlay plus a local Windows companion server.
 
+<p align="center">
+  <img src="assets/larpdog-demo.gif" alt="larpdog stream overlay demo" width="520">
+</p>
+
 ## Quickstart
 
 1. Open `larpdog-server` and run `install.bat`.
