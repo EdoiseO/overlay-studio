@@ -315,13 +315,19 @@ class MediaSessionWorker:
                 GlobalSystemMediaTransportControlsSessionManager as SessionManager,
                 GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
             )
+
+            self.manager = await SessionManager.request_async()
+            self.playing_status = PlaybackStatus.PLAYING
         except Exception as exc:
-            log(f"Windows media dependencies unavailable: {exc}")
+            log(f"Windows media sessions unavailable: {exc}")
             await self._broadcast_idle()
             return False
 
-        self.manager = await SessionManager.request_async()
-        self.playing_status = PlaybackStatus.PLAYING
+        if self.manager is None:
+            log("Windows media session manager unavailable.")
+            await self._broadcast_idle()
+            return False
+
         log("Windows media session polling enabled.")
         return True
 
@@ -371,6 +377,8 @@ class MediaSessionWorker:
         if thumbnail is None:
             return None
 
+        stream = None
+        reader = None
         try:
             stream = await thumbnail.open_read_async()
             size = int(getattr(stream, "size", 0) or 0)
@@ -393,6 +401,12 @@ class MediaSessionWorker:
         except Exception as exc:
             log(f"Windows media thumbnail unavailable: {exc}")
             return None
+        finally:
+            for resource in (reader, stream):
+                close = getattr(resource, "close", None)
+                if callable(close):
+                    with contextlib.suppress(Exception):
+                        close()
 
     async def _payload_from_session(self, session: Any) -> dict[str, Any] | None:
         playback = session.get_playback_info()
