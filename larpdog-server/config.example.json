@@ -13,11 +13,10 @@
     "sensitivity": 1.0,
     "bass_bins": 14
   },
-  "spotify": {
+  "media": {
     "enabled": true,
-    "client_id": "",
-    "redirect_uri": "http://127.0.0.1:8473/callback",
-    "cache_path": ".spotify_cache",
-    "poll_seconds": 3
+    "poll_seconds": 2,
+    "preferred_source": "spotify",
+    "thumbnail_max_bytes": 524288
   }
 }

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import contextlib
+import datetime as dt
 import json
 import sys
 import threading
 import time
-import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -30,12 +31,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "sensitivity": 1.0,
         "bass_bins": 14,
     },
-    "spotify": {
+    "media": {
         "enabled": True,
-        "client_id": "",
-        "redirect_uri": "http://127.0.0.1:8473/callback",
-        "cache_path": ".spotify_cache",
-        "poll_seconds": 3,
+        "poll_seconds": 2,
+        "preferred_source": "spotify",
+        "thumbnail_max_bytes": 524288,
     },
 }
 
@@ -62,7 +62,7 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 def load_config(path: Path) -> dict[str, Any]:
     config = json.loads(json.dumps(DEFAULT_CONFIG))
     if path.exists():
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(loaded, dict):
             raise ValueError(f"{path} must contain a JSON object")
         deep_merge(config, loaded)
@@ -84,6 +84,17 @@ def clamp01(value: float) -> float:
     if value >= 1:
         return 1.0
     return float(value)
+
+
+def init_winrt_runtime() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        from winrt.runtime import ApartmentType, init_apartment
+
+        init_apartment(ApartmentType.MULTI_THREADED)
+    except Exception as exc:
+        log(f"Windows media runtime initialization skipped: {exc}")
 
 
 class ClientHub:
@@ -247,31 +258,23 @@ class AudioLoopbackWorker:
             log(f"Audio capture stopped: {exc}")
 
 
-class SpotifyWorker:
-    def __init__(
-        self,
-        hub: ClientHub,
-        callback_queue: asyncio.Queue[str],
-        config: dict[str, Any],
-        base_dir: Path,
-    ) -> None:
+class MediaSessionWorker:
+    def __init__(self, hub: ClientHub, config: dict[str, Any]) -> None:
         self.hub = hub
-        self.callback_queue = callback_queue
         self.config = config
-        self.base_dir = base_dir
         self.task: asyncio.Task[None] | None = None
-        self.auth_manager: Any = None
-        self.client: Any = None
+        self.manager: Any = None
+        self.playing_status: Any = None
         self.last_signature = ""
+        self.last_identity = ""
+        self.last_art: str | None = None
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
-            log("Spotify polling disabled in config.")
-            asyncio.create_task(
-                self.hub.broadcast({"type": "track", "isPlaying": False, "title": "", "artist": "", "art": None})
-            )
+            log("Windows media now-playing disabled in config.")
+            asyncio.create_task(self._broadcast_idle())
             return
-        self.task = asyncio.create_task(self._run(), name="larpdog-spotify")
+        self.task = asyncio.create_task(self._run(), name="larpdog-media-session")
 
     async def stop(self) -> None:
         if self.task:
@@ -279,107 +282,197 @@ class SpotifyWorker:
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
 
-    def _has_credentials(self) -> bool:
-        return bool(str(self.config.get("client_id") or "").strip())
-
-    def _build_client(self) -> None:
-        from spotipy import Spotify
-        from spotipy.oauth2 import CacheFileHandler, SpotifyPKCE
-
-        cache_path = resolve_path(str(self.config.get("cache_path") or ".spotify_cache"), self.base_dir)
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_manager = SpotifyPKCE(
-            client_id=str(self.config["client_id"]),
-            redirect_uri=str(self.config["redirect_uri"]),
-            scope="user-read-currently-playing user-read-playback-state",
-            cache_handler=CacheFileHandler(cache_path=str(cache_path)),
-            open_browser=False,
-        )
-        self.client = Spotify(auth_manager=self.auth_manager)
-
-    async def _ensure_authorized(self) -> bool:
-        if self.auth_manager is None or self.client is None:
-            self._build_client()
-
-        token = await asyncio.to_thread(self.auth_manager.get_cached_token)
-        if token:
-            return True
-
-        auth_url = self.auth_manager.get_authorize_url()
-        log("Opening Spotify login in your browser.")
-        log(auth_url)
-        with contextlib.suppress(Exception):
-            webbrowser.open(auth_url)
-
-        code = await self.callback_queue.get()
-        await asyncio.to_thread(self.auth_manager.get_access_token, code, False)
-        log("Spotify authorization saved. Future starts should reuse the cached refresh token.")
-        return True
-
-    @staticmethod
-    def _spotify_retry_after(exc: Exception, fallback_seconds: float) -> float | None:
-        if getattr(exc, "http_status", None) != 429:
-            return None
-
-        retry_after = None
-        headers = getattr(exc, "headers", {}) or {}
-        if isinstance(headers, dict):
-            retry_after = headers.get("Retry-After") or headers.get("retry-after")
-
-        with contextlib.suppress(TypeError, ValueError):
-            if retry_after is not None:
-                return max(fallback_seconds, float(retry_after))
-        return max(fallback_seconds, 30.0)
-
-    async def _poll_once(self) -> None:
-        data = await asyncio.to_thread(self.client.current_user_playing_track)
-        payload: dict[str, Any]
-        if not data or not data.get("is_playing") or not data.get("item"):
-            payload = {"type": "track", "isPlaying": False, "title": "", "artist": "", "art": None}
-        else:
-            item = data["item"]
-            artists = ", ".join(
-                artist.get("name", "") for artist in item.get("artists", []) if artist.get("name")
-            )
-            images = ((item.get("album") or {}).get("images") or [])
-            art = images[0].get("url") if images else None
-            payload = {
-                "type": "track",
-                "isPlaying": True,
-                "title": item.get("name") or "",
-                "artist": artists,
-                "art": art,
-                "progressMs": data.get("progress_ms") or 0,
-                "durationMs": item.get("duration_ms") or 0,
-            }
-
+    async def _broadcast(self, payload: dict[str, Any]) -> None:
         signature = json.dumps(payload, sort_keys=True)
         if signature != self.last_signature:
             self.last_signature = signature
             await self.hub.broadcast(payload)
 
-    async def _run(self) -> None:
-        if not self._has_credentials():
-            log("Spotify client_id missing. Fill config.json to enable now-playing.")
-            await self.hub.broadcast({"type": "track", "isPlaying": False, "title": "", "artist": "", "art": None})
+    async def _broadcast_idle(self) -> None:
+        await self._broadcast(
+            {
+                "type": "track",
+                "isPlaying": False,
+                "title": "",
+                "artist": "",
+                "art": None,
+                "progressMs": 0,
+                "durationMs": 0,
+                "source": "windows-media",
+            }
+        )
+
+    async def _ensure_manager(self) -> bool:
+        if self.manager is not None:
+            return True
+        if sys.platform != "win32":
+            log("Windows media sessions are only available on Windows.")
+            await self._broadcast_idle()
+            return False
+
+        try:
+            from winrt.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
+            )
+        except Exception as exc:
+            log(f"Windows media dependencies unavailable: {exc}")
+            await self._broadcast_idle()
+            return False
+
+        self.manager = await SessionManager.request_async()
+        self.playing_status = PlaybackStatus.PLAYING
+        log("Windows media session polling enabled.")
+        return True
+
+    def _select_session(self) -> Any:
+        sessions = list(self.manager.get_sessions())
+        preferred = str(self.config.get("preferred_source") or "spotify").strip().lower()
+        if preferred:
+            for session in sessions:
+                source = str(getattr(session, "source_app_user_model_id", "") or "").lower()
+                if preferred in source:
+                    return session
+        return self.manager.get_current_session()
+
+    @staticmethod
+    def _clean_text(value: Any) -> str:
+        return " ".join(str(value or "").split())
+
+    @classmethod
+    def _identity(cls, title: str, artist: str, album: str) -> str:
+        return "\0".join((cls._clean_text(title).casefold(), cls._clean_text(artist).casefold(), cls._clean_text(album).casefold()))
+
+    @staticmethod
+    def _timedelta_ms(value: Any) -> int:
+        if not isinstance(value, dt.timedelta):
+            return 0
+        return max(0, int(value.total_seconds() * 1000))
+
+    def _timeline_values(self, session: Any, is_playing: bool) -> tuple[int, int]:
+        timeline = session.get_timeline_properties()
+        start = getattr(timeline, "start_time", dt.timedelta())
+        end = getattr(timeline, "end_time", dt.timedelta())
+        position = getattr(timeline, "position", dt.timedelta())
+        duration = end - start if isinstance(end, dt.timedelta) and isinstance(start, dt.timedelta) else dt.timedelta()
+        if duration <= dt.timedelta():
+            return 0, 0
+
+        progress = position - start if isinstance(position, dt.timedelta) and isinstance(start, dt.timedelta) else dt.timedelta()
+        last_updated = getattr(timeline, "last_updated_time", None)
+        if is_playing and isinstance(last_updated, dt.datetime):
+            now = dt.datetime.now(last_updated.tzinfo or dt.timezone.utc)
+            progress += max(dt.timedelta(), now - last_updated)
+
+        progress = min(max(dt.timedelta(), progress), duration)
+        return self._timedelta_ms(progress), self._timedelta_ms(duration)
+
+    async def _thumbnail_data_url(self, thumbnail: Any) -> str | None:
+        if thumbnail is None:
+            return None
+
+        try:
+            stream = await thumbnail.open_read_async()
+            size = int(getattr(stream, "size", 0) or 0)
+            max_bytes = max(0, int(self.config.get("thumbnail_max_bytes", 524288)))
+            if size <= 0 or size > max_bytes:
+                return None
+
+            content_type = str(getattr(stream, "content_type", "") or "image/png").strip().lower()
+            if not content_type.startswith("image/"):
+                return None
+
+            from winrt.windows.storage.streams import DataReader
+
+            reader = DataReader(stream)
+            loaded = int(await reader.load_async(size))
+            data = bytearray(loaded)
+            reader.read_bytes(data)
+            encoded = base64.b64encode(bytes(data)).decode("ascii")
+            return f"data:{content_type};base64,{encoded}"
+        except Exception as exc:
+            log(f"Windows media thumbnail unavailable: {exc}")
+            return None
+
+    async def _payload_from_session(self, session: Any) -> dict[str, Any] | None:
+        playback = session.get_playback_info()
+        is_playing = getattr(playback, "playback_status", None) == self.playing_status
+        if not is_playing:
+            return {
+                "type": "track",
+                "isPlaying": False,
+                "title": "",
+                "artist": "",
+                "art": None,
+                "progressMs": 0,
+                "durationMs": 0,
+                "source": "windows-media",
+            }
+
+        props = await session.try_get_media_properties_async()
+        title = self._clean_text(getattr(props, "title", ""))
+        artist = self._clean_text(getattr(props, "artist", ""))
+        album = self._clean_text(getattr(props, "album_title", ""))
+        if not title:
+            if self.last_identity:
+                return None
+            return {
+                "type": "track",
+                "isPlaying": False,
+                "title": "",
+                "artist": "",
+                "art": None,
+                "progressMs": 0,
+                "durationMs": 0,
+                "source": "windows-media",
+            }
+
+        identity = self._identity(title, artist, album)
+        if identity != self.last_identity:
+            self.last_identity = identity
+            self.last_art = await self._thumbnail_data_url(getattr(props, "thumbnail", None))
+
+        progress_ms, duration_ms = self._timeline_values(session, is_playing=True)
+        return {
+            "type": "track",
+            "isPlaying": True,
+            "title": title,
+            "artist": artist,
+            "art": self.last_art,
+            "progressMs": progress_ms,
+            "durationMs": duration_ms,
+            "source": "windows-media",
+        }
+
+    async def _poll_once(self) -> None:
+        session = self._select_session()
+        if session is None:
+            self.last_identity = ""
+            self.last_art = None
+            await self._broadcast_idle()
             return
 
-        poll_seconds = max(1.0, float(self.config.get("poll_seconds", 3)))
+        payload = await self._payload_from_session(session)
+        if payload is not None:
+            if not payload.get("isPlaying"):
+                self.last_identity = ""
+                self.last_art = None
+            await self._broadcast(payload)
+
+    async def _run(self) -> None:
+        poll_seconds = max(0.5, float(self.config.get("poll_seconds", 2)))
+        if not await self._ensure_manager():
+            return
+
         while True:
-            sleep_seconds = poll_seconds
             try:
-                if await self._ensure_authorized():
-                    await self._poll_once()
+                await self._poll_once()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                retry_after = self._spotify_retry_after(exc, poll_seconds)
-                if retry_after is not None:
-                    sleep_seconds = retry_after
-                    log(f"Spotify rate limited; backing off for {retry_after:g}s.")
-                else:
-                    log(f"Spotify polling error: {exc}")
-            await asyncio.sleep(sleep_seconds)
+                log(f"Windows media polling error: {exc}")
+                await self._broadcast_idle()
+            await asyncio.sleep(poll_seconds)
 
 
 @web.middleware
@@ -393,9 +486,7 @@ async def static_cors_middleware(request: web.Request, handler: Any) -> web.Stre
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app = web.Application(middlewares=[static_cors_middleware])
     hub = ClientHub()
-    callback_queue: asyncio.Queue[str] = asyncio.Queue()
     app["hub"] = hub
-    app["callback_queue"] = callback_queue
     app["config"] = config
     app["base_dir"] = base_dir
 
@@ -418,39 +509,24 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             log(f"Websocket disconnected: {request.remote}")
         return ws
 
-    async def spotify_callback(request: web.Request) -> web.Response:
-        if request.query.get("error"):
-            return web.Response(
-                text=f"Spotify authorization failed: {request.query['error']}",
-                content_type="text/plain",
-            )
-        code = request.query.get("code")
-        if not code:
-            return web.Response(text="Missing Spotify code.", content_type="text/plain", status=400)
-        await callback_queue.put(code)
-        return web.Response(
-            text="Spotify is connected. You can close this tab and return to OBS.",
-            content_type="text/plain",
-        )
-
     async def health(_request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "app": APP_NAME})
 
     async def on_startup(startup_app: web.Application) -> None:
         loop = asyncio.get_running_loop()
         audio_worker = AudioLoopbackWorker(hub, loop, config.get("audio", {}))
-        spotify_worker = SpotifyWorker(hub, callback_queue, config.get("spotify", {}), base_dir)
+        media_worker = MediaSessionWorker(hub, config.get("media", {}))
         startup_app["audio_worker"] = audio_worker
-        startup_app["spotify_worker"] = spotify_worker
+        startup_app["media_worker"] = media_worker
         audio_worker.start()
-        spotify_worker.start()
+        media_worker.start()
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
         log(f"Serving overlay: {overlay_path}")
         log(f"OBS URL: http://{config['server']['host']}:{config['server']['port']}/")
 
     async def on_cleanup(cleanup_app: web.Application) -> None:
         cleanup_app["audio_worker"].stop()
-        await cleanup_app["spotify_worker"].stop()
+        await cleanup_app["media_worker"].stop()
 
     app.router.add_get("/", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
@@ -461,7 +537,6 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     user_assets_dir.mkdir(exist_ok=True)
     app.router.add_static("/user-assets", user_assets_dir, show_index=False)
     app.router.add_get("/ws", ws_handler)
-    app.router.add_get("/callback", spotify_callback)
     app.router.add_get("/health", health)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
@@ -469,7 +544,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Local audio and Spotify companion for larpdog.")
+    parser = argparse.ArgumentParser(description="Local audio and Windows media companion for larpdog.")
     parser.add_argument(
         "--config",
         default=str(runtime_dir() / "config.json"),
@@ -479,6 +554,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    init_winrt_runtime()
     args = parse_args()
     config_path = Path(args.config).expanduser()
     if not config_path.is_absolute():

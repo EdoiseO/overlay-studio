@@ -1,5 +1,5 @@
 larpdog-server/config.json
-larpdog-server/.spotify_cache
+larpdog-server/.spotify_cache*
 larpdog-server/.venv/
 larpdog-server/__pycache__/
 larpdog-server/*.pyc
