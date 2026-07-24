@@ -9,12 +9,12 @@ Windows desktop library for building, running, and customizing local OBS overlay
 ## Quickstart
 
 1. Open `Overlay Studio.bat`.
-2. Click **Start server**.
-3. Open an overlay card, copy its URL, and add it as an OBS Browser Source.
+2. Open an overlay card, copy its URL, and add it as an OBS Browser Source.
 
-The app shows whether the local server is running and gives each overlay its own
-customization page and OBS URL. Saved changes refresh connected overlays automatically.
-Library cards mirror live overlay state, including the current Spotify track, artwork,
+The app starts the local server automatically, shows whether it is running, and gives
+each overlay its own customization page and OBS URL. Saved changes refresh connected
+overlays automatically. The library uses Microsoft Edge WebView2 to render the exact
+running OBS pages inside its cards, including the current Spotify track, artwork,
 artist, and playback progress.
 
 If the Python environment is ever removed, run `larpdog-server\install.bat` once before
@@ -22,6 +22,9 @@ opening the control app again.
 
 `Overlay Studio.bat` uses `Overlay Studio.exe` when a packaged build is present and
 otherwise opens the Python desktop app directly.
+
+Windows needs the Microsoft Edge WebView2 Runtime to show the desktop interface. It is
+already present on current Windows 11 systems and is also installed with Microsoft Edge.
 
 ## Overlay library
 
@@ -45,7 +48,8 @@ Chat integrations can update it through `POST /api/win-loss` using the actions `
 
 ## Project layout
 
-- `overlay_studio.pyw` is the desktop application.
+- `overlay_studio.pyw` is the native WebView desktop shell and Python bridge.
+- `studio/` contains the desktop interface.
 - `overlay-studio.html` renders the Dance and Spotify browser sources.
 - `assets/dancing-dog.gif` is shown while music is playing.
 - `assets/resting-dog.png` is shown when no track is playing.
@@ -54,3 +58,6 @@ Chat integrations can update it through `POST /api/win-loss` using the actions `
   sends Windows now-playing data over a local websocket.
 
 More setup detail lives in `larpdog-server/README.md`.
+
+Run `build-app.bat` to rebuild `Overlay Studio.exe`. Close the desktop app before
+building so Windows can replace the executable.
