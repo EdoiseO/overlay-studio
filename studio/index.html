@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overlay Studio</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body data-theme="dark">
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Open settings" title="Settings">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="brand">
+        <strong>Overlay Studio</strong>
+        <span>Build, run, and manage stream overlays</span>
+      </div>
+      <div class="server-summary">
+        <span class="status-dot" id="headerStatusDot"></span>
+        <span id="headerStatusText">Checking</span>
+        <button class="primary-button" id="headerServerButton" type="button">Start server</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view active" id="libraryView">
+        <div class="view-heading">
+          <h1>Your overlays</h1>
+          <span>3 installed</span>
+        </div>
+        <div class="overlay-grid">
+          <button class="overlay-card" type="button" data-view-target="danceView">
+            <div class="live-preview preview-dance">
+              <iframe id="dancePreview" title="Live Larpdog Dance preview" tabindex="-1"></iframe>
+              <span class="preview-offline">OFFLINE</span>
+            </div>
+            <div class="card-copy">
+              <strong>Larpdog Dance</strong>
+              <span>Audio-reactive dance GIF</span>
+              <small><i class="status-dot"></i><b>OFFLINE</b></small>
+            </div>
+          </button>
+
+          <button class="overlay-card" type="button" data-view-target="spotifyView">
+            <div class="live-preview preview-spotify">
+              <iframe id="spotifyPreview" title="Live Spotify overlay preview" tabindex="-1"></iframe>
+              <span class="preview-offline">OFFLINE</span>
+            </div>
+            <div class="card-copy">
+              <strong>Spotify Overlay</strong>
+              <span>Now playing + artwork</span>
+              <small><i class="status-dot"></i><b>OFFLINE</b></small>
+            </div>
+          </button>
+
+          <button class="overlay-card" type="button" data-view-target="counterView">
+            <div class="live-preview preview-counter">
+              <iframe id="counterPreview" title="Live Match Record preview" tabindex="-1"></iframe>
+              <span class="preview-offline">OFFLINE</span>
+            </div>
+            <div class="card-copy">
+              <strong>Match Record</strong>
+              <span>Marvel Rivals wins / losses</span>
+              <small><i class="status-dot"></i><b>OFFLINE</b></small>
+            </div>
+          </button>
+
+          <button class="overlay-card add-card" id="addOverlayButton" type="button">
+            <span class="add-mark" aria-hidden="true">+</span>
+            <strong>Add overlay</strong>
+          </button>
+        </div>
+      </section>
+
+      <section class="view detail-view" id="serverView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <h1>Server Controls</h1>
+        </div>
+        <div class="panel">
+          <h2>Server</h2>
+          <dl class="server-details">
+            <dt>Address</dt><dd id="serverAddress">-</dd>
+            <dt>State</dt><dd id="serverState">Checking the local server</dd>
+          </dl>
+          <div class="button-row">
+            <button class="primary-button" type="button" data-server-action="start">Start</button>
+            <button class="danger-button" type="button" data-server-action="stop">Stop</button>
+            <button class="secondary-button" type="button" data-server-action="restart">Restart</button>
+            <button class="secondary-button push-right" type="button" data-open-folder="assets">Open user assets</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Overlay URLs</h2>
+          <div class="source-row">
+            <label for="serverDanceUrl">Larpdog Dance</label>
+            <input id="serverDanceUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="dance">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="dance">Open</button>
+          </div>
+          <div class="source-row">
+            <label for="serverSpotifyUrl">Spotify Overlay</label>
+            <input id="serverSpotifyUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="spotify">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="spotify">Open</button>
+          </div>
+          <div class="source-row">
+            <label for="serverCounterUrl">Match Record</label>
+            <input id="serverCounterUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="counter">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="counter">Open</button>
+          </div>
+        </div>
+        <div class="panel activity-panel">
+          <h2>Activity</h2>
+          <div id="activityLog" class="activity-log" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="view detail-view" id="danceView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <h1>Larpdog Dance</h1>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Dance GIF and layout</h2>
+          <div class="form-grid">
+            <label for="dancePosition">Position</label>
+            <select id="dancePosition">
+              <option value="bottom-left">Bottom left</option>
+              <option value="bottom-right">Bottom right</option>
+              <option value="top-left">Top left</option>
+              <option value="top-right">Top right</option>
+            </select>
+            <label for="danceGif">Dance GIF</label>
+            <div class="asset-control">
+              <input id="danceGif" readonly>
+              <button class="secondary-button compact" type="button" data-choose-asset="gif">Browse</button>
+              <button class="secondary-button compact" type="button" data-default-asset="gif">Default</button>
+            </div>
+            <label for="danceRest">Resting image</label>
+            <div class="asset-control">
+              <input id="danceRest" readonly>
+              <button class="secondary-button compact" type="button" data-choose-asset="rest">Browse</button>
+              <button class="secondary-button compact" type="button" data-default-asset="rest">Default</button>
+            </div>
+            <label for="danceScale">Scale</label>
+            <input id="danceScale" type="number" min="0.5" max="2" step="0.05">
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Motion</h2>
+          <div class="form-grid">
+            <label for="sensitivity">Beat sensitivity</label>
+            <div class="range-control">
+              <input id="sensitivity" type="range" min="0.3" max="3" step="0.05">
+              <output id="sensitivityOutput">1.00</output>
+            </div>
+            <label for="fallbackBpm">Fallback BPM</label>
+            <input id="fallbackBpm" type="number" min="40" max="240" step="1">
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label for="danceUrl">Dance source</label>
+            <input id="danceUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="dance">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="dance">Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetDanceButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveDanceButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
+      <section class="view detail-view" id="spotifyView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <h1>Spotify Overlay</h1>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Player appearance</h2>
+          <div class="form-grid">
+            <label for="spotifyPosition">Position</label>
+            <select id="spotifyPosition">
+              <option value="bottom-left">Bottom left</option>
+              <option value="bottom-right">Bottom right</option>
+              <option value="top-left">Top left</option>
+              <option value="top-right">Top right</option>
+            </select>
+            <label for="spotifyScale">Scale</label>
+            <input id="spotifyScale" type="number" min="0.5" max="2" step="0.05">
+            <label for="playerWidth">Player width</label>
+            <input id="playerWidth" type="number" min="240" max="600" step="5">
+            <label for="colorMode">Color behavior</label>
+            <select id="colorMode">
+              <option value="auto">Match artwork</option>
+              <option value="fixed">Fixed colors</option>
+              <option value="art">Artwork with fallback</option>
+            </select>
+            <span>Palette</span>
+            <div class="palette-control">
+              <label><input id="colorA" type="color"><span id="colorALabel">#FF4D9D</span></label>
+              <label><input id="colorB" type="color"><span id="colorBLabel">#FFD24A</span></label>
+              <label><input id="colorC" type="color"><span id="colorCLabel">#5EE0FF</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label for="spotifyUrl">Spotify source</label>
+            <input id="spotifyUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="spotify">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="spotify">Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetSpotifyButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveSpotifyButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
+      <section class="view detail-view" id="counterView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <h1>Match Record</h1>
+        </div>
+        <div class="panel">
+          <h2>Scoreboard</h2>
+          <div class="counter-settings">
+            <label for="counterTitle">Title</label>
+            <input id="counterTitle">
+            <label class="color-field">
+              <input id="counterAccent" type="color">
+              <span id="counterAccentLabel">#D7FF45</span>
+            </label>
+            <button class="secondary-button compact" id="saveCounterSettings" type="button">Save</button>
+          </div>
+          <div class="scoreboard">
+            <div class="score-block">
+              <span>WINS</span>
+              <strong id="winsValue">0</strong>
+              <div>
+                <button class="secondary-button score-button" type="button" data-counter-action="undo-win">-</button>
+                <button class="danger-button compact" type="button" data-counter-reset="wins">Reset</button>
+                <button class="primary-button score-button" type="button" data-counter-action="win">+</button>
+              </div>
+            </div>
+            <div class="score-divider"></div>
+            <div class="score-block">
+              <span>LOSSES</span>
+              <strong id="lossesValue">0</strong>
+              <div>
+                <button class="secondary-button score-button" type="button" data-counter-action="undo-loss">-</button>
+                <button class="danger-button compact" type="button" data-counter-reset="losses">Reset</button>
+                <button class="primary-button score-button" type="button" data-counter-action="loss">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label for="counterUrl">Match source</label>
+            <input id="counterUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="counter">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="counter">Open</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawer-scrim" id="drawerScrim"></div>
+  <aside class="settings-drawer" id="settingsDrawer" aria-hidden="true">
+    <div class="drawer-heading">
+      <h2>Settings</h2>
+      <button class="icon-button close-button" id="closeDrawerButton" type="button" aria-label="Close settings" title="Close">x</button>
+    </div>
+    <nav>
+      <button class="secondary-button" type="button" data-drawer-view="libraryView">Overlay library</button>
+      <button class="secondary-button" type="button" data-drawer-view="serverView">Server controls</button>
+    </nav>
+    <div class="drawer-section">
+      <h3>Appearance</h3>
+      <span>Theme</span>
+      <div class="segmented-control" id="themeControl">
+        <button type="button" data-theme-choice="dark">Dark</button>
+        <button type="button" data-theme-choice="light">Light</button>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h3>Workspace</h3>
+      <button class="secondary-button" type="button" data-open-folder="overlays">Open overlay files</button>
+      <button class="secondary-button" type="button" data-open-folder="logs">Open log folder</button>
+    </div>
+    <div class="drawer-about">
+      <strong>Overlay Studio</strong>
+      <span>Desktop overlay library</span>
+    </div>
+  </aside>
+
+  <dialog id="addOverlayDialog">
+    <h2>Add overlay</h2>
+    <p>New overlay packages will appear here as the library grows.</p>
+    <button class="primary-button" id="closeAddDialog" type="button">Close</button>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 aiohttp>=3.9,<4
 numpy>=1.26
+pywebview==6.2.1
 soundcard>=0.4.3
 winrt-runtime==3.2.1
 winrt-Windows.Foundation==3.2.1

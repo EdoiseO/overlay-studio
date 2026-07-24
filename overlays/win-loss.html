@@ -160,6 +160,10 @@
 const title = document.getElementById("title");
 const wins = document.getElementById("wins");
 const losses = document.getElementById("losses");
+if (new URLSearchParams(location.search).get("preview") === "studio") {
+  document.documentElement.style.background = "#1c2429";
+  document.body.style.background = "#1c2429";
+}
 
 function render(state) {
   if (!state) return;

@@ -8,6 +8,7 @@
        /overlays/larpdog-dance and /overlays/spotify are separate OBS sources
      ==================================================================== -->
 <meta charset="utf-8" />
+<base href="/" />
 <title>Overlay Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -279,6 +280,10 @@ if (SAVED_SPOTIFY.colorMode || LEGACY_APPEARANCE.colorMode) {
 /* ---- URL param overrides ---- */
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
+if (Q.get("preview") === "studio") {
+  document.documentElement.style.background = "#1c2429";
+  document.body.style.background = "#1c2429";
+}
 if (Q.has("mode"))   CONFIG.nowPlaying.mode = Q.get("mode");
 if (Q.has("file"))   CONFIG.nowPlaying.file = Q.get("file");
 if (Q.has("token"))  CONFIG.nowPlaying.spotifyToken = Q.get("token");
