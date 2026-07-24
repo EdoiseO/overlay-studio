@@ -107,7 +107,9 @@ ASSET_FILE_TYPES = [
     ("All files", "*.*"),
 ]
 ALLOWED_ASSET_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".webm", ".mp4", ".mov"}
-OVERLAY_CARD_SIZE = 250
+LIBRARY_COLUMNS = 4
+OVERLAY_CARD_SIZE = 200
+OVERLAY_PREVIEW_HEIGHT = 96
 
 
 def activate_theme(theme_name: str) -> str:
@@ -193,7 +195,7 @@ class LarpdogControl:
 
         self.root.title("Larpdog Studio")
         self.root.geometry("980x720")
-        self.root.minsize(820, 640)
+        self.root.minsize(920, 640)
         self.root.configure(background=BACKGROUND)
 
         self._busy = False
@@ -389,7 +391,7 @@ class LarpdogControl:
 
         grid = tk.Frame(self.library_tab, background=BACKGROUND)
         grid.pack(fill="both", expand=True)
-        for column in range(3):
+        for column in range(LIBRARY_COLUMNS):
             grid.columnconfigure(column, weight=1, uniform="library")
 
         self._overlay_card(
@@ -431,7 +433,7 @@ class LarpdogControl:
         card.grid(row=0, column=column, sticky="n", padx=8)
         card.pack_propagate(False)
 
-        preview = tk.Frame(card, height=140, background=PANEL_ALT)
+        preview = tk.Frame(card, height=OVERLAY_PREVIEW_HEIGHT, background=PANEL_ALT)
         preview.pack(fill="x")
         preview.pack_propagate(False)
 
@@ -439,7 +441,7 @@ class LarpdogControl:
             icon_path = ROOT_DIR / "assets" / "resting-dog.png"
             try:
                 image = tk.PhotoImage(file=str(icon_path))
-                factor = max(1, max(image.width(), image.height()) // 96)
+                factor = max(1, (max(image.width(), image.height()) + 79) // 80)
                 image = image.subsample(factor, factor)
                 self._library_images.append(image)
                 tk.Label(
