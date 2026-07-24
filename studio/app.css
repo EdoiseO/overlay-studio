@@ -16,17 +16,17 @@
 
 body[data-theme="light"] {
   color-scheme: light;
-  --bg: #f2f5f5;
-  --panel: #ffffff;
-  --panel-alt: #e9eeee;
-  --ink: #182327;
-  --muted: #65747a;
-  --accent: #087f83;
-  --accent-strong: #05686b;
-  --good: #169873;
-  --danger: #d05f55;
-  --border: #d8e0e1;
-  --shadow: rgba(35, 52, 58, 0.14);
+  --bg: #c5cfcd;
+  --panel: #d7dedc;
+  --panel-alt: #b9c5c3;
+  --ink: #253033;
+  --muted: #566669;
+  --accent: #4b948e;
+  --accent-strong: #3b7d78;
+  --good: #347e64;
+  --danger: #aa5a56;
+  --border: #9eaeab;
+  --shadow: rgba(31, 45, 47, 0.18);
 }
 
 * {
@@ -449,9 +449,9 @@ body.server-running .card-copy small {
 }
 
 body[data-theme="light"] .danger-button {
-  border-color: #d7aaa6;
-  background: #f9e3e1;
-  color: #9f4039;
+  border-color: #b68a86;
+  background: #d2b8b5;
+  color: #733531;
 }
 
 .compact {
