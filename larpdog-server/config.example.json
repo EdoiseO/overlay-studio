@@ -2,7 +2,7 @@
   "server": {
     "host": "127.0.0.1",
     "port": 8473,
-    "overlay_path": "../larpdog-overlay.html"
+    "overlay_path": "../overlay-studio.html"
   },
   "audio": {
     "enabled": true,
