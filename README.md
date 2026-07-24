@@ -14,6 +14,8 @@ Windows desktop library for building, running, and customizing local OBS overlay
 
 The app shows whether the local server is running and gives each overlay its own
 customization page and OBS URL. Saved changes refresh connected overlays automatically.
+Library cards mirror live overlay state, including the current Spotify track, artwork,
+artist, and playback progress.
 
 If the Python environment is ever removed, run `larpdog-server\install.bat` once before
 opening the control app again.

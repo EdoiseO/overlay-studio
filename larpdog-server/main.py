@@ -116,6 +116,20 @@ class ClientHub:
     async def remove(self, ws: web.WebSocketResponse) -> None:
         self._clients.discard(ws)
 
+    def latest_track(self) -> dict[str, Any]:
+        if self._last_track is not None:
+            return dict(self._last_track)
+        return {
+            "type": "track",
+            "isPlaying": False,
+            "title": "",
+            "artist": "",
+            "art": None,
+            "progressMs": 0,
+            "durationMs": 0,
+            "source": "windows-media",
+        }
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         if message.get("type") == "track":
             self._last_track = message
@@ -547,6 +561,12 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             headers={"Cache-Control": "no-store"},
         )
 
+    async def get_now_playing(_request: web.Request) -> web.Response:
+        return web.json_response(
+            hub.latest_track(),
+            headers={"Cache-Control": "no-store"},
+        )
+
     async def update_overlay_config(request: web.Request) -> web.Response:
         if request.content_length is not None and request.content_length > 64 * 1024:
             raise web.HTTPRequestEntityTooLarge(
@@ -636,6 +656,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/overlay-config.js", serve_overlay_config)
     app.router.add_get("/api/config", get_overlay_config)
     app.router.add_post("/api/config", update_overlay_config)
+    app.router.add_get("/api/now-playing", get_now_playing)
     app.router.add_get("/overlays/win-loss", serve_win_loss)
     app.router.add_get("/overlays/win-loss.html", serve_win_loss)
     app.router.add_get("/api/win-loss", get_win_loss)

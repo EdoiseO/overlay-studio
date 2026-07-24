@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -199,6 +200,7 @@ class OverlayStudio:
         self._busy = False
         self._health_check_pending = False
         self._counter_check_pending = False
+        self._now_playing_check_pending = False
         self._drawer_visible = False
         self._drawer_x = -290
         self._drawer_animation: str | None = None
@@ -206,6 +208,9 @@ class OverlayStudio:
         self._swatch_buttons: dict[str, tk.Button] = {}
         self.save_buttons: list[ttk.Button] = []
         self._library_images: list[tk.PhotoImage] = []
+        self._spotify_art_image: tk.PhotoImage | None = None
+        self._spotify_art_source = ""
+        self._spotify_progress_ratio = 0.0
         self._overlay_status_vars: dict[str, tk.StringVar] = {}
         self._overlay_status_dots: dict[str, tuple[tk.Canvas, int]] = {}
         self._overlay_status_labels: dict[str, tk.Label] = {}
@@ -218,6 +223,7 @@ class OverlayStudio:
         self._update_overlay_urls()
         self.root.after(150, self._schedule_health_check)
         self.root.after(300, self._load_counter_state_async)
+        self.root.after(350, self._load_now_playing_async)
 
     def _setup_styles(self) -> None:
         style = ttk.Style(self.root)
@@ -471,26 +477,66 @@ class OverlayStudio:
                 ).pack(expand=True)
         elif kind == "spotify":
             spotify_preview = tk.Frame(preview, background=PANEL_ALT)
-            spotify_preview.pack(expand=True, fill="x", padx=18)
-            tk.Label(
+            spotify_preview.pack(expand=True, fill="both", padx=12, pady=10)
+            art_frame = tk.Frame(
                 spotify_preview,
-                text="SPOTIFY",
+                width=58,
+                height=58,
+                background=PANEL_ALT,
+            )
+            art_frame.pack(side="left")
+            art_frame.pack_propagate(False)
+            self.spotify_preview_art = tk.Label(
+                art_frame,
+                text="SP",
                 background=PANEL_ALT,
                 foreground=ACCENT,
-                font=("Segoe UI Semibold", 9),
-            ).pack(anchor="w")
+                font=("Segoe UI Semibold", 11),
+                borderwidth=1,
+                relief="solid",
+            )
+            self.spotify_preview_art.pack(fill="both", expand=True)
+            track_preview = tk.Frame(spotify_preview, background=PANEL_ALT)
+            track_preview.pack(side="left", fill="both", expand=True, padx=(10, 0))
+            self.spotify_preview_title_var = tk.StringVar(value="waiting for a song...")
+            self.spotify_preview_artist_var = tk.StringVar(value="")
             tk.Label(
-                spotify_preview,
-                text="NOW PLAYING",
+                track_preview,
+                textvariable=self.spotify_preview_title_var,
                 background=PANEL_ALT,
                 foreground=INK,
-                font=("Segoe UI Semibold", 15),
-            ).pack(anchor="w", pady=(5, 0))
-            tk.Frame(
-                spotify_preview,
-                height=3,
-                background=ACCENT,
-            ).pack(fill="x", pady=(8, 0))
+                anchor="w",
+                font=("Segoe UI Semibold", 10),
+            ).pack(fill="x")
+            tk.Label(
+                track_preview,
+                textvariable=self.spotify_preview_artist_var,
+                background=PANEL_ALT,
+                foreground=MUTED,
+                anchor="w",
+                font=("Segoe UI", 8),
+            ).pack(fill="x", pady=(2, 7))
+            self.spotify_preview_progress = tk.Canvas(
+                track_preview,
+                height=4,
+                background=BORDER,
+                highlightthickness=0,
+            )
+            self.spotify_preview_progress.pack(fill="x")
+            self.spotify_preview_progress_fill = (
+                self.spotify_preview_progress.create_rectangle(
+                    0,
+                    0,
+                    0,
+                    4,
+                    fill=ACCENT,
+                    outline="",
+                )
+            )
+            self.spotify_preview_progress.bind(
+                "<Configure>",
+                lambda _event: self._paint_spotify_progress(),
+            )
         else:
             counter_preview = tk.Frame(preview, background=PANEL_ALT)
             counter_preview.pack(expand=True)
@@ -784,6 +830,9 @@ class OverlayStudio:
         self._drawer_animation = None
         self._swatch_buttons = {}
         self._library_images = []
+        self._spotify_art_image = None
+        self._spotify_art_source = ""
+        self._spotify_progress_ratio = 0.0
         self._overlay_status_vars = {}
         self._overlay_status_dots = {}
         self._overlay_status_labels = {}
@@ -1265,6 +1314,101 @@ class OverlayStudio:
             )
         with urllib.request.urlopen(request, timeout=3) as response:
             return json.loads(response.read().decode("utf-8"))
+
+    def _now_playing_request(self) -> dict[str, Any]:
+        with urllib.request.urlopen(
+            f"{base_url()}api/now-playing",
+            timeout=3,
+        ) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def _load_now_playing_async(self) -> None:
+        if self._now_playing_check_pending or not hasattr(
+            self,
+            "spotify_preview_title_var",
+        ):
+            return
+        if not is_healthy():
+            return
+        self._now_playing_check_pending = True
+
+        def worker() -> None:
+            try:
+                state = self._now_playing_request()
+            except Exception:
+                state = None
+            self._dispatch(lambda: self._complete_now_playing_check(state))
+
+        threading.Thread(
+            target=worker,
+            name="overlay-studio-now-playing",
+            daemon=True,
+        ).start()
+
+    def _complete_now_playing_check(self, state: dict[str, Any] | None) -> None:
+        self._now_playing_check_pending = False
+        self._render_spotify_preview(state)
+
+    @staticmethod
+    def _preview_text(value: Any, maximum: int) -> str:
+        text = " ".join(str(value or "").split())
+        if len(text) <= maximum:
+            return text
+        return f"{text[: max(1, maximum - 3)].rstrip()}..."
+
+    def _render_spotify_preview(self, state: dict[str, Any] | None) -> None:
+        if not hasattr(self, "spotify_preview_title_var"):
+            return
+        playing = bool(state and state.get("isPlaying"))
+        if playing:
+            self.spotify_preview_title_var.set(
+                self._preview_text(state.get("title"), 18) or "Unknown track"
+            )
+            self.spotify_preview_artist_var.set(
+                self._preview_text(state.get("artist"), 20)
+            )
+        else:
+            self.spotify_preview_title_var.set("waiting for a song...")
+            self.spotify_preview_artist_var.set("")
+
+        art_source = str(state.get("art") or "") if playing and state else ""
+        if art_source != self._spotify_art_source:
+            self._spotify_art_source = art_source
+            self._spotify_art_image = None
+            if art_source.startswith("data:image/") and "," in art_source:
+                try:
+                    encoded = art_source.split(",", 1)[1]
+                    image = tk.PhotoImage(data=base64.b64decode(encoded))
+                    factor = max(
+                        1,
+                        (max(image.width(), image.height()) + 55) // 56,
+                    )
+                    self._spotify_art_image = image.subsample(factor, factor)
+                except (ValueError, tk.TclError):
+                    self._spotify_art_image = None
+            self.spotify_preview_art.configure(
+                image=self._spotify_art_image or "",
+                text="" if self._spotify_art_image else "SP",
+            )
+
+        progress = float(state.get("progressMs") or 0) if playing and state else 0
+        duration = float(state.get("durationMs") or 0) if playing and state else 0
+        self._spotify_progress_ratio = (
+            max(0.0, min(1.0, progress / duration)) if duration > 0 else 0.0
+        )
+        self._paint_spotify_progress()
+
+    def _paint_spotify_progress(self) -> None:
+        if not hasattr(self, "spotify_preview_progress"):
+            return
+        width = max(1, self.spotify_preview_progress.winfo_width())
+        self.spotify_preview_progress.coords(
+            self.spotify_preview_progress_fill,
+            0,
+            0,
+            int(width * self._spotify_progress_ratio),
+            4,
+        )
 
     def _load_counter_state_async(self) -> None:
         if self._counter_check_pending or not hasattr(self, "counter_wins_var"):
@@ -1818,6 +1962,7 @@ class OverlayStudio:
         self._render_health(running)
         if running:
             self._load_counter_state_async()
+            self._load_now_playing_async()
         self.root.after(2500, self._schedule_health_check)
 
     def _render_health(self, running: bool) -> None:
@@ -1826,6 +1971,8 @@ class OverlayStudio:
         self.counter_url_var.set(f"{base_url()}overlays/win-loss")
         self.status_dot.itemconfigure(self.status_circle, fill=GOOD if running else STOPPED)
         self.status_var.set("Running" if running else "Stopped")
+        if not running:
+            self._render_spotify_preview(None)
         for overlay_kind, status_var in self._overlay_status_vars.items():
             status_var.set("RUNNING" if running else "OFFLINE")
             dot_canvas, dot_circle = self._overlay_status_dots[overlay_kind]
