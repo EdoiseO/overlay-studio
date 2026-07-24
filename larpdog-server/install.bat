@@ -14,5 +14,7 @@ if not exist config.json (
 )
 
 echo.
-echo Install complete. Edit config.json, then run run.bat.
+echo Install complete.
+echo Open ..\Overlay Studio.bat to start the desktop app.
+echo Use run.bat only when you want the standalone server.
 pause

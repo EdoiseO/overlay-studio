@@ -1,8 +1,13 @@
 # Overlay Studio server
 
-Local companion for `overlay-studio.html`.
+Local HTTP, websocket, system-audio, and Windows media-session companion for Overlay
+Studio. Most users should launch it through the root `Overlay Studio.bat`; use the
+commands in this folder for standalone development and troubleshooting.
 
-It serves the overlay at `http://127.0.0.1:8473/`, captures Windows system audio through WASAPI loopback, and sends beat/EQ plus Windows now-playing data over `/ws`.
+The default address is `http://127.0.0.1:8473/`. A local `config.json` can change the
+port, so use the exact address shown in the desktop app. The service captures Windows
+system audio through WASAPI loopback and sends beat/EQ plus Windows now-playing data
+over `/ws`.
 
 ## One-time setup
 
@@ -50,7 +55,7 @@ http://127.0.0.1:8473/overlays/win-loss
 
 Then start Spotify desktop playback on this PC. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
 
-## Custom Dance GIFs
+## Custom Dance media
 
 Use **Browse** on the Larpdog Dance page in Overlay Studio. Selected files are copied
 into the top-level `user-assets` folder. A source can also be overridden with a URL param:
@@ -59,7 +64,11 @@ into the top-level `user-assets` folder. A source can also be overridden with a 
 http://127.0.0.1:8473/overlays/larpdog-dance?dog=user-assets/dancing.gif
 ```
 
-Image assets can be `gif`, `webp`, `apng`, or `png`. Video assets can be `webm`, `mp4`, or `mov`; the overlay swaps the character image for a muted looping video automatically. For best transparency and small files, export transparent WebM:
+Dancing assets can be `gif`, `webp`, `apng`, `png`, `webm`, `mp4`, or `mov`; the
+overlay swaps the character image for a muted looping video automatically. Resting
+images can be `png`, `jpg`, `jpeg`, `gif`, `webp`, or `apng`.
+
+For best transparency and small files, export transparent WebM:
 
 ```bat
 ffmpeg -i in.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 30 user-assets\dancing.webm

@@ -16,6 +16,7 @@ user-assets/*
 !user-assets/.gitkeep
 /build/
 /dist/
+/downloads/
 /__pycache__/
 /Larpdog Control.exe
 /Larpdog Control.spec
