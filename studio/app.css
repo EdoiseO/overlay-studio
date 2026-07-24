@@ -772,6 +772,120 @@ dialog .primary-button {
   float: right;
 }
 
+.preview-dialog {
+  width: min(900px, calc(100vw - 48px), calc((100vh - 160px) * 16 / 9));
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-dialog-heading,
+.preview-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+}
+
+.preview-dialog-heading {
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-dialog-heading > div {
+  min-width: 0;
+}
+
+.preview-dialog-heading span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.preview-dialog-heading h2 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 20px;
+  line-height: 25px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-dialog .close-button {
+  flex: 0 0 auto;
+  float: none;
+}
+
+.large-preview-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #1c2429;
+}
+
+.large-preview-stage iframe {
+  position: absolute;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: left top;
+  transition: opacity 160ms ease;
+}
+
+.preview-dialog.server-running .large-preview-stage iframe {
+  opacity: 1;
+}
+
+.large-preview-offline {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.large-preview-offline strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.preview-dialog.server-running .large-preview-offline {
+  display: none;
+}
+
+.preview-dialog-footer {
+  border-top: 1px solid var(--border);
+}
+
+.preview-status,
+.preview-actions {
+  display: flex;
+  align-items: center;
+}
+
+.preview-status {
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-dialog.server-running .preview-status .status-dot {
+  background: var(--good);
+}
+
+.preview-actions {
+  gap: 8px;
+}
+
+.preview-dialog .preview-actions .primary-button {
+  float: none;
+}
+
 .toast {
   position: fixed;
   z-index: 30;
@@ -816,5 +930,11 @@ dialog .primary-button {
 
   .source-row {
     grid-template-columns: 120px minmax(0, 1fr) auto auto;
+  }
+
+  .preview-dialog-heading,
+  .preview-dialog-footer {
+    padding-right: 14px;
+    padding-left: 14px;
   }
 }
