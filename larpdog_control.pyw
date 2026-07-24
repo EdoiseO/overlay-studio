@@ -256,6 +256,30 @@ class LarpdogControl:
         style.map("Secondary.TButton", background=[("active", BORDER)])
         style.configure("Danger.TButton", background="#472625", foreground="#ffaaa4", padding=(13, 8))
         style.map("Danger.TButton", background=[("active", "#5a302e")])
+        style.configure(
+            "CounterPrimary.TButton",
+            background=ACCENT,
+            foreground="#071210",
+            padding=(6, 4),
+            font=("Segoe UI Semibold", 9),
+        )
+        style.map("CounterPrimary.TButton", background=[("active", ACCENT_DARK)])
+        style.configure(
+            "CounterSecondary.TButton",
+            background=PANEL_ALT,
+            foreground=INK,
+            padding=(6, 4),
+            font=("Segoe UI Semibold", 9),
+        )
+        style.map("CounterSecondary.TButton", background=[("active", BORDER)])
+        style.configure(
+            "CounterDanger.TButton",
+            background="#472625",
+            foreground="#ffaaa4",
+            padding=(6, 4),
+            font=("Segoe UI Semibold", 9),
+        )
+        style.map("CounterDanger.TButton", background=[("active", "#5a302e")])
         style.configure("TCheckbutton", background=PANEL, foreground=INK)
         style.configure("TRadiobutton", background=PANEL, foreground=INK)
         style.configure("Horizontal.TScale", background=PANEL, troughcolor=BORDER)
@@ -1078,46 +1102,29 @@ class LarpdogControl:
         score_row.pack(pady=(20, 16))
         self.counter_wins_var = tk.StringVar(value="0")
         self.counter_losses_var = tk.StringVar(value="0")
-        self._score_block(score_row, "WINS", self.counter_wins_var, 0)
-        tk.Frame(score_row, width=1, height=86, background=BORDER).grid(
+        self._score_block(
+            score_row,
+            label="WINS",
+            variable=self.counter_wins_var,
+            column=0,
+            decrement_action="undo-win",
+            increment_action="win",
+            reset_key="wins",
+        )
+        tk.Frame(score_row, width=1, height=130, background=BORDER).grid(
             row=0,
             column=1,
-            padx=40,
+            padx=12,
         )
-        self._score_block(score_row, "LOSSES", self.counter_losses_var, 2)
-
-        action_row = ttk.Frame(counter_panel, style="Panel.TFrame")
-        action_row.pack()
-        ttk.Button(
-            action_row,
-            text="+ Win",
-            style="Primary.TButton",
-            command=lambda: self._post_counter_action("win"),
-        ).pack(side="left")
-        ttk.Button(
-            action_row,
-            text="Undo win",
-            style="Secondary.TButton",
-            command=lambda: self._post_counter_action("undo-win"),
-        ).pack(side="left", padx=(8, 20))
-        ttk.Button(
-            action_row,
-            text="+ Loss",
-            style="Primary.TButton",
-            command=lambda: self._post_counter_action("loss"),
-        ).pack(side="left")
-        ttk.Button(
-            action_row,
-            text="Undo loss",
-            style="Secondary.TButton",
-            command=lambda: self._post_counter_action("undo-loss"),
-        ).pack(side="left", padx=(8, 20))
-        ttk.Button(
-            action_row,
-            text="Reset",
-            style="Danger.TButton",
-            command=self._reset_counter,
-        ).pack(side="left")
+        self._score_block(
+            score_row,
+            label="LOSSES",
+            variable=self.counter_losses_var,
+            column=2,
+            decrement_action="undo-loss",
+            increment_action="loss",
+            reset_key="losses",
+        )
 
         source_panel = self._panel(self.counter_tab, "OBS browser source")
         source_row = ttk.Frame(source_panel, style="Panel.TFrame")
@@ -1148,17 +1155,13 @@ class LarpdogControl:
         label: str,
         variable: tk.StringVar,
         column: int,
+        decrement_action: str,
+        increment_action: str,
+        reset_key: str,
     ) -> None:
-        block = tk.Frame(parent, width=150, height=95, background=PANEL)
+        block = tk.Frame(parent, width=190, height=140, background=PANEL)
         block.grid(row=0, column=column)
-        block.grid_propagate(False)
-        tk.Label(
-            block,
-            textvariable=variable,
-            background=PANEL,
-            foreground=INK,
-            font=("Segoe UI Semibold", 42),
-        ).pack()
+        block.pack_propagate(False)
         tk.Label(
             block,
             text=label,
@@ -1166,6 +1169,36 @@ class LarpdogControl:
             foreground=MUTED,
             font=("Segoe UI Semibold", 9),
         ).pack()
+        tk.Label(
+            block,
+            textvariable=variable,
+            background=PANEL,
+            foreground=INK,
+            font=("Segoe UI Semibold", 42),
+        ).pack(pady=(0, 8))
+        controls = ttk.Frame(block, style="Panel.TFrame")
+        controls.pack()
+        ttk.Button(
+            controls,
+            text="-",
+            width=2,
+            style="CounterSecondary.TButton",
+            command=lambda: self._post_counter_action(decrement_action),
+        ).pack(side="left")
+        ttk.Button(
+            controls,
+            text="Reset",
+            width=5,
+            style="CounterDanger.TButton",
+            command=lambda: self._reset_counter_field(label, reset_key),
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            controls,
+            text="+",
+            width=2,
+            style="CounterPrimary.TButton",
+            command=lambda: self._post_counter_action(increment_action),
+        ).pack(side="left")
 
     def _choose_counter_color(self) -> None:
         current = f"#{self.counter_accent_var.get()}"
@@ -1282,14 +1315,14 @@ class LarpdogControl:
             f"Match record updated: {state.get('wins', 0)} wins, {state.get('losses', 0)} losses"
         )
 
-    def _reset_counter(self) -> None:
+    def _reset_counter_field(self, label: str, key: str) -> None:
         confirmed = messagebox.askyesno(
-            "Reset match record",
-            "Reset wins and losses to zero?",
+            f"Reset {label.lower()}",
+            f"Reset {label.lower()} to zero?",
             parent=self.root,
         )
         if confirmed:
-            self._post_counter_action("reset")
+            self._send_counter_update({key: 0})
 
     def copy_counter_url(self) -> None:
         self.root.clipboard_clear()
