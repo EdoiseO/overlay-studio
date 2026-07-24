@@ -26,6 +26,13 @@ if errorlevel 1 (
   exit /b 1
 )
 
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$target = (Resolve-Path 'Overlay Studio.exe' -ErrorAction SilentlyContinue).Path; " ^
+  "if ($target) { Get-CimInstance Win32_Process -Filter \"Name = 'Overlay Studio.exe'\" | " ^
+  "Where-Object { $_.ExecutablePath -eq $target } | " ^
+  "ForEach-Object { Stop-Process -Id $_.ProcessId -Force } }"
+powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+
 copy /y "dist\Overlay Studio.exe" "Overlay Studio.exe" >nul
 if errorlevel 1 (
   echo.

@@ -57,7 +57,7 @@ ALLOWED_DANCE_EXTENSIONS = {
     ".mp4",
     ".mov",
 }
-ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png"}
+ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
 
 
 def load_json(path: Path, fallback_path: Path | None = None) -> dict[str, Any]:
@@ -299,7 +299,7 @@ class DesktopApi:
             )
             if kind == "gif"
             else (
-                "Images (*.png;*.gif;*.webp;*.apng)",
+                "Images (*.png;*.jpg;*.jpeg;*.gif;*.webp;*.apng)",
                 "All files (*.*)",
             )
         )
