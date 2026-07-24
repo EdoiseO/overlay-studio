@@ -1,6 +1,6 @@
 # larpdog stream overlay
 
-Beat-reactive OBS browser-source overlay plus a local Windows companion server.
+Windows overlay library with local controls, persistent settings, and OBS browser sources.
 
 <p align="center">
   <img src="assets/larpdog-demo.gif" alt="larpdog stream overlay demo" width="520">
@@ -22,6 +22,22 @@ opening the control app again.
 
 `Larpdog.bat` uses `Larpdog Control.exe` when a packaged build is present and otherwise
 opens the Python desktop app directly.
+
+## Overlay library
+
+- **Larpdog Music** combines the dancing character, system-audio reaction, and
+  Windows now-playing card.
+- **Match Record** is a transparent win/loss banner with controls for wins, losses,
+  title, and accent color.
+
+The Match Record browser source is:
+
+```text
+http://127.0.0.1:8473/overlays/win-loss
+```
+
+Chat integrations can update it through `POST /api/win-loss` using the actions `win`,
+`loss`, `undo-win`, `undo-loss`, and `reset`.
 
 ## Customizing
 
