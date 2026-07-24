@@ -14,6 +14,8 @@ from typing import Any
 
 from aiohttp import web
 
+from overlay_config import load_overlay_config, save_overlay_config
+
 
 APP_NAME = "larpdog-server"
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -193,7 +195,6 @@ class AudioLoopbackWorker:
         sample_rate = int(self.config.get("sample_rate", 48000))
         block_size = int(self.config.get("block_size", 1024))
         fps = max(1, float(self.config.get("fps", 45)))
-        sensitivity = max(0.3, float(self.config.get("sensitivity", 1.0)))
         bass_bins = max(1, int(self.config.get("bass_bins", 14)))
         target_dt = 1.0 / fps
 
@@ -224,6 +225,7 @@ class AudioLoopbackWorker:
                     # Keep smoothing/threshold/band math in sync with startRealAudio() in larpdog-overlay.html.
                     bass = float(np.mean(spectrum[:bass_bins]))
                     bass_avg = bass_avg * 0.92 + bass * 0.08
+                    sensitivity = max(0.3, float(self.config.get("sensitivity", 1.0)))
                     threshold = bass_avg * (1.35 / sensitivity)
                     now = time.perf_counter()
                     beat = bass > threshold and bass > 1e-7 and (now - last_beat) > 0.110
@@ -500,15 +502,49 @@ async def static_cors_middleware(request: web.Request, handler: Any) -> web.Stre
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app = web.Application(middlewares=[static_cors_middleware])
     hub = ClientHub()
+    overlay_config_path = base_dir / "overlay-config.json"
     app["hub"] = hub
     app["config"] = config
     app["base_dir"] = base_dir
+    app["overlay_config_path"] = overlay_config_path
 
     async def serve_overlay(_request: web.Request) -> web.StreamResponse:
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
         if not overlay_path.exists():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_path}")
         return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
+
+    async def serve_overlay_config(_request: web.Request) -> web.Response:
+        saved_config = load_overlay_config(overlay_config_path)
+        payload = json.dumps(saved_config, separators=(",", ":"))
+        return web.Response(
+            text=f"window.LARPDOG_CONFIG={payload};",
+            content_type="application/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def get_overlay_config(_request: web.Request) -> web.Response:
+        return web.json_response(
+            load_overlay_config(overlay_config_path),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def update_overlay_config(request: web.Request) -> web.Response:
+        if request.content_length is not None and request.content_length > 64 * 1024:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=64 * 1024,
+                actual_size=request.content_length,
+            )
+        try:
+            submitted = await request.json()
+        except (json.JSONDecodeError, TypeError):
+            raise web.HTTPBadRequest(text="Expected a JSON object") from None
+        if not isinstance(submitted, dict):
+            raise web.HTTPBadRequest(text="Expected a JSON object")
+        saved_config = save_overlay_config(overlay_config_path, submitted)
+        config.setdefault("audio", {})["sensitivity"] = saved_config["audio"]["sensitivity"]
+        await hub.broadcast({"type": "config", "config": saved_config})
+        return web.json_response(saved_config)
 
     async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
@@ -544,6 +580,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
     app.router.add_get("/", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
+    app.router.add_get("/overlay-config.js", serve_overlay_config)
+    app.router.add_get("/api/config", get_overlay_config)
+    app.router.add_post("/api/config", update_overlay_config)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)

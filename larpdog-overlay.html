@@ -229,10 +229,15 @@
   </div>
 </div>
 
+<script src="overlay-config.js"></script>
 <script>
 /* =====================================================================
    CONFIG — tweak here, or override any value with a ?param in the URL
    ===================================================================== */
+const SAVED_CONFIG = window.LARPDOG_CONFIG || {};
+const SAVED_APPEARANCE = SAVED_CONFIG.appearance || {};
+const SAVED_AUDIO = SAVED_CONFIG.audio || {};
+const SAVED_NOW_PLAYING = SAVED_CONFIG.nowPlaying || {};
 const CONFIG = {
   ui: {
     cardWidth: 335,
@@ -253,6 +258,19 @@ const CONFIG = {
   },
   fallbackBpm: 120,          // bounce tempo when no audio is wired up
 };
+
+if (typeof SAVED_AUDIO.enabled === "boolean") CONFIG.audio.enabled = SAVED_AUDIO.enabled;
+if (Number.isFinite(Number(SAVED_AUDIO.sensitivity))) {
+  CONFIG.audio.sensitivity = Number(SAVED_AUDIO.sensitivity);
+}
+if (Number.isFinite(Number(SAVED_NOW_PLAYING.fallbackBpm))) {
+  CONFIG.fallbackBpm = Number(SAVED_NOW_PLAYING.fallbackBpm);
+}
+if (Number.isFinite(Number(SAVED_APPEARANCE.cardWidth))) {
+  CONFIG.ui.cardWidth = Number(SAVED_APPEARANCE.cardWidth);
+}
+if (SAVED_APPEARANCE.asset) CONFIG.ui.asset = String(SAVED_APPEARANCE.asset);
+if (SAVED_APPEARANCE.colorMode) CONFIG.ui.colorMode = String(SAVED_APPEARANCE.colorMode);
 
 /* ---- URL param overrides ---- */
 const Q = new URLSearchParams(location.search);
@@ -275,13 +293,13 @@ const root  = document.documentElement;
 const stage = document.getElementById("stage");
 let dogMedia = document.getElementById("dog");
 const dogWrap = document.getElementById("dogWrap");
-const DANCING_DOG_SRC = Q.get("dog") || dogMedia.getAttribute("src") || dogMedia.src;
-const RESTING_DOG_SRC = Q.get("rest") || "assets/resting-dog.png";
+const DANCING_DOG_SRC = Q.get("dog") || SAVED_APPEARANCE.dog || dogMedia.getAttribute("src") || dogMedia.src;
+const RESTING_DOG_SRC = Q.get("rest") || SAVED_APPEARANCE.rest || "assets/resting-dog.png";
 const DEFAULT_PALETTE = [[255, 77, 157], [255, 210, 74], [94, 224, 255]];
 const USER_PALETTE = getUserPalette();
-if (Q.has("pos"))   stage.dataset.pos = Q.get("pos");
+stage.dataset.pos = Q.get("pos") || SAVED_APPEARANCE.position || stage.dataset.pos;
 stage.dataset.asset = CONFIG.ui.asset;
-root.style.setProperty("--scale", num("scale", 1));
+root.style.setProperty("--scale", num("scale", Number(SAVED_APPEARANCE.scale) || 1));
 root.style.setProperty("--card-width", CONFIG.ui.cardWidth + "px");
 setDogMedia(RESTING_DOG_SRC);
 if (CONFIG.ui.asset === "dog") document.getElementById("card").classList.add("hidden");
@@ -537,6 +555,8 @@ function connectLarpdogServer() {
           });
         }
         else showIdle();
+      } else if (msg.type === "config") {
+        location.reload();
       }
     };
     ws.onerror = () => { if (!connected) fail(); };
@@ -613,9 +633,10 @@ function hexToRgb(value) {
 }
 
 function getUserPalette() {
-  const a = hexToRgb(Q.get("a"));
-  const b = hexToRgb(Q.get("b"));
-  const c = hexToRgb(Q.get("c"));
+  const savedColors = SAVED_APPEARANCE.colors || {};
+  const a = hexToRgb(Q.has("a") ? Q.get("a") : savedColors.a);
+  const b = hexToRgb(Q.has("b") ? Q.get("b") : savedColors.b);
+  const c = hexToRgb(Q.has("c") ? Q.get("c") : savedColors.c);
   if (!a && !b && !c) return null;
   return [a || DEFAULT_PALETTE[0], b || a || DEFAULT_PALETTE[1], c || a || DEFAULT_PALETTE[2]];
 }
