@@ -107,6 +107,7 @@ ASSET_FILE_TYPES = [
     ("All files", "*.*"),
 ]
 ALLOWED_ASSET_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".webm", ".mp4", ".mov"}
+OVERLAY_CARD_SIZE = 250
 
 
 def activate_theme(theme_name: str) -> str:
@@ -204,6 +205,9 @@ class LarpdogControl:
         self._pending_assets: dict[str, Path | None] = {"dog": None, "rest": None}
         self._swatch_buttons: dict[str, tk.Button] = {}
         self._library_images: list[tk.PhotoImage] = []
+        self._overlay_status_vars: dict[str, tk.StringVar] = {}
+        self._overlay_status_dots: dict[str, tuple[tk.Canvas, int]] = {}
+        self._overlay_status_labels: dict[str, tk.Label] = {}
 
         self._setup_styles()
         self._set_window_icon()
@@ -231,7 +235,16 @@ class LarpdogControl:
         style.configure("Drawer.TLabel", background=PANEL, foreground=INK)
         style.configure("DrawerMuted.TLabel", background=PANEL, foreground=MUTED)
         style.configure("Status.TLabel", background=BACKGROUND, foreground=INK, font=("Segoe UI Semibold", 10))
-        style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=0)
+        style.configure(
+            "TNotebook",
+            background=BACKGROUND,
+            borderwidth=0,
+            tabmargins=0,
+            relief="flat",
+            bordercolor=BACKGROUND,
+            lightcolor=BACKGROUND,
+            darkcolor=BACKGROUND,
+        )
         style.layout("TNotebook.Tab", [])
         style.configure("Primary.TButton", background=ACCENT, foreground="#071210", padding=(15, 9))
         style.map(
@@ -385,16 +398,16 @@ class LarpdogControl:
     ) -> None:
         card = tk.Frame(
             parent,
-            width=270,
-            height=245,
+            width=OVERLAY_CARD_SIZE,
+            height=OVERLAY_CARD_SIZE,
             background=PANEL,
             highlightbackground=BORDER,
             highlightthickness=1,
         )
-        card.grid(row=0, column=column, sticky="new", padx=(0 if column == 0 else 8, 8))
-        card.grid_propagate(False)
+        card.grid(row=0, column=column, sticky="n", padx=8)
+        card.pack_propagate(False)
 
-        preview = tk.Frame(card, height=142, background=PANEL_ALT)
+        preview = tk.Frame(card, height=140, background=PANEL_ALT)
         preview.pack(fill="x")
         preview.pack_propagate(False)
 
@@ -458,20 +471,27 @@ class LarpdogControl:
         ).pack(fill="x", pady=(2, 10))
         footer = tk.Frame(body, background=PANEL)
         footer.pack(fill="x")
-        tk.Label(
+        status_dot = tk.Canvas(
             footer,
-            text="READY",
+            width=10,
+            height=10,
             background=PANEL,
-            foreground=ACCENT,
+            highlightthickness=0,
+        )
+        status_circle = status_dot.create_oval(1, 1, 9, 9, fill=MUTED, outline="")
+        status_dot.pack(side="left", padx=(0, 6))
+        status_var = tk.StringVar(value="READY")
+        self._overlay_status_vars[kind] = status_var
+        self._overlay_status_dots[kind] = (status_dot, status_circle)
+        status_label = tk.Label(
+            footer,
+            textvariable=status_var,
+            background=PANEL,
+            foreground=MUTED,
             font=("Segoe UI Semibold", 8),
-        ).pack(side="left")
-        tk.Label(
-            footer,
-            text="\u2192",
-            background=PANEL,
-            foreground=INK,
-            font=("Segoe UI Semibold", 15),
-        ).pack(side="right")
+        )
+        status_label.pack(side="left")
+        self._overlay_status_labels[kind] = status_label
         self._make_card_clickable(card, command)
 
     def _make_card_clickable(self, card: tk.Frame, command: Callable[[], None]) -> None:
@@ -511,14 +531,14 @@ class LarpdogControl:
     def _add_overlay_card(self, parent: tk.Frame, *, column: int) -> None:
         card = tk.Frame(
             parent,
-            width=270,
-            height=245,
+            width=OVERLAY_CARD_SIZE,
+            height=OVERLAY_CARD_SIZE,
             background=BACKGROUND,
             highlightbackground=BORDER,
             highlightthickness=1,
         )
-        card.grid(row=0, column=column, sticky="new", padx=(8, 0))
-        card.grid_propagate(False)
+        card.grid(row=0, column=column, sticky="n", padx=8)
+        card.pack_propagate(False)
         add_button = tk.Button(
             card,
             text="+",
@@ -709,6 +729,9 @@ class LarpdogControl:
         self._drawer_animation = None
         self._swatch_buttons = {}
         self._library_images = []
+        self._overlay_status_vars = {}
+        self._overlay_status_dots = {}
+        self._overlay_status_labels = {}
         self._setup_styles()
         self._build_ui()
         self._load_customization()
@@ -1709,6 +1732,13 @@ class LarpdogControl:
         self.counter_url_var.set(f"{base_url()}overlays/win-loss")
         self.status_dot.itemconfigure(self.status_circle, fill=GOOD if running else STOPPED)
         self.status_var.set("Running" if running else "Stopped")
+        for overlay_kind, status_var in self._overlay_status_vars.items():
+            status_var.set("RUNNING" if running else "OFFLINE")
+            dot_canvas, dot_circle = self._overlay_status_dots[overlay_kind]
+            dot_canvas.itemconfigure(dot_circle, fill=GOOD if running else STOPPED)
+            self._overlay_status_labels[overlay_kind].configure(
+                foreground=GOOD if running else STOPPED
+            )
         if not self._busy:
             self.server_state_var.set(
                 "Ready for OBS and Spotify" if running else "Not running"
