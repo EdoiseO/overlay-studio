@@ -565,27 +565,23 @@ class LarpdogControl:
         )
         card.grid(row=0, column=column, sticky="n", padx=8)
         card.pack_propagate(False)
-        add_button = tk.Button(
-            card,
+        content = tk.Frame(card, background=BACKGROUND)
+        content.place(relx=0.5, rely=0.5, anchor="center")
+        tk.Label(
+            content,
             text="+",
-            relief="flat",
-            borderwidth=0,
             background=BACKGROUND,
             foreground=MUTED,
-            activebackground=PANEL_ALT,
-            activeforeground=ACCENT,
-            font=("Segoe UI Light", 42),
-            cursor="hand2",
-            command=self._show_add_overlay_info,
-        )
-        add_button.pack(fill="both", expand=True)
+            font=("Segoe UI Light", 38),
+        ).pack()
         tk.Label(
-            card,
+            content,
             text="Add overlay",
             background=BACKGROUND,
             foreground=MUTED,
             font=("Segoe UI Semibold", 10),
-        ).place(relx=0.5, rely=0.72, anchor="center")
+        ).pack(pady=(2, 0))
+        self._make_card_clickable(card, self._show_add_overlay_info)
 
     def _show_add_overlay_info(self) -> None:
         messagebox.showinfo(
