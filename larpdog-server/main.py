@@ -14,6 +14,7 @@ from typing import Any
 
 from aiohttp import web
 
+from counter_store import apply_counter_update, load_counter_state, save_counter_state
 from overlay_config import load_overlay_config, save_overlay_config
 
 
@@ -103,11 +104,14 @@ class ClientHub:
     def __init__(self) -> None:
         self._clients: set[web.WebSocketResponse] = set()
         self._last_track: dict[str, Any] | None = None
+        self._last_win_loss: dict[str, Any] | None = None
 
     async def add(self, ws: web.WebSocketResponse) -> None:
         self._clients.add(ws)
         if self._last_track is not None:
             await ws.send_str(json.dumps(self._last_track, separators=(",", ":")))
+        if self._last_win_loss is not None:
+            await ws.send_str(json.dumps(self._last_win_loss, separators=(",", ":")))
 
     async def remove(self, ws: web.WebSocketResponse) -> None:
         self._clients.discard(ws)
@@ -115,6 +119,8 @@ class ClientHub:
     async def broadcast(self, message: dict[str, Any]) -> None:
         if message.get("type") == "track":
             self._last_track = message
+        elif message.get("type") == "win-loss":
+            self._last_win_loss = message
         if not self._clients:
             return
 
@@ -503,10 +509,12 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app = web.Application(middlewares=[static_cors_middleware])
     hub = ClientHub()
     overlay_config_path = base_dir / "overlay-config.json"
+    counter_state_path = base_dir / "win-loss.json"
     app["hub"] = hub
     app["config"] = config
     app["base_dir"] = base_dir
     app["overlay_config_path"] = overlay_config_path
+    app["counter_state_path"] = counter_state_path
 
     async def serve_overlay(_request: web.Request) -> web.StreamResponse:
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
@@ -546,6 +554,38 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         await hub.broadcast({"type": "config", "config": saved_config})
         return web.json_response(saved_config)
 
+    async def serve_win_loss(_request: web.Request) -> web.StreamResponse:
+        overlay_path = base_dir.parent / "overlays" / "win-loss.html"
+        if not overlay_path.exists():
+            raise web.HTTPNotFound(text=f"Overlay not found: {overlay_path}")
+        return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
+
+    async def get_win_loss(_request: web.Request) -> web.Response:
+        return web.json_response(
+            load_counter_state(counter_state_path),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def update_win_loss(request: web.Request) -> web.Response:
+        if request.content_length is not None and request.content_length > 16 * 1024:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=16 * 1024,
+                actual_size=request.content_length,
+            )
+        try:
+            submitted = await request.json()
+        except (json.JSONDecodeError, TypeError):
+            raise web.HTTPBadRequest(text="Expected a JSON object") from None
+        if not isinstance(submitted, dict):
+            raise web.HTTPBadRequest(text="Expected a JSON object")
+        try:
+            state = apply_counter_update(load_counter_state(counter_state_path), submitted)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from None
+        saved_state = save_counter_state(counter_state_path, state)
+        await hub.broadcast({"type": "win-loss", "state": saved_state})
+        return web.json_response(saved_state)
+
     async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
         await ws.prepare(request)
@@ -583,6 +623,10 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/overlay-config.js", serve_overlay_config)
     app.router.add_get("/api/config", get_overlay_config)
     app.router.add_post("/api/config", update_overlay_config)
+    app.router.add_get("/overlays/win-loss", serve_win_loss)
+    app.router.add_get("/overlays/win-loss.html", serve_win_loss)
+    app.router.add_get("/api/win-loss", get_win_loss)
+    app.router.add_post("/api/win-loss", update_win_loss)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)

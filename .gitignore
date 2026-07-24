@@ -1,5 +1,7 @@
 larpdog-server/config.json
 larpdog-server/overlay-config.json
+larpdog-server/win-loss.json
+larpdog-server/app-settings.json
 larpdog-server/.spotify_cache*
 larpdog-server/.venv/
 larpdog-server/__pycache__/

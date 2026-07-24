@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Win / Loss Record</title>
+<style>
+  :root {
+    --accent: #d7ff45;
+    --ink: #f5f8fb;
+    --muted: #9aa7b3;
+    --panel: rgba(12, 17, 22, 0.94);
+    --line: rgba(255, 255, 255, 0.14);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--ink);
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+
+  .stage {
+    position: fixed;
+    top: 32px;
+    left: 50%;
+    width: min(760px, calc(100vw - 48px));
+    transform: translateX(-50%);
+  }
+
+  .record {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 132px 132px;
+    min-height: 118px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  }
+
+  .record::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 4px;
+    background: var(--accent);
+    content: "";
+  }
+
+  .identity {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding: 22px 26px 18px;
+    border-right: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 68%, transparent);
+  }
+
+  .title {
+    margin-top: 7px;
+    overflow: hidden;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 800;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .score {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    padding: 18px 12px 12px;
+  }
+
+  .score + .score {
+    border-left: 1px solid var(--line);
+  }
+
+  .value {
+    font-size: 46px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .label {
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 560px) {
+    .record {
+      grid-template-columns: 1fr 82px 82px;
+    }
+
+    .identity {
+      padding-right: 14px;
+      padding-left: 16px;
+    }
+
+    .value {
+      font-size: 36px;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <section class="record" aria-label="Current match record">
+      <div class="identity">
+        <div class="eyebrow"><span class="dot"></span>Live record</div>
+        <div class="title" id="title">Marvel Rivals</div>
+      </div>
+      <div class="score">
+        <div class="value" id="wins">0</div>
+        <div class="label">Wins</div>
+      </div>
+      <div class="score">
+        <div class="value" id="losses">0</div>
+        <div class="label">Losses</div>
+      </div>
+    </section>
+  </main>
+
+<script>
+const title = document.getElementById("title");
+const wins = document.getElementById("wins");
+const losses = document.getElementById("losses");
+
+function render(state) {
+  if (!state) return;
+  title.textContent = state.title || "Match record";
+  wins.textContent = Math.max(0, Number(state.wins) || 0);
+  losses.textContent = Math.max(0, Number(state.losses) || 0);
+  if (/^[0-9a-f]{6}$/i.test(state.accent || "")) {
+    document.documentElement.style.setProperty("--accent", `#${state.accent}`);
+  }
+}
+
+async function loadState() {
+  try {
+    const response = await fetch("/api/win-loss", { cache: "no-store" });
+    if (response.ok) render(await response.json());
+  } catch {}
+}
+
+function connect() {
+  if (!("WebSocket" in window)) return;
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(`${protocol}//${location.host}/ws`);
+  socket.onmessage = event => {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === "win-loss") render(message.state);
+    } catch {}
+  };
+  socket.onclose = () => setTimeout(connect, 1500);
+}
+
+loadState();
+connect();
+</script>
+</body>
+</html>

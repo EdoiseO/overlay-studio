@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -26,6 +27,7 @@ SERVER_DIR = ROOT_DIR / "larpdog-server"
 SERVER_CONFIG_PATH = SERVER_DIR / "config.json"
 SERVER_CONFIG_EXAMPLE_PATH = SERVER_DIR / "config.example.json"
 OVERLAY_CONFIG_PATH = SERVER_DIR / "overlay-config.json"
+APP_SETTINGS_PATH = SERVER_DIR / "app-settings.json"
 USER_ASSETS_DIR = ROOT_DIR / "user-assets"
 PID_PATH = SERVER_DIR / "server.pid"
 LOG_PATH = SERVER_DIR / "server.log"
@@ -40,15 +42,43 @@ from overlay_config import (  # noqa: E402
 )
 
 
-BACKGROUND = "#f2f5f5"
-PANEL = "#ffffff"
-INK = "#182327"
-MUTED = "#65747a"
-ACCENT = "#087f83"
-ACCENT_DARK = "#05686b"
-GOOD = "#169873"
-STOPPED = "#d05f55"
-BORDER = "#d8e0e1"
+THEMES = {
+    "dark": {
+        "background": "#0f1316",
+        "panel": "#171d21",
+        "panel_alt": "#1c2429",
+        "ink": "#f1f5f6",
+        "muted": "#8d9aa2",
+        "accent": "#4fc8bd",
+        "accent_dark": "#36a79e",
+        "good": "#49c98d",
+        "stopped": "#e36f68",
+        "border": "#303a40",
+    },
+    "light": {
+        "background": "#f2f5f5",
+        "panel": "#ffffff",
+        "panel_alt": "#e9eeee",
+        "ink": "#182327",
+        "muted": "#65747a",
+        "accent": "#087f83",
+        "accent_dark": "#05686b",
+        "good": "#169873",
+        "stopped": "#d05f55",
+        "border": "#d8e0e1",
+    },
+}
+
+BACKGROUND = THEMES["dark"]["background"]
+PANEL = THEMES["dark"]["panel"]
+PANEL_ALT = THEMES["dark"]["panel_alt"]
+INK = THEMES["dark"]["ink"]
+MUTED = THEMES["dark"]["muted"]
+ACCENT = THEMES["dark"]["accent"]
+ACCENT_DARK = THEMES["dark"]["accent_dark"]
+GOOD = THEMES["dark"]["good"]
+STOPPED = THEMES["dark"]["stopped"]
+BORDER = THEMES["dark"]["border"]
 
 DISPLAY_OPTIONS = {
     "Dog + player": "both",
@@ -77,6 +107,25 @@ ASSET_FILE_TYPES = [
     ("All files", "*.*"),
 ]
 ALLOWED_ASSET_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".webm", ".mp4", ".mov"}
+
+
+def activate_theme(theme_name: str) -> str:
+    global BACKGROUND, PANEL, PANEL_ALT, INK, MUTED
+    global ACCENT, ACCENT_DARK, GOOD, STOPPED, BORDER
+
+    selected = theme_name if theme_name in THEMES else "dark"
+    colors = THEMES[selected]
+    BACKGROUND = colors["background"]
+    PANEL = colors["panel"]
+    PANEL_ALT = colors["panel_alt"]
+    INK = colors["ink"]
+    MUTED = colors["muted"]
+    ACCENT = colors["accent"]
+    ACCENT_DARK = colors["accent_dark"]
+    GOOD = colors["good"]
+    STOPPED = colors["stopped"]
+    BORDER = colors["border"]
+    return selected
 
 
 def inverse_lookup(options: dict[str, str], value: str) -> str:
@@ -137,15 +186,24 @@ def hidden_process_options() -> dict[str, Any]:
 class LarpdogControl:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Larpdog Control")
-        self.root.geometry("820x720")
-        self.root.minsize(740, 640)
+        self.app_settings = load_json(APP_SETTINGS_PATH)
+        self.theme_name = activate_theme(str(self.app_settings.get("theme") or "dark"))
+        self.app_settings["theme"] = self.theme_name
+
+        self.root.title("Larpdog Studio")
+        self.root.geometry("980x720")
+        self.root.minsize(820, 640)
         self.root.configure(background=BACKGROUND)
 
         self._busy = False
         self._health_check_pending = False
+        self._counter_check_pending = False
+        self._drawer_visible = False
+        self._drawer_x = -290
+        self._drawer_animation: str | None = None
         self._pending_assets: dict[str, Path | None] = {"dog": None, "rest": None}
         self._swatch_buttons: dict[str, tk.Button] = {}
+        self._library_images: list[tk.PhotoImage] = []
 
         self._setup_styles()
         self._set_window_icon()
@@ -153,6 +211,7 @@ class LarpdogControl:
         self._load_customization()
         self._update_obs_url()
         self.root.after(150, self._schedule_health_check)
+        self.root.after(300, self._load_counter_state_async)
 
     def _setup_styles(self) -> None:
         style = ttk.Style(self.root)
@@ -162,31 +221,41 @@ class LarpdogControl:
         style.configure(".", font=("Segoe UI", 10), background=BACKGROUND, foreground=INK)
         style.configure("App.TFrame", background=BACKGROUND)
         style.configure("Panel.TFrame", background=PANEL)
+        style.configure("PanelAlt.TFrame", background=PANEL_ALT)
         style.configure("Header.TLabel", background=BACKGROUND, foreground=INK, font=("Segoe UI Semibold", 20))
         style.configure("Subheader.TLabel", background=BACKGROUND, foreground=MUTED, font=("Segoe UI", 10))
         style.configure("PanelTitle.TLabel", background=PANEL, foreground=INK, font=("Segoe UI Semibold", 11))
         style.configure("Panel.TLabel", background=PANEL, foreground=INK)
         style.configure("Muted.TLabel", background=PANEL, foreground=MUTED)
+        style.configure("DrawerTitle.TLabel", background=PANEL, foreground=INK, font=("Segoe UI Semibold", 17))
+        style.configure("Drawer.TLabel", background=PANEL, foreground=INK)
+        style.configure("DrawerMuted.TLabel", background=PANEL, foreground=MUTED)
         style.configure("Status.TLabel", background=BACKGROUND, foreground=INK, font=("Segoe UI Semibold", 10))
-        style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=(0, 8, 0, 0))
-        style.configure("TNotebook.Tab", padding=(18, 9), font=("Segoe UI Semibold", 10))
-        style.map(
-            "TNotebook.Tab",
-            background=[("selected", PANEL), ("!selected", "#e5ebeb")],
-            foreground=[("selected", INK), ("!selected", MUTED)],
-        )
-        style.configure("Primary.TButton", background=ACCENT, foreground="#ffffff", padding=(15, 9))
+        style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=0)
+        style.layout("TNotebook.Tab", [])
+        style.configure("Primary.TButton", background=ACCENT, foreground="#071210", padding=(15, 9))
         style.map(
             "Primary.TButton",
-            background=[("active", ACCENT_DARK), ("disabled", "#9ebabb")],
-            foreground=[("disabled", "#edf4f4")],
+            background=[("active", ACCENT_DARK), ("disabled", BORDER)],
+            foreground=[("disabled", MUTED)],
         )
-        style.configure("Secondary.TButton", background="#e7eeee", foreground=INK, padding=(13, 8))
-        style.map("Secondary.TButton", background=[("active", "#d8e4e4")])
-        style.configure("Danger.TButton", background="#f4e4e2", foreground="#9b3f38", padding=(13, 8))
-        style.map("Danger.TButton", background=[("active", "#ead2cf")])
+        style.configure("Secondary.TButton", background=PANEL_ALT, foreground=INK, padding=(13, 8))
+        style.map("Secondary.TButton", background=[("active", BORDER)])
+        style.configure("Danger.TButton", background="#472625", foreground="#ffaaa4", padding=(13, 8))
+        style.map("Danger.TButton", background=[("active", "#5a302e")])
         style.configure("TCheckbutton", background=PANEL, foreground=INK)
-        style.configure("Horizontal.TScale", background=PANEL, troughcolor="#dbe4e4")
+        style.configure("TRadiobutton", background=PANEL, foreground=INK)
+        style.configure("Horizontal.TScale", background=PANEL, troughcolor=BORDER)
+        style.configure("TEntry", fieldbackground=PANEL_ALT, foreground=INK, insertcolor=INK)
+        style.configure("TSpinbox", fieldbackground=PANEL_ALT, foreground=INK, arrowcolor=INK)
+        style.configure("TCombobox", fieldbackground=PANEL_ALT, foreground=INK, arrowcolor=INK)
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", PANEL_ALT)],
+            foreground=[("readonly", INK)],
+            selectbackground=[("readonly", PANEL_ALT)],
+            selectforeground=[("readonly", INK)],
+        )
 
     def _set_window_icon(self) -> None:
         icon_path = ROOT_DIR / "assets" / "resting-dog.png"
@@ -199,22 +268,44 @@ class LarpdogControl:
             self._icon = None
 
     def _build_ui(self) -> None:
-        shell = ttk.Frame(self.root, style="App.TFrame", padding=(24, 20, 24, 20))
+        shell = ttk.Frame(self.root, style="App.TFrame", padding=(22, 18, 22, 20))
         shell.pack(fill="both", expand=True)
 
         header = ttk.Frame(shell, style="App.TFrame")
         header.pack(fill="x")
+        self.menu_button = tk.Button(
+            header,
+            text="\u2630",
+            width=3,
+            relief="flat",
+            borderwidth=0,
+            background=BACKGROUND,
+            foreground=INK,
+            activebackground=PANEL_ALT,
+            activeforeground=INK,
+            font=("Segoe UI", 18),
+            cursor="hand2",
+            command=self.toggle_settings_drawer,
+        )
+        self.menu_button.pack(side="left", padx=(0, 14))
         title_block = ttk.Frame(header, style="App.TFrame")
         title_block.pack(side="left", fill="x", expand=True)
-        ttk.Label(title_block, text="Larpdog Control", style="Header.TLabel").pack(anchor="w")
+        ttk.Label(title_block, text="Overlay Library", style="Header.TLabel").pack(anchor="w")
         ttk.Label(
             title_block,
-            text="Spotify overlay companion",
+            text="Build, run, and manage stream overlays",
             style="Subheader.TLabel",
         ).pack(anchor="w", pady=(1, 0))
 
         status_block = ttk.Frame(header, style="App.TFrame")
         status_block.pack(side="right", padx=(16, 0))
+        self.header_start_button = ttk.Button(
+            status_block,
+            text="Start server",
+            style="Primary.TButton",
+            command=self.start_server,
+        )
+        self.header_start_button.pack(side="right", padx=(14, 0))
         self.status_dot = tk.Canvas(
             status_block,
             width=14,
@@ -228,14 +319,402 @@ class LarpdogControl:
         ttk.Label(status_block, textvariable=self.status_var, style="Status.TLabel").pack(side="left")
 
         self.notebook = ttk.Notebook(shell)
-        self.notebook.pack(fill="both", expand=True, pady=(14, 0))
-        self.control_tab = ttk.Frame(self.notebook, style="App.TFrame", padding=(0, 14, 0, 0))
-        self.customize_tab = ttk.Frame(self.notebook, style="App.TFrame", padding=(0, 14, 0, 0))
-        self.notebook.add(self.control_tab, text="Control")
+        self.notebook.pack(fill="both", expand=True, pady=(18, 0))
+        self.library_tab = ttk.Frame(self.notebook, style="App.TFrame")
+        self.control_tab = ttk.Frame(self.notebook, style="App.TFrame")
+        self.customize_tab = ttk.Frame(self.notebook, style="App.TFrame")
+        self.counter_tab = ttk.Frame(self.notebook, style="App.TFrame")
+        self.notebook.add(self.library_tab, text="Library")
+        self.notebook.add(self.control_tab, text="Larpdog")
         self.notebook.add(self.customize_tab, text="Customize")
+        self.notebook.add(self.counter_tab, text="Win / Loss")
 
+        self._build_library_tab()
         self._build_control_tab()
         self._build_customize_tab()
+        self._build_counter_tab()
+        self._build_settings_drawer()
+        self.notebook.select(self.library_tab)
+
+    def _build_library_tab(self) -> None:
+        heading = ttk.Frame(self.library_tab, style="App.TFrame")
+        heading.pack(fill="x", pady=(2, 16))
+        ttk.Label(
+            heading,
+            text="Your overlays",
+            style="Header.TLabel",
+        ).pack(side="left")
+        ttk.Label(
+            heading,
+            text="2 installed",
+            style="Subheader.TLabel",
+        ).pack(side="right", pady=(8, 0))
+
+        grid = tk.Frame(self.library_tab, background=BACKGROUND)
+        grid.pack(fill="both", expand=True)
+        for column in range(3):
+            grid.columnconfigure(column, weight=1, uniform="library")
+
+        self._overlay_card(
+            grid,
+            column=0,
+            title="Larpdog Music",
+            subtitle="Character + now playing",
+            kind="larpdog",
+            command=lambda: self._show_page(self.control_tab),
+        )
+        self._overlay_card(
+            grid,
+            column=1,
+            title="Match Record",
+            subtitle="Marvel Rivals wins / losses",
+            kind="counter",
+            command=lambda: self._show_page(self.counter_tab),
+        )
+        self._add_overlay_card(grid, column=2)
+
+    def _overlay_card(
+        self,
+        parent: tk.Frame,
+        *,
+        column: int,
+        title: str,
+        subtitle: str,
+        kind: str,
+        command: Callable[[], None],
+    ) -> None:
+        card = tk.Frame(
+            parent,
+            width=270,
+            height=245,
+            background=PANEL,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+        )
+        card.grid(row=0, column=column, sticky="new", padx=(0 if column == 0 else 8, 8))
+        card.grid_propagate(False)
+
+        preview = tk.Frame(card, height=142, background=PANEL_ALT)
+        preview.pack(fill="x")
+        preview.pack_propagate(False)
+
+        if kind == "larpdog":
+            icon_path = ROOT_DIR / "assets" / "resting-dog.png"
+            try:
+                image = tk.PhotoImage(file=str(icon_path))
+                factor = max(1, max(image.width(), image.height()) // 96)
+                image = image.subsample(factor, factor)
+                self._library_images.append(image)
+                tk.Label(
+                    preview,
+                    image=image,
+                    background=PANEL_ALT,
+                    borderwidth=0,
+                ).pack(expand=True)
+            except tk.TclError:
+                tk.Label(
+                    preview,
+                    text="LARPDOG",
+                    background=PANEL_ALT,
+                    foreground=ACCENT,
+                    font=("Segoe UI Semibold", 20),
+                ).pack(expand=True)
+        else:
+            counter_preview = tk.Frame(preview, background=PANEL_ALT)
+            counter_preview.pack(expand=True)
+            tk.Label(
+                counter_preview,
+                text="MATCH RECORD",
+                background=PANEL_ALT,
+                foreground=ACCENT,
+                font=("Segoe UI Semibold", 9),
+            ).pack()
+            self.library_counter_score_var = tk.StringVar(value="0 W   0 L")
+            tk.Label(
+                counter_preview,
+                textvariable=self.library_counter_score_var,
+                background=PANEL_ALT,
+                foreground=INK,
+                font=("Segoe UI Semibold", 22),
+            ).pack(pady=(6, 0))
+
+        body = tk.Frame(card, background=PANEL)
+        body.pack(fill="both", expand=True, padx=14, pady=12)
+        tk.Label(
+            body,
+            text=title,
+            background=PANEL,
+            foreground=INK,
+            anchor="w",
+            font=("Segoe UI Semibold", 12),
+        ).pack(fill="x")
+        tk.Label(
+            body,
+            text=subtitle,
+            background=PANEL,
+            foreground=MUTED,
+            anchor="w",
+            font=("Segoe UI", 9),
+        ).pack(fill="x", pady=(2, 10))
+        footer = tk.Frame(body, background=PANEL)
+        footer.pack(fill="x")
+        tk.Label(
+            footer,
+            text="READY",
+            background=PANEL,
+            foreground=ACCENT,
+            font=("Segoe UI Semibold", 8),
+        ).pack(side="left")
+        tk.Label(
+            footer,
+            text="\u2192",
+            background=PANEL,
+            foreground=INK,
+            font=("Segoe UI Semibold", 15),
+        ).pack(side="right")
+        self._make_card_clickable(card, command)
+
+    def _make_card_clickable(self, card: tk.Frame, command: Callable[[], None]) -> None:
+        def bind_widget(widget: tk.Misc) -> None:
+            with contextlib.suppress(tk.TclError):
+                widget.configure(cursor="hand2")
+            widget.bind("<Button-1>", lambda _event: command(), add="+")
+            widget.bind(
+                "<Enter>",
+                lambda _event: card.configure(highlightbackground=ACCENT),
+                add="+",
+            )
+            widget.bind(
+                "<Leave>",
+                lambda _event: self.root.after(12, lambda: self._settle_card_hover(card)),
+                add="+",
+            )
+            for child in widget.winfo_children():
+                bind_widget(child)
+
+        bind_widget(card)
+
+    def _settle_card_hover(self, card: tk.Frame) -> None:
+        try:
+            pointer_x, pointer_y = self.root.winfo_pointerxy()
+            under_pointer = self.root.winfo_containing(pointer_x, pointer_y)
+            current = under_pointer
+            while current is not None:
+                if current == card:
+                    card.configure(highlightbackground=ACCENT)
+                    return
+                current = current.master
+            card.configure(highlightbackground=BORDER)
+        except tk.TclError:
+            pass
+
+    def _add_overlay_card(self, parent: tk.Frame, *, column: int) -> None:
+        card = tk.Frame(
+            parent,
+            width=270,
+            height=245,
+            background=BACKGROUND,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+        )
+        card.grid(row=0, column=column, sticky="new", padx=(8, 0))
+        card.grid_propagate(False)
+        add_button = tk.Button(
+            card,
+            text="+",
+            relief="flat",
+            borderwidth=0,
+            background=BACKGROUND,
+            foreground=MUTED,
+            activebackground=PANEL_ALT,
+            activeforeground=ACCENT,
+            font=("Segoe UI Light", 42),
+            cursor="hand2",
+            command=self._show_add_overlay_info,
+        )
+        add_button.pack(fill="both", expand=True)
+        tk.Label(
+            card,
+            text="Add overlay",
+            background=BACKGROUND,
+            foreground=MUTED,
+            font=("Segoe UI Semibold", 10),
+        ).place(relx=0.5, rely=0.72, anchor="center")
+
+    def _show_add_overlay_info(self) -> None:
+        messagebox.showinfo(
+            "Add overlay",
+            "This library is ready for the next overlay package. New templates will appear here.",
+            parent=self.root,
+        )
+
+    def _show_page(self, page: ttk.Frame) -> None:
+        self.notebook.select(page)
+
+    def _detail_nav(
+        self,
+        parent: ttk.Frame,
+        title: str,
+        secondary_text: str | None = None,
+        secondary_command: Callable[[], None] | None = None,
+    ) -> None:
+        navigation = ttk.Frame(parent, style="App.TFrame")
+        navigation.pack(fill="x", pady=(0, 12))
+        ttk.Button(
+            navigation,
+            text="< Library",
+            style="Secondary.TButton",
+            command=lambda: self._show_page(self.library_tab),
+        ).pack(side="left")
+        ttk.Label(navigation, text=title, style="Header.TLabel").pack(side="left", padx=(14, 0))
+        if secondary_text and secondary_command:
+            ttk.Button(
+                navigation,
+                text=secondary_text,
+                style="Secondary.TButton",
+                command=secondary_command,
+            ).pack(side="right")
+
+    def _build_settings_drawer(self) -> None:
+        self.drawer_width = 290
+        self.settings_drawer = tk.Frame(
+            self.root,
+            width=self.drawer_width,
+            background=PANEL,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+        )
+        self.settings_drawer.place(
+            x=self._drawer_x,
+            y=0,
+            width=self.drawer_width,
+            relheight=1,
+        )
+        self.settings_drawer.pack_propagate(False)
+
+        drawer_header = ttk.Frame(self.settings_drawer, style="Panel.TFrame", padding=(20, 20, 14, 12))
+        drawer_header.pack(fill="x")
+        ttk.Label(drawer_header, text="Settings", style="DrawerTitle.TLabel").pack(side="left")
+        tk.Button(
+            drawer_header,
+            text="\u00d7",
+            width=2,
+            relief="flat",
+            borderwidth=0,
+            background=PANEL,
+            foreground=MUTED,
+            activebackground=PANEL_ALT,
+            activeforeground=INK,
+            font=("Segoe UI", 18),
+            cursor="hand2",
+            command=self.toggle_settings_drawer,
+        ).pack(side="right")
+
+        navigation = ttk.Frame(self.settings_drawer, style="Panel.TFrame", padding=(20, 8))
+        navigation.pack(fill="x")
+        ttk.Button(
+            navigation,
+            text="Overlay library",
+            style="Secondary.TButton",
+            command=lambda: (self._show_page(self.library_tab), self.toggle_settings_drawer()),
+        ).pack(fill="x")
+        ttk.Button(
+            navigation,
+            text="Server controls",
+            style="Secondary.TButton",
+            command=lambda: (self._show_page(self.control_tab), self.toggle_settings_drawer()),
+        ).pack(fill="x", pady=(8, 0))
+
+        divider = tk.Frame(self.settings_drawer, height=1, background=BORDER)
+        divider.pack(fill="x", padx=20, pady=18)
+
+        appearance = ttk.Frame(self.settings_drawer, style="Panel.TFrame", padding=(20, 0))
+        appearance.pack(fill="x")
+        ttk.Label(appearance, text="Appearance", style="PanelTitle.TLabel").pack(anchor="w")
+        ttk.Label(appearance, text="Theme", style="DrawerMuted.TLabel").pack(anchor="w", pady=(14, 6))
+        self.theme_var = tk.StringVar(value=self.theme_name.title())
+        theme_picker = ttk.Combobox(
+            appearance,
+            textvariable=self.theme_var,
+            values=("Dark", "Light"),
+            state="readonly",
+        )
+        theme_picker.pack(fill="x")
+        theme_picker.bind("<<ComboboxSelected>>", self._change_theme)
+
+        workspace = ttk.Frame(self.settings_drawer, style="Panel.TFrame", padding=(20, 24))
+        workspace.pack(fill="x")
+        ttk.Label(workspace, text="Workspace", style="PanelTitle.TLabel").pack(anchor="w")
+        ttk.Button(
+            workspace,
+            text="Open overlay files",
+            style="Secondary.TButton",
+            command=lambda: self._open_folder(ROOT_DIR / "overlays"),
+        ).pack(fill="x", pady=(12, 0))
+        ttk.Button(
+            workspace,
+            text="Open log folder",
+            style="Secondary.TButton",
+            command=lambda: self._open_folder(SERVER_DIR),
+        ).pack(fill="x", pady=(8, 0))
+
+        about = ttk.Frame(self.settings_drawer, style="Panel.TFrame", padding=(20, 12))
+        about.pack(side="bottom", fill="x")
+        ttk.Label(about, text="Larpdog Studio", style="Drawer.TLabel").pack(anchor="w")
+        ttk.Label(about, text="Overlay library preview", style="DrawerMuted.TLabel").pack(
+            anchor="w",
+            pady=(2, 0),
+        )
+        self.settings_drawer.lift()
+
+    def toggle_settings_drawer(self) -> None:
+        self._drawer_visible = not self._drawer_visible
+        if self._drawer_animation is not None:
+            with contextlib.suppress(tk.TclError):
+                self.root.after_cancel(self._drawer_animation)
+        self._animate_settings_drawer()
+
+    def _animate_settings_drawer(self) -> None:
+        target = 0 if self._drawer_visible else -self.drawer_width
+        difference = target - self._drawer_x
+        if abs(difference) <= 1:
+            self._drawer_x = target
+            self.settings_drawer.place_configure(x=self._drawer_x)
+            self._drawer_animation = None
+            return
+        step = max(-36, min(36, difference))
+        self._drawer_x += step
+        self.settings_drawer.place_configure(x=self._drawer_x)
+        self.settings_drawer.lift()
+        self._drawer_animation = self.root.after(12, self._animate_settings_drawer)
+
+    def _change_theme(self, _event: tk.Event[Any] | None = None) -> None:
+        selected = self.theme_var.get().strip().lower()
+        if selected == self.theme_name:
+            return
+        self.theme_name = activate_theme(selected)
+        self.app_settings["theme"] = self.theme_name
+        save_json(APP_SETTINGS_PATH, self.app_settings)
+        self._rebuild_ui()
+
+    def _rebuild_ui(self) -> None:
+        if self._drawer_animation is not None:
+            with contextlib.suppress(tk.TclError):
+                self.root.after_cancel(self._drawer_animation)
+        for child in self.root.winfo_children():
+            child.destroy()
+        self.root.configure(background=BACKGROUND)
+        self._drawer_visible = False
+        self._drawer_x = -290
+        self._drawer_animation = None
+        self._swatch_buttons = {}
+        self._library_images = []
+        self._setup_styles()
+        self._build_ui()
+        self._load_customization()
+        self._update_obs_url()
+        self._render_health(is_healthy())
+        self._load_counter_state_async()
 
     def _panel(self, parent: ttk.Frame, title: str) -> ttk.Frame:
         panel = ttk.Frame(parent, style="Panel.TFrame", padding=18)
@@ -244,6 +723,12 @@ class LarpdogControl:
         return panel
 
     def _build_control_tab(self) -> None:
+        self._detail_nav(
+            self.control_tab,
+            "Larpdog Music",
+            "Customize",
+            lambda: self._show_page(self.customize_tab),
+        )
         server_panel = self._panel(self.control_tab, "Server")
         details = ttk.Frame(server_panel, style="Panel.TFrame")
         details.pack(fill="x")
@@ -326,7 +811,7 @@ class LarpdogControl:
         self.activity_text = tk.Text(
             activity_panel,
             height=7,
-            background="#f7f9f9",
+            background=PANEL_ALT,
             foreground=INK,
             relief="flat",
             borderwidth=0,
@@ -340,6 +825,12 @@ class LarpdogControl:
         self._log("Control app opened")
 
     def _build_customize_tab(self) -> None:
+        self._detail_nav(
+            self.customize_tab,
+            "Customize Larpdog",
+            "Server controls",
+            lambda: self._show_page(self.control_tab),
+        )
         self.customize_canvas = tk.Canvas(
             self.customize_tab,
             background=BACKGROUND,
@@ -522,6 +1013,276 @@ class LarpdogControl:
     def _scroll_customize(self, event: tk.Event[Any]) -> str:
         self.customize_canvas.yview_scroll(int(-event.delta / 120), "units")
         return "break"
+
+    def _build_counter_tab(self) -> None:
+        self._detail_nav(self.counter_tab, "Match Record")
+
+        counter_panel = self._panel(self.counter_tab, "Scoreboard")
+        settings_row = ttk.Frame(counter_panel, style="Panel.TFrame")
+        settings_row.pack(fill="x")
+        settings_row.columnconfigure(1, weight=1)
+        ttk.Label(settings_row, text="Title", style="Muted.TLabel").grid(
+            row=0,
+            column=0,
+            sticky="w",
+        )
+        self.counter_title_var = tk.StringVar(value="MARVEL RIVALS")
+        ttk.Entry(settings_row, textvariable=self.counter_title_var).grid(
+            row=0,
+            column=1,
+            sticky="ew",
+            padx=(16, 10),
+        )
+        self.counter_accent_var = tk.StringVar(value="d7ff45")
+        self.counter_accent_button = tk.Button(
+            settings_row,
+            width=10,
+            relief="flat",
+            borderwidth=0,
+            cursor="hand2",
+            font=("Segoe UI Semibold", 9),
+            command=self._choose_counter_color,
+        )
+        self.counter_accent_button.grid(row=0, column=2, padx=(0, 10))
+        ttk.Button(
+            settings_row,
+            text="Save",
+            style="Secondary.TButton",
+            command=self._save_counter_settings,
+        ).grid(row=0, column=3)
+
+        score_row = tk.Frame(counter_panel, background=PANEL)
+        score_row.pack(pady=(20, 16))
+        self.counter_wins_var = tk.StringVar(value="0")
+        self.counter_losses_var = tk.StringVar(value="0")
+        self._score_block(score_row, "WINS", self.counter_wins_var, 0)
+        tk.Frame(score_row, width=1, height=86, background=BORDER).grid(
+            row=0,
+            column=1,
+            padx=40,
+        )
+        self._score_block(score_row, "LOSSES", self.counter_losses_var, 2)
+
+        action_row = ttk.Frame(counter_panel, style="Panel.TFrame")
+        action_row.pack()
+        ttk.Button(
+            action_row,
+            text="+ Win",
+            style="Primary.TButton",
+            command=lambda: self._post_counter_action("win"),
+        ).pack(side="left")
+        ttk.Button(
+            action_row,
+            text="Undo win",
+            style="Secondary.TButton",
+            command=lambda: self._post_counter_action("undo-win"),
+        ).pack(side="left", padx=(8, 20))
+        ttk.Button(
+            action_row,
+            text="+ Loss",
+            style="Primary.TButton",
+            command=lambda: self._post_counter_action("loss"),
+        ).pack(side="left")
+        ttk.Button(
+            action_row,
+            text="Undo loss",
+            style="Secondary.TButton",
+            command=lambda: self._post_counter_action("undo-loss"),
+        ).pack(side="left", padx=(8, 20))
+        ttk.Button(
+            action_row,
+            text="Reset",
+            style="Danger.TButton",
+            command=self._reset_counter,
+        ).pack(side="left")
+
+        source_panel = self._panel(self.counter_tab, "OBS browser source")
+        source_row = ttk.Frame(source_panel, style="Panel.TFrame")
+        source_row.pack(fill="x")
+        self.counter_url_var = tk.StringVar(value=f"{base_url()}overlays/win-loss")
+        ttk.Entry(
+            source_row,
+            textvariable=self.counter_url_var,
+            state="readonly",
+        ).pack(side="left", fill="x", expand=True)
+        ttk.Button(
+            source_row,
+            text="Copy URL",
+            style="Primary.TButton",
+            command=self.copy_counter_url,
+        ).pack(side="left", padx=(8, 0))
+        ttk.Button(
+            source_panel,
+            text="Open preview",
+            style="Secondary.TButton",
+            command=self.open_counter_preview,
+        ).pack(anchor="e", pady=(10, 0))
+        self._update_counter_swatch()
+
+    def _score_block(
+        self,
+        parent: tk.Frame,
+        label: str,
+        variable: tk.StringVar,
+        column: int,
+    ) -> None:
+        block = tk.Frame(parent, width=150, height=95, background=PANEL)
+        block.grid(row=0, column=column)
+        block.grid_propagate(False)
+        tk.Label(
+            block,
+            textvariable=variable,
+            background=PANEL,
+            foreground=INK,
+            font=("Segoe UI Semibold", 42),
+        ).pack()
+        tk.Label(
+            block,
+            text=label,
+            background=PANEL,
+            foreground=MUTED,
+            font=("Segoe UI Semibold", 9),
+        ).pack()
+
+    def _choose_counter_color(self) -> None:
+        current = f"#{self.counter_accent_var.get()}"
+        _rgb, selected = colorchooser.askcolor(
+            color=current,
+            parent=self.root,
+            title="Choose counter accent",
+        )
+        if not selected:
+            return
+        self.counter_accent_var.set(selected.removeprefix("#").lower())
+        self._update_counter_swatch()
+
+    def _update_counter_swatch(self) -> None:
+        value = self.counter_accent_var.get().removeprefix("#")
+        if not re.fullmatch(r"[0-9a-fA-F]{6}", value):
+            value = "d7ff45"
+            self.counter_accent_var.set(value)
+        red, green, blue = (int(value[index : index + 2], 16) for index in (0, 2, 4))
+        luminance = (red * 299 + green * 587 + blue * 114) / 1000
+        foreground = "#101416" if luminance > 145 else "#ffffff"
+        self.counter_accent_button.configure(
+            text=f"#{value.upper()}",
+            background=f"#{value}",
+            activebackground=f"#{value}",
+            foreground=foreground,
+            activeforeground=foreground,
+        )
+
+    def _counter_request(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        request: str | urllib.request.Request
+        url = f"{base_url()}api/win-loss"
+        if payload is None:
+            request = url
+        else:
+            request = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def _load_counter_state_async(self) -> None:
+        if self._counter_check_pending or not hasattr(self, "counter_wins_var"):
+            return
+        if not is_healthy():
+            return
+        self._counter_check_pending = True
+
+        def worker() -> None:
+            try:
+                state = self._counter_request()
+            except Exception:
+                state = None
+            self._dispatch(lambda: self._complete_counter_check(state))
+
+        threading.Thread(target=worker, name="larpdog-counter-state", daemon=True).start()
+
+    def _complete_counter_check(self, state: dict[str, Any] | None) -> None:
+        self._counter_check_pending = False
+        if state:
+            self._render_counter_state(state)
+
+    def _render_counter_state(self, state: dict[str, Any]) -> None:
+        self.counter_title_var.set(str(state.get("title") or "MARVEL RIVALS"))
+        wins = max(0, int(state.get("wins", 0)))
+        losses = max(0, int(state.get("losses", 0)))
+        self.counter_wins_var.set(str(wins))
+        self.counter_losses_var.set(str(losses))
+        self.library_counter_score_var.set(f"{wins} W   {losses} L")
+        self.counter_accent_var.set(str(state.get("accent") or "d7ff45"))
+        self._update_counter_swatch()
+
+    def _post_counter_action(self, action: str) -> None:
+        self._send_counter_update({"action": action})
+
+    def _save_counter_settings(self) -> None:
+        self._send_counter_update(
+            {
+                "title": self.counter_title_var.get(),
+                "accent": self.counter_accent_var.get(),
+            }
+        )
+
+    def _send_counter_update(self, payload: dict[str, Any]) -> None:
+        if not is_healthy():
+            messagebox.showerror(
+                "Server is stopped",
+                "Start the overlay server before updating the counter.",
+                parent=self.root,
+            )
+            return
+
+        def worker() -> None:
+            try:
+                state = self._counter_request(payload)
+                self._dispatch(lambda: self._finish_counter_update(state))
+            except Exception as exc:
+                self._dispatch(
+                    lambda error=exc: messagebox.showerror(
+                        "Counter update failed",
+                        str(error),
+                        parent=self.root,
+                    )
+                )
+
+        threading.Thread(target=worker, name="larpdog-counter-update", daemon=True).start()
+
+    def _finish_counter_update(self, state: dict[str, Any]) -> None:
+        self._render_counter_state(state)
+        self._log(
+            f"Match record updated: {state.get('wins', 0)} wins, {state.get('losses', 0)} losses"
+        )
+
+    def _reset_counter(self) -> None:
+        confirmed = messagebox.askyesno(
+            "Reset match record",
+            "Reset wins and losses to zero?",
+            parent=self.root,
+        )
+        if confirmed:
+            self._post_counter_action("reset")
+
+    def copy_counter_url(self) -> None:
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.counter_url_var.get())
+        self.root.update_idletasks()
+        self._log("Win/loss OBS URL copied")
+
+    def open_counter_preview(self) -> None:
+        if not is_healthy():
+            messagebox.showerror(
+                "Server is stopped",
+                "Start the overlay server before opening the preview.",
+                parent=self.root,
+            )
+            return
+        webbrowser.open(self.counter_url_var.get())
 
     def _form_label(self, parent: ttk.Frame, text: str, row: int) -> None:
         ttk.Label(parent, text=text, style="Muted.TLabel").grid(
@@ -908,14 +1669,20 @@ class LarpdogControl:
         running = is_healthy()
         self._render_health(running)
         if not success:
-            messagebox.showerror("Larpdog Control", detail, parent=self.root)
+            messagebox.showerror("Larpdog Studio", detail, parent=self.root)
         elif open_after and running:
             webbrowser.open(self.obs_url_var.get())
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
         state = "disabled" if busy else "normal"
-        for button in (self.start_button, self.stop_button, self.restart_button, self.save_button):
+        for button in (
+            self.header_start_button,
+            self.start_button,
+            self.stop_button,
+            self.restart_button,
+            self.save_button,
+        ):
             button.configure(state=state)
 
     def _schedule_health_check(self) -> None:
@@ -932,11 +1699,14 @@ class LarpdogControl:
     def _complete_health_check(self, running: bool) -> None:
         self._health_check_pending = False
         self._render_health(running)
+        if running:
+            self._load_counter_state_async()
         self.root.after(2500, self._schedule_health_check)
 
     def _render_health(self, running: bool) -> None:
         self.address_var.set(base_url())
         self._update_obs_url()
+        self.counter_url_var.set(f"{base_url()}overlays/win-loss")
         self.status_dot.itemconfigure(self.status_circle, fill=GOOD if running else STOPPED)
         self.status_var.set("Running" if running else "Stopped")
         if not self._busy:
@@ -946,6 +1716,10 @@ class LarpdogControl:
             self.start_button.configure(state="disabled" if running else "normal")
             self.stop_button.configure(state="normal" if running else "disabled")
             self.restart_button.configure(state="normal" if running else "disabled")
+            self.header_start_button.configure(
+                text="Server ready" if running else "Start server",
+                state="disabled" if running else "normal",
+            )
 
     def _dispatch(self, callback: Callable[[], None]) -> None:
         try:
