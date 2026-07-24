@@ -8,10 +8,13 @@ from typing import Any
 
 
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
-    "appearance": {
-        "asset": "both",
-        "dog": "assets/dancing-dog.gif",
+    "dance": {
+        "gif": "assets/dancing-dog.gif",
         "rest": "assets/resting-dog.png",
+        "position": "bottom-left",
+        "scale": 1.0,
+    },
+    "spotify": {
         "position": "bottom-left",
         "scale": 1.0,
         "cardWidth": 335,
@@ -31,7 +34,6 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     },
 }
 
-ASSET_CHOICES = {"both", "dog", "player"}
 POSITION_CHOICES = {"bottom-left", "bottom-right", "top-left", "top-right"}
 COLOR_MODE_CHOICES = {"auto", "fixed", "art"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
@@ -64,47 +66,76 @@ def _color(value: Any, default: str) -> str:
 
 def normalize_overlay_config(raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
-    appearance = source.get("appearance") if isinstance(source.get("appearance"), dict) else {}
+    legacy = source.get("appearance") if isinstance(source.get("appearance"), dict) else {}
+    dance = source.get("dance") if isinstance(source.get("dance"), dict) else {}
+    spotify = source.get("spotify") if isinstance(source.get("spotify"), dict) else {}
     audio = source.get("audio") if isinstance(source.get("audio"), dict) else {}
     now_playing = (
         source.get("nowPlaying") if isinstance(source.get("nowPlaying"), dict) else {}
     )
-    colors = appearance.get("colors") if isinstance(appearance.get("colors"), dict) else {}
+    colors = spotify.get("colors") if isinstance(spotify.get("colors"), dict) else {}
+    if not colors and isinstance(legacy.get("colors"), dict):
+        colors = legacy["colors"]
 
     defaults = DEFAULT_OVERLAY_CONFIG
-    default_appearance = defaults["appearance"]
-    default_colors = default_appearance["colors"]
+    default_dance = defaults["dance"]
+    default_spotify = defaults["spotify"]
+    default_colors = default_spotify["colors"]
 
     return {
-        "appearance": {
-            "asset": _choice(
-                appearance.get("asset"), ASSET_CHOICES, default_appearance["asset"]
+        "dance": {
+            "gif": _asset_path(
+                dance.get("gif", dance.get("media", legacy.get("dog"))),
+                default_dance["gif"],
             ),
-            "dog": _asset_path(appearance.get("dog"), default_appearance["dog"]),
-            "rest": _asset_path(appearance.get("rest"), default_appearance["rest"]),
+            "rest": _asset_path(
+                dance.get("rest", legacy.get("rest")),
+                default_dance["rest"],
+            ),
             "position": _choice(
-                appearance.get("position"),
+                dance.get("position", legacy.get("position")),
                 POSITION_CHOICES,
-                default_appearance["position"],
+                default_dance["position"],
             ),
             "scale": round(
-                _number(appearance.get("scale"), default_appearance["scale"], 0.5, 2.0),
+                _number(
+                    dance.get("scale", legacy.get("scale")),
+                    default_dance["scale"],
+                    0.5,
+                    2.0,
+                ),
+                2,
+            ),
+        },
+        "spotify": {
+            "position": _choice(
+                spotify.get("position", legacy.get("position")),
+                POSITION_CHOICES,
+                default_spotify["position"],
+            ),
+            "scale": round(
+                _number(
+                    spotify.get("scale", legacy.get("scale")),
+                    default_spotify["scale"],
+                    0.5,
+                    2.0,
+                ),
                 2,
             ),
             "cardWidth": int(
                 round(
                     _number(
-                        appearance.get("cardWidth"),
-                        default_appearance["cardWidth"],
+                        spotify.get("cardWidth", legacy.get("cardWidth")),
+                        default_spotify["cardWidth"],
                         240,
                         600,
                     )
                 )
             ),
             "colorMode": _choice(
-                appearance.get("colorMode"),
+                spotify.get("colorMode", legacy.get("colorMode")),
                 COLOR_MODE_CHOICES,
-                default_appearance["colorMode"],
+                default_spotify["colorMode"],
             ),
             "colors": {
                 "a": _color(colors.get("a"), default_colors["a"]),

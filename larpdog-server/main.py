@@ -18,12 +18,12 @@ from counter_store import apply_counter_update, load_counter_state, save_counter
 from overlay_config import load_overlay_config, save_overlay_config
 
 
-APP_NAME = "larpdog-server"
+APP_NAME = "overlay-studio-server"
 DEFAULT_CONFIG: dict[str, Any] = {
     "server": {
         "host": "127.0.0.1",
         "port": 8473,
-        "overlay_path": "../larpdog-overlay.html",
+        "overlay_path": "../overlay-studio.html",
     },
     "audio": {
         "enabled": True,
@@ -150,7 +150,11 @@ class AudioLoopbackWorker:
         if not self.config.get("enabled", True):
             log("Audio capture disabled in config.")
             return
-        self.thread = threading.Thread(target=self._run, name="larpdog-audio", daemon=True)
+        self.thread = threading.Thread(
+            target=self._run,
+            name="overlay-studio-audio",
+            daemon=True,
+        )
         self.thread.start()
 
     def stop(self) -> None:
@@ -228,7 +232,7 @@ class AudioLoopbackWorker:
                     if spectrum.size < bass_bins:
                         continue
 
-                    # Keep smoothing/threshold/band math in sync with startRealAudio() in larpdog-overlay.html.
+                    # Keep smoothing/threshold/band math in sync with startRealAudio() in overlay-studio.html.
                     bass = float(np.mean(spectrum[:bass_bins]))
                     bass_avg = bass_avg * 0.92 + bass * 0.08
                     sensitivity = max(0.3, float(self.config.get("sensitivity", 1.0)))
@@ -282,7 +286,10 @@ class MediaSessionWorker:
             log("Windows media now-playing disabled in config.")
             asyncio.create_task(self._broadcast_idle())
             return
-        self.task = asyncio.create_task(self._run(), name="larpdog-media-session")
+        self.task = asyncio.create_task(
+            self._run(),
+            name="overlay-studio-media-session",
+        )
 
     async def stop(self) -> None:
         if self.task:
@@ -526,7 +533,10 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         saved_config = load_overlay_config(overlay_config_path)
         payload = json.dumps(saved_config, separators=(",", ":"))
         return web.Response(
-            text=f"window.LARPDOG_CONFIG={payload};",
+            text=(
+                f"window.OVERLAY_STUDIO_CONFIG={payload};"
+                "window.LARPDOG_CONFIG=window.OVERLAY_STUDIO_CONFIG;"
+            ),
             content_type="application/javascript",
             headers={"Cache-Control": "no-store"},
         )
@@ -619,6 +629,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         await cleanup_app["media_worker"].stop()
 
     app.router.add_get("/", serve_overlay)
+    app.router.add_get("/overlay-studio.html", serve_overlay)
+    app.router.add_get("/overlays/larpdog-dance", serve_overlay)
+    app.router.add_get("/overlays/spotify", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
     app.router.add_get("/overlay-config.js", serve_overlay_config)
     app.router.add_get("/api/config", get_overlay_config)
@@ -641,7 +654,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Local audio and Windows media companion for larpdog.")
+    parser = argparse.ArgumentParser(
+        description="Local audio and Windows media companion for Overlay Studio."
+    )
     parser.add_argument(
         "--config",
         default=str(runtime_dir() / "config.json"),

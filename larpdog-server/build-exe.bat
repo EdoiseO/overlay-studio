@@ -12,9 +12,9 @@ if exist "..\.venv\Scripts\python.exe" (
 
 %PY% -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 pause & exit /b 1
-%PY% -m PyInstaller larpdog-server.spec
+%PY% -m PyInstaller overlay-studio-server.spec
 if errorlevel 1 pause & exit /b 1
 
 echo.
-echo Built dist\larpdog-server.exe
+echo Built dist\overlay-studio-server.exe
 pause

@@ -43,7 +43,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="larpdog-server",
+    name="overlay-studio-server",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

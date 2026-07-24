@@ -1,6 +1,6 @@
-# larpdog-server
+# Overlay Studio server
 
-Local companion for `larpdog-overlay.html`.
+Local companion for `overlay-studio.html`.
 
 It serves the overlay at `http://127.0.0.1:8473/`, captures Windows system audio through WASAPI loopback, and sends beat/EQ plus Windows now-playing data over `/ws`.
 
@@ -40,27 +40,23 @@ To verify Windows media metadata before starting the server, run:
 
 ## OBS
 
-Add a Browser source with this URL:
+Add separate OBS Browser sources with these URLs:
 
 ```text
-http://127.0.0.1:8473/
-```
-
-For separate OBS sources, use:
-
-```text
-http://127.0.0.1:8473/?asset=dog
-http://127.0.0.1:8473/?asset=player
+http://127.0.0.1:8473/overlays/larpdog-dance
+http://127.0.0.1:8473/overlays/spotify
+http://127.0.0.1:8473/overlays/win-loss
 ```
 
 Then start Spotify desktop playback on this PC. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
 
-## Custom character assets
+## Custom Dance GIFs
 
-Drop custom files into the top-level `user-assets` folder, then point the overlay at them with URL params:
+Use **Browse** on the Larpdog Dance page in Overlay Studio. Selected files are copied
+into the top-level `user-assets` folder. A source can also be overridden with a URL param:
 
 ```text
-http://127.0.0.1:8473/?dog=user-assets/dancing.webm&rest=user-assets/resting.png
+http://127.0.0.1:8473/overlays/larpdog-dance?dog=user-assets/dancing.gif
 ```
 
 Image assets can be `gif`, `webp`, `apng`, or `png`. Video assets can be `webm`, `mp4`, or `mov`; the overlay swaps the character image for a muted looping video automatically. For best transparency and small files, export transparent WebM:
@@ -74,7 +70,7 @@ ffmpeg -i in.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 30 user-assets\da
 By default, the overlay recolors itself from album art and falls back to the character palette. You can override that with hex params:
 
 ```text
-http://127.0.0.1:8473/?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
+http://127.0.0.1:8473/overlays/spotify?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
 ```
 
 - `colorMode=auto`: album art first, then user colors, then the character palette.
@@ -85,7 +81,7 @@ http://127.0.0.1:8473/?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d
 
 - `audio.sensitivity`: higher values react to quieter kicks.
 - `audio.device_match`: optional substring if you need a specific loopback device.
-- `server.overlay_path`: defaults to `../larpdog-overlay.html`, which works when this folder sits beside the overlay file.
+- `server.overlay_path`: defaults to `../overlay-studio.html`.
 - `media.poll_seconds`: default is 2 seconds.
 - `media.preferred_source`: default is `spotify`; used to pick Spotify when multiple media apps are active.
 - `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
@@ -98,4 +94,4 @@ After dependencies install, run:
 build-exe.bat
 ```
 
-The executable is written to `dist\larpdog-server.exe`. Keep `config.json` next to the exe.
+The executable is written to `dist\overlay-studio-server.exe`. Keep `config.json` next to the exe.

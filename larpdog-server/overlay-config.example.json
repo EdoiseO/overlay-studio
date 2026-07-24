@@ -1,8 +1,11 @@
 {
-  "appearance": {
-    "asset": "both",
-    "dog": "assets/dancing-dog.gif",
+  "dance": {
+    "gif": "assets/dancing-dog.gif",
     "rest": "assets/resting-dog.png",
+    "position": "bottom-left",
+    "scale": 1.0
+  },
+  "spotify": {
     "position": "bottom-left",
     "scale": 1.0,
     "cardWidth": 335,
