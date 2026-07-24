@@ -4,6 +4,7 @@ const app = {
   initialized: false,
   pollPending: false,
   toastTimer: null,
+  previewKind: null,
   urls: {},
 };
 
@@ -72,6 +73,64 @@ function updatePreview(iframe, url, running) {
   iframe.src = desired || "about:blank";
 }
 
+const previewDetails = {
+  dance: {
+    title: "Larpdog Dance",
+    view: "danceView",
+    canvas: [520, 420],
+  },
+  spotify: {
+    title: "Spotify Overlay",
+    view: "spotifyView",
+    canvas: [620, 360],
+  },
+  counter: {
+    title: "Match Record",
+    view: "counterView",
+    canvas: [900, 320],
+  },
+};
+
+function resizeLargePreview() {
+  const stage = document.querySelector(".large-preview-stage");
+  const iframe = byId("largeOverlayPreview");
+  const canvas = previewDetails[app.previewKind]?.canvas;
+  if (!stage || !iframe || !canvas) return;
+  const [width, height] = canvas;
+  const scale = Math.min(stage.clientWidth / width, stage.clientHeight / height) * 0.9;
+  iframe.style.width = `${width}px`;
+  iframe.style.height = `${height}px`;
+  iframe.style.left = `${(stage.clientWidth - width * scale) / 2}px`;
+  iframe.style.top = `${(stage.clientHeight - height * scale) / 2}px`;
+  iframe.style.transform = `scale(${scale})`;
+}
+
+function renderLargePreview(state) {
+  if (!app.previewKind) return;
+  const iframe = byId("largeOverlayPreview");
+  const url = app.urls[app.previewKind];
+  updatePreview(iframe, url ? `${url}?preview=studio` : "", state.running);
+  byId("overlayPreviewStatus").textContent = state.running ? "Live and running" : "Server offline";
+  byId("copyPreviewUrlButton").disabled = !url;
+  byId("openPreviewSourceButton").disabled = !state.running || !url;
+  byId("overlayPreviewDialog").classList.toggle("server-running", state.running);
+}
+
+function openOverlayPreview(kind) {
+  const details = previewDetails[kind];
+  if (!details) return;
+  app.previewKind = kind;
+  byId("overlayPreviewTitle").textContent = details.title;
+  renderLargePreview(app.state || { running: false });
+  byId("overlayPreviewDialog").showModal();
+  requestAnimationFrame(resizeLargePreview);
+}
+
+function closeOverlayPreview() {
+  const dialog = byId("overlayPreviewDialog");
+  if (dialog.open) dialog.close();
+}
+
 function renderServerState(state) {
   document.body.classList.toggle("server-running", state.running);
   byId("headerStatusText").textContent = state.running ? "Running" : "Stopped";
@@ -107,6 +166,7 @@ function renderServerState(state) {
   updatePreview(byId("dancePreview"), `${app.urls.dance}?preview=studio`, state.running);
   updatePreview(byId("spotifyPreview"), `${app.urls.spotify}?preview=studio`, state.running);
   updatePreview(byId("counterPreview"), `${app.urls.counter}?preview=studio`, state.running);
+  renderLargePreview(state);
 }
 
 function renderCounter(counter) {
@@ -273,6 +333,9 @@ function bindEvents() {
   document.querySelectorAll("[data-view-target]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.viewTarget));
   });
+  document.querySelectorAll("[data-preview-kind]").forEach((button) => {
+    button.addEventListener("click", () => openOverlayPreview(button.dataset.previewKind));
+  });
   document.querySelectorAll(".library-button").forEach((button) => {
     button.addEventListener("click", () => showView("libraryView"));
   });
@@ -367,6 +430,27 @@ function bindEvents() {
 
   byId("addOverlayButton").addEventListener("click", () => byId("addOverlayDialog").showModal());
   byId("closeAddDialog").addEventListener("click", () => byId("addOverlayDialog").close());
+
+  const previewDialog = byId("overlayPreviewDialog");
+  byId("closePreviewButton").addEventListener("click", closeOverlayPreview);
+  byId("copyPreviewUrlButton").addEventListener("click", () => copySource(app.previewKind));
+  byId("openPreviewSourceButton").addEventListener("click", () => {
+    if (app.previewKind) callApi("open_url", app.urls[app.previewKind]);
+  });
+  byId("customizePreviewButton").addEventListener("click", () => {
+    const details = previewDetails[app.previewKind];
+    if (!details) return;
+    closeOverlayPreview();
+    showView(details.view);
+  });
+  previewDialog.addEventListener("click", (event) => {
+    if (event.target === previewDialog) closeOverlayPreview();
+  });
+  previewDialog.addEventListener("close", () => {
+    app.previewKind = null;
+    updatePreview(byId("largeOverlayPreview"), "", false);
+  });
+  window.addEventListener("resize", resizeLargePreview);
 }
 
 async function initialize() {

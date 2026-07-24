@@ -30,7 +30,7 @@
           <span>3 installed</span>
         </div>
         <div class="overlay-grid">
-          <button class="overlay-card" type="button" data-view-target="danceView">
+          <button class="overlay-card" type="button" data-preview-kind="dance" aria-label="Preview Larpdog Dance">
             <div class="live-preview preview-dance">
               <iframe id="dancePreview" title="Live Larpdog Dance preview" tabindex="-1"></iframe>
               <span class="preview-offline">OFFLINE</span>
@@ -42,7 +42,7 @@
             </div>
           </button>
 
-          <button class="overlay-card" type="button" data-view-target="spotifyView">
+          <button class="overlay-card" type="button" data-preview-kind="spotify" aria-label="Preview Spotify Overlay">
             <div class="live-preview preview-spotify">
               <iframe id="spotifyPreview" title="Live Spotify overlay preview" tabindex="-1"></iframe>
               <span class="preview-offline">OFFLINE</span>
@@ -54,7 +54,7 @@
             </div>
           </button>
 
-          <button class="overlay-card" type="button" data-view-target="counterView">
+          <button class="overlay-card" type="button" data-preview-kind="counter" aria-label="Preview Match Record">
             <div class="live-preview preview-counter">
               <iframe id="counterPreview" title="Live Match Record preview" tabindex="-1"></iframe>
               <span class="preview-offline">OFFLINE</span>
@@ -310,6 +310,34 @@
     <h2>Add overlay</h2>
     <p>New overlay packages will appear here as the library grows.</p>
     <button class="primary-button" id="closeAddDialog" type="button">Close</button>
+  </dialog>
+
+  <dialog class="preview-dialog" id="overlayPreviewDialog" aria-labelledby="overlayPreviewTitle">
+    <div class="preview-dialog-heading">
+      <div>
+        <span>LIVE OBS PREVIEW</span>
+        <h2 id="overlayPreviewTitle">Overlay preview</h2>
+      </div>
+      <button class="icon-button close-button" id="closePreviewButton" type="button" aria-label="Close preview" title="Close">x</button>
+    </div>
+    <div class="large-preview-stage">
+      <iframe id="largeOverlayPreview" title="Live overlay preview" tabindex="-1"></iframe>
+      <div class="large-preview-offline">
+        <strong>Overlay server is offline</strong>
+        <span>Start the server to load this preview.</span>
+      </div>
+    </div>
+    <div class="preview-dialog-footer">
+      <div class="preview-status">
+        <i class="status-dot"></i>
+        <span id="overlayPreviewStatus">Checking server</span>
+      </div>
+      <div class="preview-actions">
+        <button class="secondary-button" id="copyPreviewUrlButton" type="button">Copy OBS URL</button>
+        <button class="secondary-button" id="openPreviewSourceButton" type="button">Open source</button>
+        <button class="primary-button" id="customizePreviewButton" type="button">Customize</button>
+      </div>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
