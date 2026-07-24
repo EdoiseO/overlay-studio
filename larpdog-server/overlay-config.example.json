@@ -1,0 +1,23 @@
+{
+  "appearance": {
+    "asset": "both",
+    "dog": "assets/dancing-dog.gif",
+    "rest": "assets/resting-dog.png",
+    "position": "bottom-left",
+    "scale": 1.0,
+    "cardWidth": 335,
+    "colorMode": "auto",
+    "colors": {
+      "a": "ff4d9d",
+      "b": "ffd24a",
+      "c": "5ee0ff"
+    }
+  },
+  "audio": {
+    "enabled": true,
+    "sensitivity": 1.0
+  },
+  "nowPlaying": {
+    "fallbackBpm": 120
+  }
+}

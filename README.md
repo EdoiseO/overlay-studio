@@ -8,21 +8,26 @@ Beat-reactive OBS browser-source overlay plus a local Windows companion server.
 
 ## Quickstart
 
-1. Open `larpdog-server` and run `install.bat`.
-2. Run `run.bat`, then open `http://127.0.0.1:8473/`.
-3. In OBS, add a Browser Source using one of these URLs:
+1. Open `Larpdog.bat`.
+2. Click **Start**.
+3. Copy the OBS URL from the app and use it in an OBS Browser Source.
 
-```text
-http://127.0.0.1:8473/
-http://127.0.0.1:8473/?asset=dog
-http://127.0.0.1:8473/?asset=player
-```
+The app shows whether the local server is running, opens a browser preview, and provides
+separate URLs for the full overlay, dog, and player. Use the **Customize** tab to choose
+character files, layout, colors, scale, and beat sensitivity. Saved changes refresh
+connected OBS overlays automatically.
+
+If the Python environment is ever removed, run `larpdog-server\install.bat` once before
+opening the control app again.
+
+`Larpdog.bat` uses `Larpdog Control.exe` when a packaged build is present and otherwise
+opens the Python desktop app directly.
 
 ## Customizing
 
-- Drop custom character files into `user-assets/`.
-- Use `?dog=user-assets/dancing.webm&rest=user-assets/resting.png` for custom animations.
-- Use `?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9d` for fixed overlay colors.
+- Use **Browse** in the control app to choose dancing and resting character files.
+- Character files are copied into `user-assets/`.
+- Settings are stored in `larpdog-server/overlay-config.json`.
 
 ## Project layout
 
