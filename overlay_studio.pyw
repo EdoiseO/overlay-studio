@@ -37,6 +37,9 @@ PID_PATH = SERVER_DIR / "server.pid"
 LOG_PATH = SERVER_DIR / "server.log"
 ERROR_LOG_PATH = SERVER_DIR / "server.err"
 STUDIO_UI_PATH = RESOURCE_DIR / "studio" / "index.html"
+WINDOW_SIZE = (1000, 700)
+WINDOW_MIN_SIZE = (900, 620)
+WINDOW_MAX_SIZE = (1000, 700)
 
 sys.path.insert(0, str(SERVER_DIR))
 from counter_store import load_counter_state  # noqa: E402
@@ -448,6 +451,20 @@ def run_embedded_server() -> None:
     server_main()
 
 
+def constrain_window_size(window: webview.Window) -> None:
+    if sys.platform != "win32" or window.native is None:
+        return
+
+    from System.Drawing import Size
+
+    scale = window.native._scale
+    window.native.MaximumSize = Size(
+        int(WINDOW_MAX_SIZE[0] * scale),
+        int(WINDOW_MAX_SIZE[1] * scale),
+    )
+    window.native.MaximizeBox = False
+
+
 def main() -> None:
     if "--server" in sys.argv:
         run_embedded_server()
@@ -462,14 +479,15 @@ def main() -> None:
         "Overlay Studio",
         url=str(STUDIO_UI_PATH),
         js_api=api,
-        width=1100,
-        height=760,
-        min_size=(940, 640),
+        width=WINDOW_SIZE[0],
+        height=WINDOW_SIZE[1],
+        min_size=WINDOW_MIN_SIZE,
         background_color="#0f1316",
         text_select=False,
     )
     if window is None:
         raise RuntimeError("Could not create Overlay Studio window")
+    window.events.before_show += constrain_window_size
     api._bind_window(window)
     webview.start(
         gui="edgechromium",
