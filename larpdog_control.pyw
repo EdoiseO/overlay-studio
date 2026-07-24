@@ -1190,7 +1190,7 @@ class LarpdogControl:
             text="Reset",
             width=5,
             style="CounterDanger.TButton",
-            command=lambda: self._reset_counter_field(label, reset_key),
+            command=lambda: self._reset_counter_field(reset_key),
         ).pack(side="left", padx=5)
         ttk.Button(
             controls,
@@ -1315,14 +1315,8 @@ class LarpdogControl:
             f"Match record updated: {state.get('wins', 0)} wins, {state.get('losses', 0)} losses"
         )
 
-    def _reset_counter_field(self, label: str, key: str) -> None:
-        confirmed = messagebox.askyesno(
-            f"Reset {label.lower()}",
-            f"Reset {label.lower()} to zero?",
-            parent=self.root,
-        )
-        if confirmed:
-            self._send_counter_update({key: 0})
+    def _reset_counter_field(self, key: str) -> None:
+        self._send_counter_update({key: 0})
 
     def copy_counter_url(self) -> None:
         self.root.clipboard_clear()
