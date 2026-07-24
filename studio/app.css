@@ -773,7 +773,7 @@ dialog .primary-button {
 }
 
 .preview-dialog {
-  width: min(900px, calc(100vw - 48px), calc((100vh - 160px) * 16 / 9));
+  width: min(760px, calc(100vw - 80px), calc((100vh - 160px) * 16 / 9));
   max-width: none;
   padding: 0;
   overflow: hidden;
