@@ -63,7 +63,9 @@ one fixed dance or a random pool that chooses a new dance when the song changes 
 keeps it across pause and resume. Imported files can be removed from their tile with the
 trash button; built-in assets cannot be deleted. Dancing and resting imports live in
 separate folders, so deleting from one library does not affect the other. Dancing files
-up to 25 MB can be dropped directly onto the media library. Windows `.url` shortcuts to
+are signature-checked during import, and missing or undecodable selections fall back
+without replacing the visible overlay with a broken image. Files up to 25 MB can be
+dropped directly onto the media library. Windows `.url` shortcuts to
 public HTTPS media or media pages with Open Graph links can be selected or dropped too;
 the downloaded file is validated and limited to 25 MB. A source can be overridden with
 a URL param:

@@ -423,6 +423,31 @@ def sniff_media_extension(content: bytes) -> str | None:
     return None
 
 
+def validate_imported_media(
+    kind: str,
+    declared_extension: str,
+    content: bytes,
+) -> None:
+    detected_extension = sniff_media_extension(content)
+    if detected_extension is None:
+        raise ValueError("That file does not contain supported image or video data")
+
+    compatible_extensions = (
+        declared_extension == detected_extension
+        or {declared_extension, detected_extension} <= {".jpg", ".jpeg"}
+        or {declared_extension, detected_extension} <= {".png", ".apng"}
+        or {declared_extension, detected_extension} <= {".mp4", ".mov"}
+    )
+    if not compatible_extensions:
+        raise ValueError(
+            f"File contents do not match the {declared_extension} extension"
+        )
+
+    allowed = ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
+    if detected_extension not in allowed:
+        raise ValueError("That media type is not supported here")
+
+
 class ShortcutMediaMetadataParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
@@ -881,6 +906,12 @@ class DesktopApi:
         if extension not in allowed:
             return {"ok": False, "detail": "Unsupported file type"}
 
+        try:
+            with source.open("rb") as media_file:
+                validate_imported_media(kind, extension, media_file.read(16))
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+
         destination = asset_destination(kind, source.name, source=source)
         if source.resolve() != destination.resolve():
             shutil.copy2(source, destination)
@@ -939,6 +970,12 @@ class DesktopApi:
                     else "Dropped files must be between 1 byte and 25 MB"
                 ),
             }
+
+        if extension != ".url":
+            try:
+                validate_imported_media(kind, extension, content)
+            except ValueError as error:
+                return {"ok": False, "detail": str(error)}
 
         if extension == ".url":
             try:

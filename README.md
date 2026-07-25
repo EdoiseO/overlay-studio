@@ -66,6 +66,9 @@ copies imported files into `user-assets/`, so
 moving or deleting the original file does not break the overlay. Imported media can be
 removed with the trash button on its library tile; built-in media is protected. Dancing
 and resting imports are stored separately, so deleting one cannot remove the other.
+File signatures are checked during import. If selected media later becomes unavailable
+or cannot be decoded, the overlay keeps the current image and automatically tries
+another dance or the built-in resting image.
 
 GIFs, animated images, and videos up to 25 MB can also be dragged directly onto the
 **Dancing media** library. Windows `.url` Internet shortcuts to public HTTPS media are
