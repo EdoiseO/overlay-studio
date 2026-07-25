@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import contextlib
 import ctypes
 import json
@@ -62,6 +64,7 @@ ALLOWED_DANCE_EXTENSIONS = {
 }
 ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
 DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
+MAX_DRAG_IMPORT_BYTES = 25 * 1024 * 1024
 
 
 def load_json(path: Path, fallback_path: Path | None = None) -> dict[str, Any]:
@@ -154,6 +157,37 @@ def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
         "dancing": list(dancing.values()),
         "resting": list(resting.values()),
     }
+
+
+def asset_destination(
+    kind: str,
+    filename: str,
+    *,
+    content: bytes | None = None,
+    source: Path | None = None,
+) -> Path:
+    destination_dir = USER_ASSETS_DIR / ("dancing" if kind == "gif" else "resting")
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    supplied_name = Path(filename).name
+    extension = Path(supplied_name).suffix.lower()
+    cleaned_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(supplied_name).stem).strip(
+        ".-"
+    )
+    base_name = cleaned_stem or kind
+    destination = destination_dir / f"{base_name}{extension}"
+    suffix = 2
+    while destination.exists():
+        if source is not None and source.resolve() == destination.resolve():
+            return destination
+        if (
+            content is not None
+            and destination.stat().st_size == len(content)
+            and destination.read_bytes() == content
+        ):
+            return destination
+        destination = destination_dir / f"{base_name}-{suffix}{extension}"
+        suffix += 1
+    return destination
 
 
 def server_address() -> tuple[str, int]:
@@ -398,16 +432,7 @@ class DesktopApi:
         if source.suffix.lower() not in allowed:
             return {"ok": False, "detail": "Unsupported file type"}
 
-        destination_dir = USER_ASSETS_DIR / ("dancing" if kind == "gif" else "resting")
-        destination_dir.mkdir(parents=True, exist_ok=True)
-        cleaned_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", source.stem).strip(".-")
-        destination_name = f"{cleaned_stem or kind}{source.suffix.lower()}"
-        destination = destination_dir / destination_name
-        suffix = 2
-        while destination.exists() and source.resolve() != destination.resolve():
-            destination_name = f"{cleaned_stem or kind}-{suffix}{source.suffix.lower()}"
-            destination = destination_dir / destination_name
-            suffix += 1
+        destination = asset_destination(kind, source.name, source=source)
         if source.resolve() != destination.resolve():
             shutil.copy2(source, destination)
         relative_path = f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
@@ -415,6 +440,53 @@ class DesktopApi:
             "ok": True,
             "path": relative_path,
             "name": source.name,
+            "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
+        }
+
+    def import_asset(
+        self,
+        kind: str,
+        filename: str,
+        data_url: str,
+    ) -> dict[str, Any]:
+        if kind not in {"gif", "rest"}:
+            return {"ok": False, "detail": "Unsupported asset type"}
+        supplied_name = Path(str(filename or "")).name
+        extension = Path(supplied_name).suffix.lower()
+        allowed = (
+            ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
+        )
+        if extension not in allowed:
+            return {"ok": False, "detail": f"Unsupported file type: {extension or 'none'}"}
+
+        header, separator, encoded = str(data_url or "").partition(",")
+        if not separator or ";base64" not in header.lower():
+            return {"ok": False, "detail": "Could not read that dropped file"}
+        if len(encoded) > (MAX_DRAG_IMPORT_BYTES * 4 // 3) + 8:
+            return {
+                "ok": False,
+                "detail": "Dropped files must be 25 MB or smaller; use Add media instead",
+            }
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError):
+            return {"ok": False, "detail": "Could not decode that dropped file"}
+        if not content or len(content) > MAX_DRAG_IMPORT_BYTES:
+            return {
+                "ok": False,
+                "detail": "Dropped files must be between 1 byte and 25 MB",
+            }
+
+        destination = asset_destination(kind, supplied_name, content=content)
+        if not destination.exists():
+            temporary_path = destination.with_suffix(f"{destination.suffix}.tmp")
+            temporary_path.write_bytes(content)
+            temporary_path.replace(destination)
+        relative_path = f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
+        return {
+            "ok": True,
+            "path": relative_path,
+            "name": supplied_name,
             "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
         }
 

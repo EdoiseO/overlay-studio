@@ -64,6 +64,9 @@ media can use one fixed selection or a random pool that chooses a new dance each
 playback becomes active. Overlay Studio copies imported files into `user-assets/`, so
 moving or deleting the original file does not break the overlay.
 
+GIFs, animated images, and videos up to 25 MB can also be dragged directly onto the
+**Dancing media** library. Use **Add media** for larger files.
+
 Supported dancing media:
 
 ```text

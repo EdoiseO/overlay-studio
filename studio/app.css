@@ -539,6 +539,43 @@ input[readonly] {
   border-top: 1px solid var(--border);
 }
 
+.media-library-section.drop-enabled {
+  position: relative;
+}
+
+.media-drop-overlay {
+  position: absolute;
+  inset: 6px 0 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px dashed var(--accent);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.media-library-section.drop-active .media-drop-overlay {
+  opacity: 0.96;
+}
+
+.drop-mark {
+  color: var(--accent);
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 32px;
+}
+
+.media-drop-overlay strong {
+  font-size: 13px;
+}
+
 .media-library-heading {
   display: flex;
   align-items: center;

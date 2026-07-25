@@ -477,6 +477,109 @@ async function chooseAsset(kind) {
   logActivity(`${kind === "gif" ? "Dance GIF" : "Resting image"} selected: ${result.name}`);
 }
 
+function readDroppedFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.addEventListener("error", () => reject(new Error(`Could not read ${file.name}`)));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function importDroppedDanceFiles(fileList) {
+  if (app.busy) return;
+  const allowed = new Set(["gif", "webp", "apng", "png", "webm", "mp4", "mov"]);
+  const files = [...fileList].filter((file) => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    return extension && allowed.has(extension);
+  });
+  if (!files.length) {
+    showToast("Drop a supported GIF, image, or video");
+    return;
+  }
+
+  app.busy = true;
+  const imported = [];
+  const failures = [];
+  try {
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) {
+        failures.push(`${file.name} is over 25 MB; use Add media`);
+        continue;
+      }
+      try {
+        const dataUrl = await readDroppedFile(file);
+        const result = await callApi("import_asset", "gif", file.name, dataUrl);
+        if (!result.ok) {
+          failures.push(result.detail || `Could not import ${file.name}`);
+          continue;
+        }
+        app.state.mediaLibrary = result.library;
+        app.mediaLibraryKey = JSON.stringify(result.library);
+        imported.push(result);
+      } catch (error) {
+        failures.push(String(error.message || error));
+      }
+    }
+  } finally {
+    app.busy = false;
+  }
+
+  if (imported.length) {
+    if (app.danceMode === "random") {
+      imported.forEach((result) => app.danceSelection.add(result.path));
+    } else {
+      app.danceSelection = new Set([imported[0].path]);
+    }
+    byId("danceGif").value = [...app.danceSelection][0];
+    renderMediaLibraries();
+    imported.forEach((result) => logActivity(`Dancing media imported: ${result.name}`));
+    showToast(`${imported.length} dancing ${imported.length === 1 ? "file" : "files"} imported`);
+  } else {
+    showToast(failures[0] || "No dancing media imported");
+  }
+  failures.forEach((message) => logActivity(message));
+}
+
+function bindDanceDropZone() {
+  const target = byId("danceMediaDropZone");
+  const containsFiles = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
+  document.addEventListener(
+    "dragover",
+    (event) => {
+      if (containsFiles(event)) event.preventDefault();
+    },
+    true,
+  );
+  document.addEventListener(
+    "drop",
+    (event) => {
+      if (containsFiles(event)) event.preventDefault();
+    },
+    true,
+  );
+  target.addEventListener("dragenter", (event) => {
+    if (!containsFiles(event)) return;
+    event.preventDefault();
+    target.classList.add("drop-active");
+  });
+  target.addEventListener("dragover", (event) => {
+    if (!containsFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    target.classList.add("drop-active");
+  });
+  target.addEventListener("dragleave", (event) => {
+    if (!target.contains(event.relatedTarget)) target.classList.remove("drop-active");
+  });
+  target.addEventListener("drop", (event) => {
+    target.classList.remove("drop-active");
+    if (!containsFiles(event)) return;
+    event.preventDefault();
+    importDroppedDanceFiles(event.dataTransfer.files);
+  });
+}
+
 async function saveOverlaySettings() {
   if (app.busy) return;
   app.busy = true;
@@ -511,6 +614,7 @@ async function copySource(kind) {
 }
 
 function bindEvents() {
+  bindDanceDropZone();
   byId("menuButton").addEventListener("click", () => setDrawer(true));
   byId("closeDrawerButton").addEventListener("click", () => setDrawer(false));
   byId("drawerScrim").addEventListener("click", () => setDrawer(false));
