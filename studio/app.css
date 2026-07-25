@@ -614,8 +614,15 @@ input[readonly] {
   gap: 9px;
 }
 
+.media-item {
+  position: relative;
+  min-width: 0;
+}
+
 .media-choice {
   position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   display: grid;
   grid-template-rows: auto 34px;
@@ -693,6 +700,45 @@ input[readonly] {
   border-color: var(--accent);
   background: var(--accent);
   box-shadow: inset 0 0 0 3px var(--panel-alt);
+}
+
+.media-delete {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: rgba(15, 21, 24, 0.9);
+  color: #f2b3ae;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.media-delete:hover,
+.media-delete:focus-visible {
+  border-color: #d66b63;
+  background: #542a28;
+  color: #ffffff;
+}
+
+.media-delete svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-theme="light"] .media-delete {
+  background: rgba(226, 218, 214, 0.94);
+  color: #743a36;
 }
 
 .media-empty {
@@ -956,6 +1002,20 @@ dialog p {
 
 dialog .primary-button {
   float: right;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions button {
+  float: none;
+}
+
+.confirmation-dialog strong {
+  color: var(--ink);
 }
 
 .preview-dialog {

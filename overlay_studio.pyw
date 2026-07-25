@@ -4,6 +4,7 @@ import base64
 import binascii
 import configparser
 import contextlib
+import copy
 import ctypes
 import ipaddress
 import json
@@ -121,6 +122,7 @@ def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
             "path": normalized,
             "name": display_name,
             "type": "video" if suffix in DANCE_VIDEO_EXTENSIONS else "image",
+            "deletable": normalized.startswith("user-assets/"),
         }
 
     dance = config["dance"]
@@ -745,6 +747,74 @@ class DesktopApi:
             "path": relative_path,
             "name": supplied_name,
             "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
+        }
+
+    def delete_asset(self, relative_path: str) -> dict[str, Any]:
+        normalized = str(relative_path or "").replace("\\", "/").strip()
+        prefix = "user-assets/"
+        if not normalized.startswith(prefix):
+            return {"ok": False, "detail": "Built-in media cannot be deleted"}
+
+        relative = Path(normalized.removeprefix(prefix))
+        allowed = ALLOWED_DANCE_EXTENSIONS | ALLOWED_REST_EXTENSIONS
+        if (
+            not relative.parts
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or relative.suffix.lower() not in allowed
+        ):
+            return {"ok": False, "detail": "Invalid media path"}
+
+        try:
+            assets_root = USER_ASSETS_DIR.resolve()
+            target = (USER_ASSETS_DIR / relative).resolve()
+        except OSError:
+            return {"ok": False, "detail": "Invalid media path"}
+        try:
+            target.relative_to(assets_root)
+        except ValueError:
+            return {"ok": False, "detail": "Invalid media path"}
+        if not target.is_file():
+            return {"ok": False, "detail": "That media file no longer exists"}
+
+        original_config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        config = copy.deepcopy(original_config)
+        dance = config["dance"]
+
+        def same_asset(value: Any) -> bool:
+            return str(value or "").replace("\\", "/") == normalized
+
+        remaining_pool = [
+            path for path in dance["pool"] if not same_asset(path)
+        ]
+        default_dance = DEFAULT_OVERLAY_CONFIG["dance"]["gif"]
+        if same_asset(dance["gif"]):
+            dance["gif"] = remaining_pool[0] if remaining_pool else default_dance
+        if not remaining_pool:
+            remaining_pool = [dance["gif"]]
+        if dance["gif"] not in remaining_pool:
+            remaining_pool.insert(0, dance["gif"])
+        dance["pool"] = remaining_pool
+        if same_asset(dance["rest"]):
+            dance["rest"] = DEFAULT_OVERLAY_CONFIG["dance"]["rest"]
+
+        try:
+            saved = self.save_overlay_settings(config)
+            target.unlink()
+            if target.parent != assets_root:
+                with contextlib.suppress(OSError):
+                    target.parent.rmdir()
+        except OSError:
+            with contextlib.suppress(OSError):
+                self.save_overlay_settings(original_config)
+            return {"ok": False, "detail": "Could not delete that media file"}
+
+        return {
+            "ok": True,
+            "name": target.name,
+            "path": normalized,
+            "config": saved["config"],
+            "library": media_library(saved["config"]),
         }
 
     def save_overlay_settings(self, submitted: dict[str, Any]) -> dict[str, Any]:

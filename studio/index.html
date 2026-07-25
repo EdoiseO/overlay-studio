@@ -339,6 +339,15 @@
     <button class="primary-button" id="closeAddDialog" type="button">Close</button>
   </dialog>
 
+  <dialog class="confirmation-dialog" id="deleteMediaDialog" aria-labelledby="deleteMediaTitle">
+    <h2 id="deleteMediaTitle">Delete media?</h2>
+    <p><strong id="deleteMediaName">This file</strong> will be removed from Overlay Studio.</p>
+    <div class="dialog-actions">
+      <button class="secondary-button" id="cancelDeleteMedia" type="button">Cancel</button>
+      <button class="danger-button" id="confirmDeleteMedia" type="button">Delete</button>
+    </div>
+  </dialog>
+
   <dialog class="preview-dialog" id="overlayPreviewDialog" aria-labelledby="overlayPreviewTitle">
     <div class="preview-dialog-heading">
       <div>

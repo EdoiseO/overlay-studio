@@ -8,6 +8,7 @@ const app = {
   danceMode: "single",
   danceSelection: new Set(),
   mediaLibraryKey: "",
+  pendingDeleteAsset: null,
   urls: {},
 };
 
@@ -126,7 +127,10 @@ function mediaUrl(path) {
   return new URL(encoded, app.state?.baseUrl || "http://127.0.0.1/").toString();
 }
 
-function createMediaChoice(asset, selected, multiple, onSelect) {
+function createMediaChoice(asset, selected, multiple, onSelect, onDelete) {
+  const item = document.createElement("div");
+  item.className = "media-item";
+
   const choice = document.createElement("button");
   choice.type = "button";
   choice.className = "media-choice";
@@ -163,7 +167,27 @@ function createMediaChoice(asset, selected, multiple, onSelect) {
   indicator.setAttribute("aria-hidden", "true");
   choice.append(thumbnail, name, indicator);
   choice.addEventListener("click", () => onSelect(asset.path));
-  return choice;
+  item.append(choice);
+
+  if (asset.deletable) {
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "media-delete";
+    deleteButton.setAttribute("aria-label", `Delete ${asset.name}`);
+    deleteButton.title = `Delete ${asset.name}`;
+    deleteButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6h18"></path>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+        <path d="M10 11v6"></path>
+        <path d="M14 11v6"></path>
+      </svg>
+    `;
+    deleteButton.addEventListener("click", () => onDelete(asset));
+    item.append(deleteButton);
+  }
+  return item;
 }
 
 function renderMediaLibraries() {
@@ -173,10 +197,16 @@ function renderMediaLibraries() {
   restGrid.replaceChildren();
   library.resting.forEach((asset) => {
     restGrid.append(
-      createMediaChoice(asset, asset.path === restPath, false, (path) => {
-        byId("danceRest").value = path;
-        renderMediaLibraries();
-      }),
+      createMediaChoice(
+        asset,
+        asset.path === restPath,
+        false,
+        (path) => {
+          byId("danceRest").value = path;
+          renderMediaLibraries();
+        },
+        requestDeleteAsset,
+      ),
     );
   });
   if (!library.resting.length) {
@@ -195,23 +225,29 @@ function renderMediaLibraries() {
   danceGrid.replaceChildren();
   library.dancing.forEach((asset) => {
     danceGrid.append(
-      createMediaChoice(asset, app.danceSelection.has(asset.path), multiple, (path) => {
-        if (multiple) {
-          if (app.danceSelection.has(path)) {
-            if (app.danceSelection.size === 1) {
-              showToast("Keep at least one dance selected");
-              return;
+      createMediaChoice(
+        asset,
+        app.danceSelection.has(asset.path),
+        multiple,
+        (path) => {
+          if (multiple) {
+            if (app.danceSelection.has(path)) {
+              if (app.danceSelection.size === 1) {
+                showToast("Keep at least one dance selected");
+                return;
+              }
+              app.danceSelection.delete(path);
+            } else {
+              app.danceSelection.add(path);
             }
-            app.danceSelection.delete(path);
           } else {
-            app.danceSelection.add(path);
+            app.danceSelection = new Set([path]);
           }
-        } else {
-          app.danceSelection = new Set([path]);
-        }
-        byId("danceGif").value = [...app.danceSelection][0] || "";
-        renderMediaLibraries();
-      }),
+          byId("danceGif").value = [...app.danceSelection][0] || "";
+          renderMediaLibraries();
+        },
+        requestDeleteAsset,
+      ),
     );
   });
   if (!library.dancing.length) {
@@ -243,6 +279,47 @@ function setDanceMode(mode) {
   }
   byId("danceGif").value = [...app.danceSelection][0] || "";
   renderMediaLibraries();
+}
+
+function requestDeleteAsset(asset) {
+  app.pendingDeleteAsset = asset;
+  byId("deleteMediaName").textContent = asset.name;
+  byId("deleteMediaDialog").showModal();
+}
+
+async function deletePendingAsset() {
+  const asset = app.pendingDeleteAsset;
+  if (!asset || app.busy) return;
+  app.busy = true;
+  byId("confirmDeleteMedia").disabled = true;
+  try {
+    const result = await callApi("delete_asset", asset.path);
+    if (!result.ok) {
+      showToast(result.detail || "Could not delete that media");
+      return;
+    }
+
+    app.state.config = result.config;
+    app.state.mediaLibrary = result.library;
+    app.mediaLibraryKey = JSON.stringify(result.library);
+    app.danceSelection.delete(asset.path);
+    if (!app.danceSelection.size) {
+      app.danceSelection.add(result.config.dance.gif);
+    }
+    if (byId("danceRest").value === asset.path) {
+      byId("danceRest").value = result.config.dance.rest;
+    }
+    byId("danceGif").value = [...app.danceSelection][0];
+    byId("deleteMediaDialog").close();
+    renderMediaLibraries();
+    logActivity(`Media deleted: ${result.name}`);
+    showToast(`${result.name} deleted`);
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+    byId("confirmDeleteMedia").disabled = false;
+  }
 }
 
 function resizeLargePreview() {
@@ -725,6 +802,16 @@ function bindEvents() {
 
   byId("addOverlayButton").addEventListener("click", () => byId("addOverlayDialog").showModal());
   byId("closeAddDialog").addEventListener("click", () => byId("addOverlayDialog").close());
+
+  const deleteMediaDialog = byId("deleteMediaDialog");
+  byId("cancelDeleteMedia").addEventListener("click", () => deleteMediaDialog.close());
+  byId("confirmDeleteMedia").addEventListener("click", deletePendingAsset);
+  deleteMediaDialog.addEventListener("click", (event) => {
+    if (event.target === deleteMediaDialog) deleteMediaDialog.close();
+  });
+  deleteMediaDialog.addEventListener("close", () => {
+    app.pendingDeleteAsset = null;
+  });
 
   const previewDialog = byId("overlayPreviewDialog");
   byId("closePreviewButton").addEventListener("click", closeOverlayPreview);
