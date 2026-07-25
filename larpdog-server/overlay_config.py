@@ -28,6 +28,12 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
             "c": "5ee0ff",
         },
     },
+    "flow": {
+        "name": "Now Playing Flow",
+        "scale": 1.0,
+        "sideCovers": 2,
+        "glow": 1.0,
+    },
     "audio": {
         "enabled": True,
         "sensitivity": 1.0,
@@ -89,6 +95,7 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
     legacy = source.get("appearance") if isinstance(source.get("appearance"), dict) else {}
     dance = source.get("dance") if isinstance(source.get("dance"), dict) else {}
     spotify = source.get("spotify") if isinstance(source.get("spotify"), dict) else {}
+    flow = source.get("flow") if isinstance(source.get("flow"), dict) else {}
     audio = source.get("audio") if isinstance(source.get("audio"), dict) else {}
     now_playing = (
         source.get("nowPlaying") if isinstance(source.get("nowPlaying"), dict) else {}
@@ -100,6 +107,7 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
     defaults = DEFAULT_OVERLAY_CONFIG
     default_dance = defaults["dance"]
     default_spotify = defaults["spotify"]
+    default_flow = defaults["flow"]
     default_colors = default_spotify["colors"]
     dance_gif = _asset_path(
         dance.get("gif", dance.get("media", legacy.get("dog"))),
@@ -173,6 +181,37 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
                 "b": _color(colors.get("b"), default_colors["b"]),
                 "c": _color(colors.get("c"), default_colors["c"]),
             },
+        },
+        "flow": {
+            "name": _overlay_name(flow.get("name"), default_flow["name"]),
+            "scale": round(
+                _number(
+                    flow.get("scale"),
+                    default_flow["scale"],
+                    0.5,
+                    2.0,
+                ),
+                2,
+            ),
+            "sideCovers": int(
+                round(
+                    _number(
+                        flow.get("sideCovers"),
+                        default_flow["sideCovers"],
+                        0,
+                        2,
+                    )
+                )
+            ),
+            "glow": round(
+                _number(
+                    flow.get("glow"),
+                    default_flow["glow"],
+                    0.0,
+                    2.0,
+                ),
+                2,
+            ),
         },
         "audio": {
             "enabled": bool(audio.get("enabled", defaults["audio"]["enabled"])),

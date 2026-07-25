@@ -100,7 +100,7 @@ const previewDetails = {
   flow: {
     title: "Now Playing Flow",
     type: "NOW PLAYING FLOW",
-    view: null,
+    view: "flowView",
     canvas: [760, 420],
   },
 };
@@ -119,6 +119,24 @@ function renderDanceIdentity(config) {
   byId("serverDanceLabel").textContent = name;
   byId("danceSourceLabel").textContent = name;
   if (app.previewKind === "dance") {
+    byId("overlayPreviewTitle").textContent = name;
+  }
+}
+
+function getFlowName(config = app.state?.config) {
+  const name = String(config?.flow?.name || "").trim();
+  return name || previewDetails.flow.title;
+}
+
+function renderFlowIdentity(config) {
+  const name = getFlowName(config);
+  byId("flowCardName").textContent = name;
+  byId("flowCard").setAttribute("aria-label", `Preview ${name}`);
+  byId("flowPreview").title = `Live ${name} preview`;
+  byId("flowDetailName").textContent = name;
+  byId("serverFlowLabel").textContent = name;
+  byId("flowSourceLabel").textContent = name;
+  if (app.previewKind === "flow") {
     byId("overlayPreviewTitle").textContent = name;
   }
 }
@@ -364,7 +382,12 @@ function openOverlayPreview(kind) {
   const details = previewDetails[kind];
   if (!details) return;
   app.previewKind = kind;
-  const title = kind === "dance" ? getDanceName() : details.title;
+  const title =
+    kind === "dance"
+      ? getDanceName()
+      : kind === "flow"
+        ? getFlowName()
+        : details.title;
   byId("overlayPreviewType").textContent = `${details.type} / LIVE OBS PREVIEW`;
   byId("overlayPreviewTitle").textContent = title;
   byId("largeOverlayPreview").title = `Live ${title} preview`;
@@ -407,6 +430,7 @@ function renderServerState(state) {
     serverCounterUrl: "counter",
     counterUrl: "counter",
     serverFlowUrl: "flow",
+    flowUrl: "flow",
   };
   Object.entries(urlBindings).forEach(([id, kind]) => {
     byId(id).value = app.urls[kind];
@@ -467,6 +491,11 @@ function fillConfig(config) {
   setColor("colorA", config.spotify.colors.a);
   setColor("colorB", config.spotify.colors.b);
   setColor("colorC", config.spotify.colors.c);
+  byId("flowName").value = config.flow.name;
+  byId("flowScale").value = config.flow.scale;
+  byId("flowSideCovers").value = config.flow.sideCovers;
+  byId("flowGlow").value = config.flow.glow;
+  byId("flowGlowOutput").value = Number(config.flow.glow).toFixed(2);
   renderMediaLibraries();
 }
 
@@ -501,6 +530,12 @@ function gatherConfig() {
         c: byId("colorC").value.slice(1),
       },
     },
+    flow: {
+      name: byId("flowName").value,
+      scale: Number(byId("flowScale").value),
+      sideCovers: Number(byId("flowSideCovers").value),
+      glow: Number(byId("flowGlow").value),
+    },
     audio: {
       enabled: true,
       sensitivity: Number(byId("sensitivity").value),
@@ -518,6 +553,7 @@ function renderState(state, hydrate = false) {
   app.state = state;
   setTheme(state.theme);
   renderDanceIdentity(state.config);
+  renderFlowIdentity(state.config);
   renderServerState(state);
   renderCounter(state.counter);
   if (hydrate) fillConfig(state.config);
@@ -691,6 +727,7 @@ async function saveOverlaySettings() {
     if (app.state) app.state.config = result.config;
     fillConfig(result.config);
     renderDanceIdentity(result.config);
+    renderFlowIdentity(result.config);
     logActivity(result.applied ? "Settings saved and applied" : "Settings saved");
     showToast(result.applied ? "Saved and applied" : "Saved");
   } catch (error) {
@@ -766,12 +803,16 @@ function bindEvents() {
   byId("sensitivity").addEventListener("input", () => {
     byId("sensitivityOutput").value = Number(byId("sensitivity").value).toFixed(2);
   });
+  byId("flowGlow").addEventListener("input", () => {
+    byId("flowGlowOutput").value = Number(byId("flowGlow").value).toFixed(2);
+  });
   ["colorA", "colorB", "colorC", "counterAccent"].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
 
   byId("saveDanceButton").addEventListener("click", saveOverlaySettings);
   byId("saveSpotifyButton").addEventListener("click", saveOverlaySettings);
+  byId("saveFlowButton").addEventListener("click", saveOverlaySettings);
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
     byId("danceName").value = defaults.dance.name;
@@ -795,6 +836,15 @@ function bindEvents() {
     setColor("colorB", defaults.colors.b);
     setColor("colorC", defaults.colors.c);
     logActivity("Spotify fields reset; save to apply");
+  });
+  byId("resetFlowButton").addEventListener("click", () => {
+    const defaults = app.state.defaults.flow;
+    byId("flowName").value = defaults.name;
+    byId("flowScale").value = defaults.scale;
+    byId("flowSideCovers").value = defaults.sideCovers;
+    byId("flowGlow").value = defaults.glow;
+    byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
+    logActivity("Now Playing Flow fields reset; save to apply");
   });
 
   document.querySelectorAll("[data-counter-action]").forEach((button) => {

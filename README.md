@@ -58,6 +58,13 @@ card opens a larger live preview with actions to:
 These previews render the same live pages used by OBS. The dark preview background is
 only added inside Overlay Studio; the OBS sources remain transparent.
 
+## Now Playing Flow
+
+Open **Now Playing Flow** to customize its library name, size, number of side covers,
+and artwork-colored glow. Side covers are built from recently played tracks as the
+media session changes. Saving applies the new appearance to connected Studio previews
+and OBS browser sources without changing their URL.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use

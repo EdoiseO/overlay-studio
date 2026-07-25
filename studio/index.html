@@ -66,13 +66,13 @@
             </div>
           </button>
 
-          <button class="overlay-card" type="button" data-preview-kind="flow" aria-label="Preview Now Playing Flow">
+          <button class="overlay-card" id="flowCard" type="button" data-preview-kind="flow" aria-label="Preview Now Playing Flow">
             <div class="live-preview preview-flow">
               <iframe id="flowPreview" title="Live Now Playing Flow preview" tabindex="-1"></iframe>
               <span class="preview-offline">OFFLINE</span>
             </div>
             <div class="card-copy">
-              <strong>Now Playing Flow</strong>
+              <strong id="flowCardName">Now Playing Flow</strong>
               <span>Coverflow + reactive progress</span>
               <small><i class="status-dot"></i><b>OFFLINE</b></small>
             </div>
@@ -124,7 +124,7 @@
             <button class="secondary-button compact" type="button" data-open-source="counter">Open</button>
           </div>
           <div class="source-row">
-            <label for="serverFlowUrl">Now Playing Flow</label>
+            <label id="serverFlowLabel" for="serverFlowUrl">Now Playing Flow</label>
             <input id="serverFlowUrl" readonly>
             <button class="primary-button compact" type="button" data-copy-source="flow">Copy</button>
             <button class="secondary-button compact" type="button" data-open-source="flow">Open</button>
@@ -254,6 +254,50 @@
         <div class="save-row">
           <button class="secondary-button" id="resetSpotifyButton" type="button">Reset fields</button>
           <button class="primary-button" id="saveSpotifyButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
+      <section class="view detail-view" id="flowView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>NOW PLAYING FLOW</span>
+            <h1 id="flowDetailName">Now Playing Flow</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Coverflow appearance</h2>
+          <div class="form-grid">
+            <label for="flowName">Overlay name</label>
+            <input id="flowName" type="text" maxlength="48" autocomplete="off" placeholder="Now Playing Flow">
+            <label for="flowScale">Scale</label>
+            <input id="flowScale" type="number" min="0.5" max="2" step="0.05">
+            <label for="flowSideCovers">Side covers</label>
+            <select id="flowSideCovers">
+              <option value="0">None</option>
+              <option value="1">One per side</option>
+              <option value="2">Two per side</option>
+            </select>
+            <label for="flowGlow">Glow strength</label>
+            <div class="range-control">
+              <input id="flowGlow" type="range" min="0" max="2" step="0.05">
+              <output id="flowGlowOutput">1.00</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="flowSourceLabel" for="flowUrl">Now Playing Flow</label>
+            <input id="flowUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="flow">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="flow">Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetFlowButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveFlowButton" type="button">Save and apply</button>
         </div>
       </section>
 

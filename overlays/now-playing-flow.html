@@ -15,6 +15,9 @@
     --card-w: 190px;
     --card-h: 250px;
     --render-scale: 1;
+    --glow-a: 0.40;
+    --glow-b: 0.30;
+    --glow-blur: 14px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,9 +92,9 @@
     inset: -6% -4%;
     z-index: 0;
     background:
-      radial-gradient(58% 44% at 50% 42%, rgba(var(--a-rgb), 0.40), transparent 70%),
-      radial-gradient(46% 38% at 50% 78%, rgba(var(--b-rgb), 0.30), transparent 72%);
-    filter: blur(14px);
+      radial-gradient(58% 44% at 50% 42%, rgba(var(--a-rgb), var(--glow-a)), transparent 70%),
+      radial-gradient(46% 38% at 50% 78%, rgba(var(--b-rgb), var(--glow-b)), transparent 72%);
+    filter: blur(var(--glow-blur));
     pointer-events: none;
     transition: background .8s ease;
   }
@@ -269,10 +272,9 @@
   const previewMode =
     query.get("preview") === "studio" ||
     location.protocol === "file:";
-  const requestedScale = Math.max(
-    0.5,
-    Math.min(2, Number(query.get("scale")) || 1),
-  );
+  const queryScale = query.has("scale")
+    ? Math.max(0.5, Math.min(2, Number(query.get("scale")) || 1))
+    : null;
   const root = document.documentElement;
   const flow = document.getElementById("flow");
   const code = document.getElementById("code");
@@ -286,6 +288,11 @@
   let reconnectTimer = 0;
   let reconnectDelay = 750;
   let stopped = false;
+  let flowSettings = {
+    scale: 1,
+    sideCovers: 2,
+    glow: 1,
+  };
   let playback = {
     playing: false,
     progressMs: 0,
@@ -303,6 +310,7 @@
   }
 
   function fitOverlay() {
+    const requestedScale = queryScale ?? flowSettings.scale;
     const fit = Math.min(
       requestedScale,
       (window.innerWidth - 24) / 714,
@@ -313,6 +321,35 @@
 
   function setPreviewStatus(message) {
     if (previewMode) previewEmpty.textContent = message;
+  }
+
+  function applyFlowSettings(config) {
+    const supplied = config?.flow && typeof config.flow === "object"
+      ? config.flow
+      : {};
+    flowSettings = {
+      scale: clamp(supplied.scale ?? 1, 0.5, 2),
+      sideCovers: Math.round(clamp(supplied.sideCovers ?? 2, 0, 2)),
+      glow: clamp(supplied.glow ?? 1, 0, 2),
+    };
+    root.style.setProperty("--glow-a", String(flowSettings.glow * 0.4));
+    root.style.setProperty("--glow-b", String(flowSettings.glow * 0.3));
+    root.style.setProperty(
+      "--glow-blur",
+      `${Math.max(1, flowSettings.glow * 14)}px`,
+    );
+    fitOverlay();
+    renderFlow();
+  }
+
+  async function loadFlowSettings() {
+    if (location.protocol === "file:") return;
+    try {
+      const response = await fetch("/api/config", { cache: "no-store" });
+      if (response.ok) applyFlowSettings(await response.json());
+    } catch {
+      return;
+    }
   }
 
   function hashString(text) {
@@ -454,13 +491,15 @@
 
   function renderFlow() {
     flow.replaceChildren();
-    const slots = [
-      { track: history[2], slot: "-2" },
-      { track: history[1], slot: "-1" },
-      { track: history[0], slot: "0" },
-      { track: history[1], slot: "1" },
-      { track: history[2], slot: "2" },
-    ];
+    const slots = [{ track: history[0], slot: "0" }];
+    if (flowSettings.sideCovers >= 1) {
+      slots.unshift({ track: history[1], slot: "-1" });
+      slots.push({ track: history[1], slot: "1" });
+    }
+    if (flowSettings.sideCovers >= 2) {
+      slots.unshift({ track: history[2], slot: "-2" });
+      slots.push({ track: history[2], slot: "2" });
+    }
     for (const { track, slot } of slots) {
       if (!track) continue;
       const element = buildCover(track);
@@ -567,6 +606,8 @@
     if (message?.type === "track") {
       if (message.isPlaying) applyTrack(message);
       else setIdle();
+    } else if (message?.type === "config") {
+      applyFlowSettings(message.config);
     } else if (message?.type === "audio") {
       audioLevel = clamp(message.level, 0, 1);
       if (message.beat) audioLevel = Math.max(audioLevel, 0.85);
@@ -625,6 +666,7 @@
 
   fitOverlay();
   buildCode("overlay-studio");
+  loadFlowSettings();
   connect();
   requestAnimationFrame(animate);
 })();
