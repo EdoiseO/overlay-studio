@@ -20,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,8 @@ ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
 DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
 MAX_DRAG_IMPORT_BYTES = 25 * 1024 * 1024
 MAX_SHORTCUT_BYTES = 64 * 1024
+MAX_SHORTCUT_PAGE_BYTES = 1024 * 1024
+SHORTCUT_PAGE_TYPES = {"application/xhtml+xml", "text/html"}
 REMOTE_MEDIA_TYPES = {
     "image/apng": ".png",
     "image/gif": ".gif",
@@ -420,17 +423,80 @@ def sniff_media_extension(content: bytes) -> str | None:
     return None
 
 
-def download_shortcut_media(
+class ShortcutMediaMetadataParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.media: list[tuple[str, str]] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attributes: list[tuple[str, str | None]],
+    ) -> None:
+        if tag.lower() != "meta":
+            return
+        values = {
+            key.lower(): value
+            for key, value in attributes
+            if key is not None and value is not None
+        }
+        property_name = (
+            values.get("property") or values.get("name") or ""
+        ).lower()
+        content = values.get("content", "").strip()
+        if property_name and content:
+            self.media.append((property_name, content))
+
+
+def shortcut_page_media_urls(
+    content: bytes,
+    page_url: str,
     kind: str,
-    shortcut_name: str,
-    shortcut_content: bytes,
-) -> tuple[str, str]:
-    url = parse_internet_shortcut(shortcut_content)
+) -> list[str]:
+    parser = ShortcutMediaMetadataParser()
+    parser.feed(content.decode("utf-8", errors="replace"))
+    priorities = [
+        "og:image:secure_url",
+        "og:image",
+        "twitter:image",
+        "twitter:image:src",
+    ]
+    if kind == "gif":
+        priorities.extend(
+            [
+                "og:video:secure_url",
+                "og:video",
+                "twitter:player:stream",
+            ]
+        )
+
+    candidates: list[str] = []
+    for property_name in priorities:
+        for label, value in parser.media:
+            if label != property_name:
+                continue
+            candidate = urllib.parse.urljoin(page_url, value)
+            try:
+                candidate = validate_public_https_url(candidate)
+            except ValueError:
+                continue
+            if candidate not in candidates:
+                candidates.append(candidate)
+            if len(candidates) >= 8:
+                return candidates
+    return candidates
+
+
+def fetch_shortcut_target(
+    url: str,
+    *,
+    allow_page: bool,
+) -> tuple[str, str, bytes, bool]:
     opener = urllib.request.build_opener(PublicHttpsRedirectHandler())
     request = urllib.request.Request(
         url,
         headers={
-            "Accept": "image/*,video/*;q=0.9",
+            "Accept": "image/*,video/*,text/html;q=0.8",
             "User-Agent": "Overlay Studio/1.0",
         },
     )
@@ -443,20 +509,35 @@ def download_shortcut_media(
                 .strip()
                 .lower()
             )
-            content_length = response.headers.get("Content-Length")
-            if content_length is not None:
-                try:
-                    declared_size = int(content_length)
-                except ValueError:
-                    declared_size = 0
-                if declared_size > MAX_DRAG_IMPORT_BYTES:
-                    raise ValueError("Shortcut media must be 25 MB or smaller")
-            content = response.read(MAX_DRAG_IMPORT_BYTES + 1)
+            is_page = content_type in SHORTCUT_PAGE_TYPES
+            if is_page:
+                if not allow_page:
+                    raise ValueError("Media link returned another webpage")
+                content = response.read(MAX_SHORTCUT_PAGE_BYTES)
+            else:
+                content_length = response.headers.get("Content-Length")
+                if content_length is not None:
+                    try:
+                        declared_size = int(content_length)
+                    except ValueError:
+                        declared_size = 0
+                    if declared_size > MAX_DRAG_IMPORT_BYTES:
+                        raise ValueError("Shortcut media must be 25 MB or smaller")
+                content = response.read(MAX_DRAG_IMPORT_BYTES + 1)
     except ValueError:
         raise
     except (OSError, urllib.error.URLError) as error:
-        raise ValueError("Could not download media from that Internet shortcut") from error
+        raise ValueError(
+            "Could not download media from that Internet shortcut"
+        ) from error
+    return final_url, content_type, content, is_page
 
+
+def validate_shortcut_media_payload(
+    kind: str,
+    content_type: str,
+    content: bytes,
+) -> str:
     if not content or len(content) > MAX_DRAG_IMPORT_BYTES:
         raise ValueError("Shortcut media must be between 1 byte and 25 MB")
     extension = sniff_media_extension(content)
@@ -474,6 +555,42 @@ def download_shortcut_media(
     allowed = ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
     if extension not in allowed:
         raise ValueError("Internet shortcut media is not supported here")
+    return extension
+
+
+def download_shortcut_media(
+    kind: str,
+    shortcut_name: str,
+    shortcut_content: bytes,
+) -> tuple[str, str]:
+    url = parse_internet_shortcut(shortcut_content)
+    final_url, content_type, content, is_page = fetch_shortcut_target(
+        url,
+        allow_page=True,
+    )
+    if is_page:
+        candidates = shortcut_page_media_urls(content, final_url, kind)
+        for candidate in candidates:
+            try:
+                final_url, content_type, content, nested_page = (
+                    fetch_shortcut_target(candidate, allow_page=False)
+                )
+                if nested_page:
+                    continue
+                extension = validate_shortcut_media_payload(
+                    kind,
+                    content_type,
+                    content,
+                )
+                break
+            except ValueError:
+                continue
+        else:
+            raise ValueError(
+                "Webpage shortcut did not provide supported media under 25 MB"
+            )
+    else:
+        extension = validate_shortcut_media_payload(kind, content_type, content)
 
     remote_name = Path(
         urllib.parse.unquote(urllib.parse.urlsplit(final_url).path)

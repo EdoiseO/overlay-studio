@@ -68,8 +68,9 @@ and resting imports are stored separately, so deleting one cannot remove the oth
 
 GIFs, animated images, and videos up to 25 MB can also be dragged directly onto the
 **Dancing media** library. Windows `.url` Internet shortcuts to public HTTPS media are
-also supported; Overlay Studio downloads and validates the real file before importing
-it. Use **Add media** for larger local files.
+also supported, including media pages that publish a direct Open Graph image or video.
+Overlay Studio downloads and validates the real file before importing it. Use **Add
+media** for larger local files.
 
 Supported dancing media:
 
