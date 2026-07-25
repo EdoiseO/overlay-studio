@@ -118,7 +118,9 @@ function materializeInstanceConfig(instance) {
 
 function fitCardPreview(frame, manifest) {
   const host = frame?.parentElement;
-  if (!host || !manifest) return;
+  if (!host || !manifest || host.clientWidth <= 0 || host.clientHeight <= 0) {
+    return false;
+  }
   const width = manifest.canvas.w;
   const height = manifest.canvas.h;
   const scale = Math.min(
@@ -128,7 +130,18 @@ function fitCardPreview(frame, manifest) {
   frame.style.width = `${width}px`;
   frame.style.height = `${height}px`;
   frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  return true;
 }
+
+function fitCardPreviewHost(host) {
+  const frame = host?.querySelector("iframe");
+  const instanceId = host?.closest(".overlay-card")?.dataset.instanceId;
+  fitCardPreview(frame, manifestFor(instanceById(instanceId)?.type));
+}
+
+const cardPreviewObserver = new ResizeObserver((entries) => {
+  entries.forEach((entry) => fitCardPreviewHost(entry.target));
+});
 
 function createCardAction(label, action, instanceId, className = "") {
   const button = document.createElement("button");
@@ -159,6 +172,7 @@ function createOverlayCard(instance, running) {
   frame.tabIndex = -1;
   frame.dataset.source = running ? studioPreviewUrl(instance) : "";
   frame.src = frame.dataset.source || "about:blank";
+  frame.addEventListener("load", () => fitCardPreview(frame, manifest));
   const offline = document.createElement("span");
   offline.className = "preview-offline";
   offline.textContent = "OFFLINE";
@@ -192,7 +206,12 @@ function createOverlayCard(instance, running) {
   );
   copy.append(name, description, meta, actions);
   card.append(previewButton, copy);
-  requestAnimationFrame(() => fitCardPreview(frame, manifest));
+  cardPreviewObserver.observe(livePreview);
+  requestAnimationFrame(() => {
+    if (!fitCardPreview(frame, manifest)) {
+      requestAnimationFrame(() => fitCardPreview(frame, manifest));
+    }
+  });
   return card;
 }
 
@@ -218,6 +237,9 @@ function renderLibrary(state) {
   if (key === app.libraryKey) return;
   app.libraryKey = key;
   const grid = byId("overlayGrid");
+  grid.querySelectorAll(".live-preview").forEach((host) => {
+    cardPreviewObserver.unobserve(host);
+  });
   grid.replaceChildren();
   instances().forEach((instance) => {
     const card = createOverlayCard(instance, state.running);
@@ -1247,10 +1269,7 @@ function bindEvents() {
   });
   window.addEventListener("resize", () => {
     resizeLargePreview();
-    document.querySelectorAll(".live-preview iframe").forEach((frame) => {
-      const instance = instanceById(frame.closest(".overlay-card")?.dataset.instanceId);
-      fitCardPreview(frame, manifestFor(instance?.type));
-    });
+    document.querySelectorAll(".live-preview").forEach(fitCardPreviewHost);
   });
 }
 
