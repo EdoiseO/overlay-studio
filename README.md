@@ -35,7 +35,8 @@ Packaged copies can start immediately.
 3. Click an installed overlay card to open its live preview.
 4. Choose **Copy OBS URL**.
 5. In OBS, add a **Browser Source** and paste the copied URL.
-6. Set the browser source canvas to `1920 x 1080`.
+6. Use the starting canvas size listed under [OBS source URLs](#obs-source-urls),
+   then position the Browser Source in OBS.
 
 `Overlay Studio.bat` launches `Overlay Studio.exe` when the packaged build is present.
 If it is missing, the launcher uses the local Python environment instead.
@@ -177,8 +178,9 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 - `overlay_studio.pyw`: native WebView desktop shell and Python bridge
 - `studio/`: desktop interface
 - `overlay-studio.html`: Dancing GIF and Spotify browser sources
-- `overlays/win-loss.html`: Match Record browser source
-- `assets/`: bundled default media
+- `overlays/`: standalone overlay pages and the
+  [future-overlay authoring guide](overlays/README.md)
+- `assets/`: bundled default media and the shared centered-surface stylesheet
 - `user-assets/`: copied custom dance and resting media
 - `larpdog-server/`: local HTTP, websocket, system-audio, and media-session service
 
