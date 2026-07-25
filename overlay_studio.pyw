@@ -61,6 +61,7 @@ ALLOWED_DANCE_EXTENSIONS = {
     ".mov",
 }
 ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
+DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
 
 
 def load_json(path: Path, fallback_path: Path | None = None) -> dict[str, Any]:
@@ -79,6 +80,80 @@ def save_json(path: Path, value: dict[str, Any]) -> None:
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
     temporary_path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
     temporary_path.replace(path)
+
+
+def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    dancing: dict[str, dict[str, Any]] = {}
+    resting: dict[str, dict[str, Any]] = {}
+
+    def add_asset(
+        collection: dict[str, dict[str, Any]],
+        relative_path: str,
+        label: str | None = None,
+    ) -> None:
+        normalized = str(relative_path or "").replace("\\", "/").strip()
+        if not normalized or normalized in collection:
+            return
+        parsed = urllib.parse.urlparse(normalized)
+        filename = Path(urllib.parse.unquote(parsed.path)).name
+        suffix = Path(filename).suffix.lower()
+        stem = Path(filename).stem
+        display_name = label or re.sub(r"[-_]+", " ", stem).strip() or filename
+        collection[normalized] = {
+            "path": normalized,
+            "name": display_name,
+            "type": "video" if suffix in DANCE_VIDEO_EXTENSIONS else "image",
+        }
+
+    dance = config["dance"]
+    dance_paths = {
+        str(dance["gif"]).replace("\\", "/"),
+        *(str(path).replace("\\", "/") for path in dance["pool"]),
+    }
+    rest_paths = {str(dance["rest"]).replace("\\", "/")}
+
+    add_asset(dancing, DEFAULT_OVERLAY_CONFIG["dance"]["gif"], "Default dance")
+    add_asset(resting, DEFAULT_OVERLAY_CONFIG["dance"]["rest"], "Default resting image")
+    for path in dance_paths:
+        add_asset(dancing, path)
+    for path in rest_paths:
+        add_asset(resting, path)
+
+    USER_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    for asset in sorted(USER_ASSETS_DIR.rglob("*")):
+        if not asset.is_file():
+            continue
+        suffix = asset.suffix.lower()
+        relative = f"user-assets/{asset.relative_to(USER_ASSETS_DIR).as_posix()}"
+        first_folder = asset.relative_to(USER_ASSETS_DIR).parts[0].lower()
+        if first_folder == "dancing":
+            if suffix in ALLOWED_DANCE_EXTENSIONS:
+                add_asset(dancing, relative)
+            continue
+        if first_folder == "resting":
+            if suffix in ALLOWED_REST_EXTENSIONS:
+                add_asset(resting, relative)
+            continue
+        if relative in dance_paths:
+            add_asset(dancing, relative)
+        if relative in rest_paths:
+            add_asset(resting, relative)
+        if relative in dance_paths or relative in rest_paths:
+            continue
+        if suffix in DANCE_VIDEO_EXTENSIONS:
+            add_asset(dancing, relative)
+        elif suffix in {".jpg", ".jpeg"}:
+            add_asset(resting, relative)
+        else:
+            if suffix in ALLOWED_DANCE_EXTENSIONS:
+                add_asset(dancing, relative)
+            if suffix in ALLOWED_REST_EXTENSIONS:
+                add_asset(resting, relative)
+
+    return {
+        "dancing": list(dancing.values()),
+        "resting": list(resting.values()),
+    }
 
 
 def server_address() -> tuple[str, int]:
@@ -278,11 +353,13 @@ class DesktopApi:
 
     def get_state(self) -> dict[str, Any]:
         settings = load_json(APP_SETTINGS_PATH)
+        config = load_overlay_config(OVERLAY_CONFIG_PATH)
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
-            "config": load_overlay_config(OVERLAY_CONFIG_PATH),
+            "config": config,
             "defaults": DEFAULT_OVERLAY_CONFIG,
+            "mediaLibrary": media_library(config),
             "counter": load_counter_state(COUNTER_STATE_PATH),
             "theme": (
                 str(settings.get("theme") or "dark")
@@ -321,21 +398,24 @@ class DesktopApi:
         if source.suffix.lower() not in allowed:
             return {"ok": False, "detail": "Unsupported file type"}
 
-        USER_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        destination_dir = USER_ASSETS_DIR / ("dancing" if kind == "gif" else "resting")
+        destination_dir.mkdir(parents=True, exist_ok=True)
         cleaned_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", source.stem).strip(".-")
         destination_name = f"{cleaned_stem or kind}{source.suffix.lower()}"
-        destination = USER_ASSETS_DIR / destination_name
+        destination = destination_dir / destination_name
         suffix = 2
         while destination.exists() and source.resolve() != destination.resolve():
             destination_name = f"{cleaned_stem or kind}-{suffix}{source.suffix.lower()}"
-            destination = USER_ASSETS_DIR / destination_name
+            destination = destination_dir / destination_name
             suffix += 1
         if source.resolve() != destination.resolve():
             shutil.copy2(source, destination)
+        relative_path = f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
         return {
             "ok": True,
-            "path": f"user-assets/{destination_name}",
+            "path": relative_path,
             "name": source.name,
+            "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
         }
 
     def save_overlay_settings(self, submitted: dict[str, Any]) -> dict[str, Any]:

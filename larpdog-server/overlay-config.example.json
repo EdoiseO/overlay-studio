@@ -1,7 +1,11 @@
 {
   "dance": {
     "name": "Dancing GIF",
+    "mode": "single",
     "gif": "assets/dancing-dog.gif",
+    "pool": [
+      "assets/dancing-dog.gif"
+    ],
     "rest": "assets/resting-dog.png",
     "position": "bottom-left",
     "scale": 1.0

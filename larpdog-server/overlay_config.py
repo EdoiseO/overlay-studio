@@ -10,7 +10,9 @@ from typing import Any
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "dance": {
         "name": "Dancing GIF",
+        "mode": "single",
         "gif": "assets/dancing-dog.gif",
+        "pool": ["assets/dancing-dog.gif"],
         "rest": "assets/resting-dog.png",
         "position": "bottom-left",
         "scale": 1.0,
@@ -36,6 +38,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
 }
 
 POSITION_CHOICES = {"bottom-left", "bottom-right", "top-left", "top-right"}
+DANCE_MODE_CHOICES = {"single", "random"}
 COLOR_MODE_CHOICES = {"auto", "fixed", "art"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 
@@ -65,6 +68,17 @@ def _overlay_name(value: Any, default: str) -> str:
     return candidate[:48] or default
 
 
+def _asset_list(value: Any, default: list[str]) -> list[str]:
+    if not isinstance(value, list):
+        return list(default)
+    assets: list[str] = []
+    for item in value[:32]:
+        candidate = str(item or "").strip()
+        if candidate and len(candidate) <= 1024 and candidate not in assets:
+            assets.append(candidate)
+    return assets or list(default)
+
+
 def _color(value: Any, default: str) -> str:
     candidate = str(value or "").strip().removeprefix("#")
     return candidate.lower() if HEX_COLOR.fullmatch(candidate) else default
@@ -87,14 +101,24 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
     default_dance = defaults["dance"]
     default_spotify = defaults["spotify"]
     default_colors = default_spotify["colors"]
+    dance_gif = _asset_path(
+        dance.get("gif", dance.get("media", legacy.get("dog"))),
+        default_dance["gif"],
+    )
+    dance_pool = _asset_list(dance.get("pool"), [dance_gif])
+    if dance_gif not in dance_pool:
+        dance_pool.insert(0, dance_gif)
 
     return {
         "dance": {
             "name": _overlay_name(dance.get("name"), default_dance["name"]),
-            "gif": _asset_path(
-                dance.get("gif", dance.get("media", legacy.get("dog"))),
-                default_dance["gif"],
+            "mode": _choice(
+                dance.get("mode"),
+                DANCE_MODE_CHOICES,
+                default_dance["mode"],
             ),
+            "gif": dance_gif,
+            "pool": dance_pool,
             "rest": _asset_path(
                 dance.get("rest", legacy.get("rest")),
                 default_dance["rest"],

@@ -59,9 +59,10 @@ only added inside Overlay Studio; the OBS sources remain transparent.
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
-**Browse** to choose custom media. Overlay Studio copies
-the selected file into `user-assets/`, so moving or deleting the original file does not
-break the overlay.
+the resting and dancing media libraries to preview and select imported assets. Dancing
+media can use one fixed selection or a random pool that chooses a new dance each time
+playback becomes active. Overlay Studio copies imported files into `user-assets/`, so
+moving or deleting the original file does not break the overlay.
 
 Supported dancing media:
 
@@ -76,6 +77,7 @@ Supported resting images:
 ```
 
 Use square media when possible. The current default dance GIF is `362 x 362`.
+New imports are organized under `user-assets/dancing/` and `user-assets/resting/`.
 
 ## OBS source URLs
 

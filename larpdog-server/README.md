@@ -57,8 +57,9 @@ Then start Spotify desktop playback on this PC. The overlay receives track chang
 
 ## Custom Dance media
 
-Use **Browse** on the Dancing GIF page in Overlay Studio. Selected files are copied
-into the top-level `user-assets` folder. A source can also be overridden with a URL param:
+Use **Add media** on the Dancing GIF page in Overlay Studio. Selected files are copied
+into `user-assets/dancing` or `user-assets/resting`. The desktop media library supports
+one fixed dance or a random pool. A source can also be overridden with a URL param:
 
 ```text
 http://127.0.0.1:8473/overlays/larpdog-dance?dog=user-assets/dancing.gif

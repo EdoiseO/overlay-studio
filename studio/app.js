@@ -5,6 +5,9 @@ const app = {
   pollPending: false,
   toastTimer: null,
   previewKind: null,
+  danceMode: "single",
+  danceSelection: new Set(),
+  mediaLibraryKey: "",
   urls: {},
 };
 
@@ -110,6 +113,136 @@ function renderDanceIdentity(config) {
   if (app.previewKind === "dance") {
     byId("overlayPreviewTitle").textContent = name;
   }
+}
+
+function mediaUrl(path) {
+  const source = String(path || "");
+  if (/^(?:https?:|data:|blob:)/i.test(source)) return source;
+  const encoded = source
+    .replaceAll("\\", "/")
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return new URL(encoded, app.state?.baseUrl || "http://127.0.0.1/").toString();
+}
+
+function createMediaChoice(asset, selected, multiple, onSelect) {
+  const choice = document.createElement("button");
+  choice.type = "button";
+  choice.className = "media-choice";
+  choice.classList.toggle("selected", selected);
+  choice.setAttribute("role", multiple ? "checkbox" : "radio");
+  choice.setAttribute("aria-checked", String(selected));
+  choice.setAttribute("aria-label", asset.name);
+  choice.title = asset.name;
+
+  const thumbnail = document.createElement("span");
+  thumbnail.className = "media-thumbnail";
+  const preview =
+    asset.type === "video" ? document.createElement("video") : document.createElement("img");
+  preview.src = mediaUrl(asset.path);
+  preview.draggable = false;
+  if (preview.tagName === "VIDEO") {
+    preview.muted = true;
+    preview.loop = true;
+    preview.autoplay = true;
+    preview.playsInline = true;
+    preview.preload = "metadata";
+  } else {
+    preview.alt = "";
+    preview.loading = "lazy";
+  }
+  preview.addEventListener("error", () => choice.classList.add("preview-failed"));
+  thumbnail.append(preview);
+
+  const name = document.createElement("span");
+  name.className = "media-name";
+  name.textContent = asset.name;
+  const indicator = document.createElement("i");
+  indicator.className = "media-selection";
+  indicator.setAttribute("aria-hidden", "true");
+  choice.append(thumbnail, name, indicator);
+  choice.addEventListener("click", () => onSelect(asset.path));
+  return choice;
+}
+
+function renderMediaLibraries() {
+  const library = app.state?.mediaLibrary || { dancing: [], resting: [] };
+  const restPath = byId("danceRest").value;
+  const restGrid = byId("restMediaGrid");
+  restGrid.replaceChildren();
+  library.resting.forEach((asset) => {
+    restGrid.append(
+      createMediaChoice(asset, asset.path === restPath, false, (path) => {
+        byId("danceRest").value = path;
+        renderMediaLibraries();
+      }),
+    );
+  });
+  if (!library.resting.length) {
+    const empty = document.createElement("span");
+    empty.className = "media-empty";
+    empty.textContent = "No resting images";
+    restGrid.append(empty);
+  }
+  const selectedRest = library.resting.find((asset) => asset.path === restPath);
+  byId("restSelectionName").textContent = selectedRest?.name || "No image selected";
+
+  const multiple = app.danceMode === "random";
+  const danceGrid = byId("danceMediaGrid");
+  danceGrid.classList.toggle("multi-select", multiple);
+  danceGrid.setAttribute("role", multiple ? "group" : "radiogroup");
+  danceGrid.replaceChildren();
+  library.dancing.forEach((asset) => {
+    danceGrid.append(
+      createMediaChoice(asset, app.danceSelection.has(asset.path), multiple, (path) => {
+        if (multiple) {
+          if (app.danceSelection.has(path)) {
+            if (app.danceSelection.size === 1) {
+              showToast("Keep at least one dance selected");
+              return;
+            }
+            app.danceSelection.delete(path);
+          } else {
+            app.danceSelection.add(path);
+          }
+        } else {
+          app.danceSelection = new Set([path]);
+        }
+        byId("danceGif").value = [...app.danceSelection][0] || "";
+        renderMediaLibraries();
+      }),
+    );
+  });
+  if (!library.dancing.length) {
+    const empty = document.createElement("span");
+    empty.className = "media-empty";
+    empty.textContent = "No dancing media";
+    danceGrid.append(empty);
+  }
+
+  const count = app.danceSelection.size;
+  byId("danceSelectionCount").textContent =
+    app.danceMode === "random" ? `${count} selected for random play` : `${count} selected`;
+  document.querySelectorAll("[data-dance-mode]").forEach((button) => {
+    const active = button.dataset.danceMode === app.danceMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function setDanceMode(mode) {
+  app.danceMode = mode === "random" ? "random" : "single";
+  if (!app.danceSelection.size) {
+    const fallback =
+      app.state?.config?.dance?.gif || app.state?.defaults?.dance?.gif || "";
+    if (fallback) app.danceSelection.add(fallback);
+  }
+  if (app.danceMode === "single" && app.danceSelection.size > 1) {
+    app.danceSelection = new Set([[...app.danceSelection][0]]);
+  }
+  byId("danceGif").value = [...app.danceSelection][0] || "";
+  renderMediaLibraries();
 }
 
 function resizeLargePreview() {
@@ -224,6 +357,10 @@ function updateColorLabel(id) {
 
 function fillConfig(config) {
   byId("danceName").value = config.dance.name;
+  app.danceMode = config.dance.mode === "random" ? "random" : "single";
+  app.danceSelection = new Set(
+    app.danceMode === "random" ? config.dance.pool : [config.dance.gif],
+  );
   byId("dancePosition").value = config.dance.position;
   byId("danceGif").value = config.dance.gif;
   byId("danceRest").value = config.dance.rest;
@@ -239,13 +376,19 @@ function fillConfig(config) {
   setColor("colorA", config.spotify.colors.a);
   setColor("colorB", config.spotify.colors.b);
   setColor("colorC", config.spotify.colors.c);
+  renderMediaLibraries();
 }
 
 function gatherConfig() {
+  const dancePool = [...app.danceSelection];
+  const primaryDance =
+    dancePool[0] || app.state?.defaults?.dance?.gif || "assets/dancing-dog.gif";
   return {
     dance: {
       name: byId("danceName").value,
-      gif: byId("danceGif").value,
+      mode: app.danceMode,
+      gif: primaryDance,
+      pool: dancePool.length ? dancePool : [primaryDance],
       rest: byId("danceRest").value,
       position: byId("dancePosition").value,
       scale: Number(byId("danceScale").value),
@@ -272,12 +415,16 @@ function gatherConfig() {
 }
 
 function renderState(state, hydrate = false) {
+  const mediaLibraryKey = JSON.stringify(state.mediaLibrary || {});
+  const mediaLibraryChanged = mediaLibraryKey !== app.mediaLibraryKey;
+  app.mediaLibraryKey = mediaLibraryKey;
   app.state = state;
   setTheme(state.theme);
   renderDanceIdentity(state.config);
   renderServerState(state);
   renderCounter(state.counter);
   if (hydrate) fillConfig(state.config);
+  else if (mediaLibraryChanged && byId("danceRest").value) renderMediaLibraries();
 }
 
 async function refreshState(hydrate = false) {
@@ -317,7 +464,16 @@ async function chooseAsset(kind) {
     if (!result.cancelled) showToast(result.detail || "Could not choose that file");
     return;
   }
-  byId(kind === "gif" ? "danceGif" : "danceRest").value = result.path;
+  app.state.mediaLibrary = result.library;
+  app.mediaLibraryKey = JSON.stringify(result.library);
+  if (kind === "gif") {
+    if (app.danceMode === "random") app.danceSelection.add(result.path);
+    else app.danceSelection = new Set([result.path]);
+    byId("danceGif").value = [...app.danceSelection][0];
+  } else {
+    byId("danceRest").value = result.path;
+  }
+  renderMediaLibraries();
   logActivity(`${kind === "gif" ? "Dance GIF" : "Resting image"} selected: ${result.name}`);
 }
 
@@ -396,12 +552,8 @@ function bindEvents() {
   document.querySelectorAll("[data-choose-asset]").forEach((button) => {
     button.addEventListener("click", () => chooseAsset(button.dataset.chooseAsset));
   });
-  document.querySelectorAll("[data-default-asset]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const kind = button.dataset.defaultAsset;
-      byId(kind === "gif" ? "danceGif" : "danceRest").value =
-        app.state.defaults.dance[kind];
-    });
+  document.querySelectorAll("[data-dance-mode]").forEach((button) => {
+    button.addEventListener("click", () => setDanceMode(button.dataset.danceMode));
   });
 
   byId("sensitivity").addEventListener("input", () => {
@@ -416,6 +568,8 @@ function bindEvents() {
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
     byId("danceName").value = defaults.dance.name;
+    app.danceMode = defaults.dance.mode;
+    app.danceSelection = new Set(defaults.dance.pool);
     byId("dancePosition").value = defaults.dance.position;
     byId("danceGif").value = defaults.dance.gif;
     byId("danceRest").value = defaults.dance.rest;
@@ -423,6 +577,7 @@ function bindEvents() {
     byId("sensitivity").value = defaults.audio.sensitivity;
     byId("sensitivityOutput").value = Number(defaults.audio.sensitivity).toFixed(2);
     byId("fallbackBpm").value = defaults.nowPlaying.fallbackBpm;
+    renderMediaLibraries();
     logActivity("Dance fields reset; save to apply");
   });
   byId("resetSpotifyButton").addEventListener("click", () => {

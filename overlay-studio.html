@@ -226,7 +226,7 @@
   </div>
 
   <div class="dog-wrap" id="dogWrap">
-    <img class="dog-img" id="dog" alt="dancing dog" src="assets/dancing-dog.gif" />
+    <img class="dog-img" id="dog" alt="Dancing GIF character" src="assets/dancing-dog.gif" />
   </div>
 </div>
 
@@ -308,6 +308,14 @@ const stage = document.getElementById("stage");
 let dogMedia = document.getElementById("dog");
 const dogWrap = document.getElementById("dogWrap");
 const DANCING_DOG_SRC = Q.get("dog") || SAVED_DANCE.gif || SAVED_DANCE.media || LEGACY_APPEARANCE.dog || dogMedia.getAttribute("src") || dogMedia.src;
+const DANCE_MODE = Q.has("dog") || SAVED_DANCE.mode !== "random" ? "single" : "random";
+const SAVED_DANCE_POOL = Array.isArray(SAVED_DANCE.pool) ? SAVED_DANCE.pool : [];
+const DANCING_DOG_POOL = [...new Set(
+  (DANCE_MODE === "random" ? SAVED_DANCE_POOL : [DANCING_DOG_SRC])
+    .map(src => String(src || "").trim())
+    .filter(Boolean)
+)];
+if (!DANCING_DOG_POOL.length) DANCING_DOG_POOL.push(DANCING_DOG_SRC);
 const RESTING_DOG_SRC = Q.get("rest") || SAVED_DANCE.rest || LEGACY_APPEARANCE.rest || "assets/resting-dog.png";
 const DEFAULT_PALETTE = [[255, 77, 157], [255, 210, 74], [94, 224, 255]];
 const USER_PALETTE = getUserPalette();
@@ -339,7 +347,7 @@ function createDogMedia(src) {
     media.loop = !REDUCED_MOTION;
     media.autoplay = !REDUCED_MOTION;
     media.preload = REDUCED_MOTION ? "metadata" : "auto";
-    media.setAttribute("aria-label", "Larpdog Dance character");
+    media.setAttribute("aria-label", "Dancing GIF character");
     if (REDUCED_MOTION) {
       media.addEventListener("loadeddata", () => {
         media.pause();
@@ -347,7 +355,7 @@ function createDogMedia(src) {
       }, { once: true });
     }
   } else {
-    media.alt = "Larpdog Dance character";
+    media.alt = "Dancing GIF character";
   }
   media.src = src;
   return media;
@@ -361,10 +369,26 @@ function setDogMedia(src) {
   if (nextMedia.tagName === "VIDEO" && !REDUCED_MOTION) nextMedia.play().catch(() => {});
 }
 
+let lastDanceIndex = -1;
+
+function chooseDanceSource() {
+  if (DANCE_MODE !== "random" || DANCING_DOG_POOL.length === 1) {
+    return DANCING_DOG_POOL[0] || DANCING_DOG_SRC;
+  }
+  let nextIndex = Math.floor(Math.random() * DANCING_DOG_POOL.length);
+  if (nextIndex === lastDanceIndex) {
+    nextIndex = (nextIndex + 1 + Math.floor(Math.random() * (DANCING_DOG_POOL.length - 1)))
+      % DANCING_DOG_POOL.length;
+  }
+  lastDanceIndex = nextIndex;
+  return DANCING_DOG_POOL[nextIndex];
+}
+
 function showDancingDog() {
+  const startingDance = dogResting;
   dogResting = false;
   dogWrap.classList.remove("resting");
-  setDogMedia(DANCING_DOG_SRC);
+  if (startingDance) setDogMedia(chooseDanceSource());
 }
 
 function showRestingDog() {

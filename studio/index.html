@@ -139,20 +139,38 @@
               <option value="top-left">Top left</option>
               <option value="top-right">Top right</option>
             </select>
-            <label for="danceGif">Dance GIF</label>
-            <div class="asset-control">
-              <input id="danceGif" readonly>
-              <button class="secondary-button compact" type="button" data-choose-asset="gif">Browse</button>
-              <button class="secondary-button compact" type="button" data-default-asset="gif">Default</button>
-            </div>
-            <label for="danceRest">Resting image</label>
-            <div class="asset-control">
-              <input id="danceRest" readonly>
-              <button class="secondary-button compact" type="button" data-choose-asset="rest">Browse</button>
-              <button class="secondary-button compact" type="button" data-default-asset="rest">Default</button>
-            </div>
             <label for="danceScale">Scale</label>
             <input id="danceScale" type="number" min="0.5" max="2" step="0.05">
+          </div>
+          <input id="danceGif" type="hidden">
+          <input id="danceRest" type="hidden">
+
+          <div class="media-library-section">
+            <div class="media-library-heading">
+              <div>
+                <h3>Resting image</h3>
+                <span id="restSelectionName">No image selected</span>
+              </div>
+              <button class="secondary-button compact" type="button" data-choose-asset="rest">Add image</button>
+            </div>
+            <div class="media-grid" id="restMediaGrid" role="radiogroup" aria-label="Resting image library"></div>
+          </div>
+
+          <div class="media-library-section">
+            <div class="media-library-heading">
+              <div>
+                <h3>Dancing media</h3>
+                <span id="danceSelectionCount">0 selected</span>
+              </div>
+              <div class="media-heading-actions">
+                <div class="segmented-control" aria-label="Dance selection mode">
+                  <button type="button" data-dance-mode="single" aria-pressed="true">Single</button>
+                  <button type="button" data-dance-mode="random" aria-pressed="false">Random</button>
+                </div>
+                <button class="secondary-button compact" type="button" data-choose-asset="gif">Add media</button>
+              </div>
+            </div>
+            <div class="media-grid" id="danceMediaGrid" role="radiogroup" aria-label="Dancing media library"></div>
           </div>
         </div>
         <div class="panel">
