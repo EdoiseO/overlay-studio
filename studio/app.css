@@ -224,10 +224,13 @@ main {
 
 .live-preview iframe {
   position: absolute;
+  top: 50%;
+  left: 50%;
   border: 0;
   opacity: 0;
   pointer-events: none;
   background: var(--panel-alt);
+  transform-origin: center;
   transition: opacity 160ms ease;
 }
 
@@ -236,30 +239,21 @@ body.server-running .live-preview iframe {
 }
 
 .preview-dance iframe {
-  width: 480px;
-  height: 300px;
-  left: 0;
-  bottom: 0;
-  transform: scale(0.44);
-  transform-origin: left bottom;
+  width: 520px;
+  height: 420px;
+  transform: translate(-50%, -50%) scale(0.4);
 }
 
 .preview-spotify iframe {
-  width: 380px;
-  height: 200px;
-  left: 0;
-  bottom: 0;
-  transform: scale(0.55);
-  transform-origin: left bottom;
+  width: 620px;
+  height: 360px;
+  transform: translate(-50%, -50%) scale(0.34);
 }
 
 .preview-counter iframe {
-  width: 760px;
-  height: 260px;
-  left: 0;
-  bottom: 0;
-  transform: scale(0.29);
-  transform-origin: left bottom;
+  width: 900px;
+  height: 320px;
+  transform: translate(-50%, -50%) scale(0.24);
 }
 
 .preview-offline {

@@ -102,6 +102,20 @@ http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 ```
 
+Each dedicated page centers one transparent overlay object. Position the Browser
+Source itself in OBS instead of anchoring content to a corner inside the webpage.
+Useful starting canvas sizes at scale `1.0` are:
+
+```text
+Dancing GIF      520 x 420
+Spotify Overlay  620 x 360
+Match Record     900 x 320
+```
+
+Increase the Browser Source canvas if you raise an overlay's scale. Existing combined
+overlay links and explicit `?pos=bottom-left`, `bottom-right`, `top-left`, or
+`top-right` query parameters retain the old full-canvas positioning behavior.
+
 Saved changes are broadcast to connected OBS sources automatically.
 
 ## Match Record automation

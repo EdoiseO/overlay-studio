@@ -53,6 +53,11 @@ http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 ```
 
+Dedicated overlay pages center their content on a transparent canvas. Use OBS to
+position the Browser Source in the scene. The legacy combined overlay and explicit
+`?pos=bottom-left`, `bottom-right`, `top-left`, or `top-right` links keep their original
+corner anchoring.
+
 Then start Spotify desktop playback on this PC. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
 
 ## Custom Dance media

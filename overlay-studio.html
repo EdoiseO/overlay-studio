@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/overlay-surface.css" />
 
 <style>
   :root {
@@ -39,13 +40,23 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* the cluster sits in a corner; ?pos= flips the anchors */
+  /* Dedicated routes are centered. The combined route and ?pos= links keep legacy anchors. */
   #stage {
-    position: fixed;
-    bottom: 36px; left: 36px;
     display: flex; align-items: flex-end; gap: 18px;
     transform: scale(var(--scale));
+  }
+  #stage:not([data-pos="center"]) {
+    position: fixed;
+    bottom: 36px; left: 36px;
     transform-origin: bottom left;
+  }
+  #stage[data-pos="center"] {
+    position: relative;
+    flex-direction: row;
+    transform-origin: center;
+  }
+  #stage[data-pos="center"][data-asset="player"] .card {
+    margin-bottom: 0;
   }
   #stage[data-pos="bottom-right"] { left: auto; right: 36px; transform-origin: bottom right; flex-direction: row-reverse; }
   #stage[data-pos="top-left"]     { bottom: auto; top: 36px; transform-origin: top left; }
@@ -212,7 +223,7 @@
   }
 </style>
 
-<div id="stage" data-pos="bottom-left">
+<div class="overlay-content" id="stage" data-pos="center">
   <div class="card idle" id="card">
     <div class="art" id="art">
       <div class="eq" id="eq"><i></i><i></i><i></i><i></i><i></i></div>
@@ -281,8 +292,7 @@ if (SAVED_SPOTIFY.colorMode || LEGACY_APPEARANCE.colorMode) {
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
 if (Q.get("preview") === "studio") {
-  document.documentElement.style.background = "#1c2429";
-  document.body.style.background = "#1c2429";
+  document.documentElement.classList.add("overlay-studio-preview");
 }
 if (Q.has("mode"))   CONFIG.nowPlaying.mode = Q.get("mode");
 if (Q.has("file"))   CONFIG.nowPlaying.file = Q.get("file");
@@ -322,8 +332,14 @@ const RESTING_DOG_SRC = Q.get("rest") || SAVED_DANCE.rest || LEGACY_APPEARANCE.r
 const DEFAULT_PALETTE = [[255, 77, 157], [255, 210, 74], [94, 224, 255]];
 const USER_PALETTE = getUserPalette();
 const ENTITY_APPEARANCE = CONFIG.ui.asset === "player" ? SAVED_SPOTIFY : SAVED_DANCE;
-stage.dataset.pos = Q.get("pos") || ENTITY_APPEARANCE.position || LEGACY_APPEARANCE.position || stage.dataset.pos;
+const requestedPosition = Q.get("pos");
+const centeredOverlaySurface =
+  requestedPosition === "center" || (Boolean(ROUTE_ASSET) && !requestedPosition);
+stage.dataset.pos = centeredOverlaySurface
+  ? "center"
+  : requestedPosition || ENTITY_APPEARANCE.position || LEGACY_APPEARANCE.position || "bottom-left";
 stage.dataset.asset = CONFIG.ui.asset;
+document.body.classList.toggle("overlay-surface", centeredOverlaySurface);
 root.style.setProperty("--scale", num("scale", Number(ENTITY_APPEARANCE.scale ?? LEGACY_APPEARANCE.scale) || 1));
 root.style.setProperty("--card-width", CONFIG.ui.cardWidth + "px");
 if (CONFIG.ui.asset === "dog") document.getElementById("card").classList.add("hidden");

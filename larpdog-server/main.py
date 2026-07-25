@@ -6,6 +6,7 @@ import base64
 import contextlib
 import datetime as dt
 import json
+import re
 import sys
 import threading
 import time
@@ -536,6 +537,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     hub = ClientHub()
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
+    overlays_dir = base_dir.parent / "overlays"
     app["hub"] = hub
     app["config"] = config
     app["base_dir"] = base_dir
@@ -590,9 +592,18 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         return web.json_response(saved_config)
 
     async def serve_win_loss(_request: web.Request) -> web.StreamResponse:
-        overlay_path = base_dir.parent / "overlays" / "win-loss.html"
+        overlay_path = overlays_dir / "win-loss.html"
         if not overlay_path.exists():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_path}")
+        return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
+
+    async def serve_overlay_page(request: web.Request) -> web.StreamResponse:
+        overlay_name = request.match_info.get("overlay_name", "")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", overlay_name):
+            raise web.HTTPNotFound(text="Overlay not found")
+        overlay_path = overlays_dir / f"{overlay_name}.html"
+        if not overlay_path.is_file():
+            raise web.HTTPNotFound(text=f"Overlay not found: {overlay_name}")
         return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
 
     async def get_win_loss(_request: web.Request) -> web.Response:
@@ -664,6 +675,14 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/api/now-playing", get_now_playing)
     app.router.add_get("/overlays/win-loss", serve_win_loss)
     app.router.add_get("/overlays/win-loss.html", serve_win_loss)
+    app.router.add_get(
+        r"/overlays/{overlay_name:[A-Za-z0-9][A-Za-z0-9_-]*}",
+        serve_overlay_page,
+    )
+    app.router.add_get(
+        r"/overlays/{overlay_name:[A-Za-z0-9][A-Za-z0-9_-]*}.html",
+        serve_overlay_page,
+    )
     app.router.add_get("/api/win-loss", get_win_loss)
     app.router.add_post("/api/win-loss", update_win_loss)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"

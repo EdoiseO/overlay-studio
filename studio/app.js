@@ -444,7 +444,6 @@ function fillConfig(config) {
   app.danceSelection = new Set(
     app.danceMode === "random" ? config.dance.pool : [config.dance.gif],
   );
-  byId("dancePosition").value = config.dance.position;
   byId("danceGif").value = config.dance.gif;
   byId("danceRest").value = config.dance.rest;
   byId("danceScale").value = config.dance.scale;
@@ -452,7 +451,6 @@ function fillConfig(config) {
   byId("sensitivityOutput").value = Number(config.audio.sensitivity).toFixed(2);
   byId("fallbackBpm").value = config.nowPlaying.fallbackBpm;
 
-  byId("spotifyPosition").value = config.spotify.position;
   byId("spotifyScale").value = config.spotify.scale;
   byId("playerWidth").value = config.spotify.cardWidth;
   byId("colorMode").value = config.spotify.colorMode;
@@ -473,11 +471,17 @@ function gatherConfig() {
       gif: primaryDance,
       pool: dancePool.length ? dancePool : [primaryDance],
       rest: byId("danceRest").value,
-      position: byId("dancePosition").value,
+      position:
+        app.state?.config?.dance?.position
+        || app.state?.defaults?.dance?.position
+        || "bottom-left",
       scale: Number(byId("danceScale").value),
     },
     spotify: {
-      position: byId("spotifyPosition").value,
+      position:
+        app.state?.config?.spotify?.position
+        || app.state?.defaults?.spotify?.position
+        || "bottom-left",
       scale: Number(byId("spotifyScale").value),
       cardWidth: Number(byId("playerWidth").value),
       colorMode: byId("colorMode").value,
@@ -763,7 +767,6 @@ function bindEvents() {
     byId("danceName").value = defaults.dance.name;
     app.danceMode = defaults.dance.mode;
     app.danceSelection = new Set(defaults.dance.pool);
-    byId("dancePosition").value = defaults.dance.position;
     byId("danceGif").value = defaults.dance.gif;
     byId("danceRest").value = defaults.dance.rest;
     byId("danceScale").value = defaults.dance.scale;
@@ -775,7 +778,6 @@ function bindEvents() {
   });
   byId("resetSpotifyButton").addEventListener("click", () => {
     const defaults = app.state.defaults.spotify;
-    byId("spotifyPosition").value = defaults.position;
     byId("spotifyScale").value = defaults.scale;
     byId("playerWidth").value = defaults.cardWidth;
     byId("colorMode").value = defaults.colorMode;
