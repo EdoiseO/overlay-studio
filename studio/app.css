@@ -692,7 +692,8 @@ input[readonly] {
   border-radius: 50%;
 }
 
-.media-grid.multi-select .media-selection {
+.media-grid.multi-select .media-selection,
+.media-grid.square-selection .media-selection {
   border-radius: 3px;
 }
 
