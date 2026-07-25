@@ -63,7 +63,8 @@ the resting and dancing media libraries to preview and select imported assets. D
 media can use one fixed selection or a random pool that chooses a new dance each time
 playback becomes active. Overlay Studio copies imported files into `user-assets/`, so
 moving or deleting the original file does not break the overlay. Imported media can be
-removed with the trash button on its library tile; built-in media is protected.
+removed with the trash button on its library tile; built-in media is protected. Dancing
+and resting imports are stored separately, so deleting one cannot remove the other.
 
 GIFs, animated images, and videos up to 25 MB can also be dragged directly onto the
 **Dancing media** library. Windows `.url` Internet shortcuts to public HTTPS media are

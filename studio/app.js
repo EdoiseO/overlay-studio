@@ -205,7 +205,7 @@ function renderMediaLibraries() {
           byId("danceRest").value = path;
           renderMediaLibraries();
         },
-        requestDeleteAsset,
+        (selectedAsset) => requestDeleteAsset(selectedAsset, "rest"),
       ),
     );
   });
@@ -246,7 +246,7 @@ function renderMediaLibraries() {
           byId("danceGif").value = [...app.danceSelection][0] || "";
           renderMediaLibraries();
         },
-        requestDeleteAsset,
+        (selectedAsset) => requestDeleteAsset(selectedAsset, "gif"),
       ),
     );
   });
@@ -281,8 +281,8 @@ function setDanceMode(mode) {
   renderMediaLibraries();
 }
 
-function requestDeleteAsset(asset) {
-  app.pendingDeleteAsset = asset;
+function requestDeleteAsset(asset, kind) {
+  app.pendingDeleteAsset = { ...asset, kind };
   byId("deleteMediaName").textContent = asset.name;
   byId("deleteMediaDialog").showModal();
 }
@@ -293,7 +293,7 @@ async function deletePendingAsset() {
   app.busy = true;
   byId("confirmDeleteMedia").disabled = true;
   try {
-    const result = await callApi("delete_asset", asset.path);
+    const result = await callApi("delete_asset", asset.kind, asset.path);
     if (!result.ok) {
       showToast(result.detail || "Could not delete that media");
       return;
@@ -302,14 +302,20 @@ async function deletePendingAsset() {
     app.state.config = result.config;
     app.state.mediaLibrary = result.library;
     app.mediaLibraryKey = JSON.stringify(result.library);
-    app.danceSelection.delete(asset.path);
-    if (!app.danceSelection.size) {
-      app.danceSelection.add(result.config.dance.gif);
+    if (asset.kind === "gif") {
+      app.danceSelection.delete(asset.path);
+      if (!app.danceSelection.size) {
+        app.danceSelection.add(result.config.dance.gif);
+      }
+      byId("danceGif").value = [...app.danceSelection][0];
+    } else if (app.danceSelection.has(asset.path)) {
+      app.danceSelection.delete(asset.path);
+      result.config.dance.pool.forEach((path) => app.danceSelection.add(path));
+      byId("danceGif").value = [...app.danceSelection][0];
     }
     if (byId("danceRest").value === asset.path) {
       byId("danceRest").value = result.config.dance.rest;
     }
-    byId("danceGif").value = [...app.danceSelection][0];
     byId("deleteMediaDialog").close();
     renderMediaLibraries();
     logActivity(`Media deleted: ${result.name}`);

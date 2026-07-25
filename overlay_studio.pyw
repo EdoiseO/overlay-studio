@@ -122,7 +122,9 @@ def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
             "path": normalized,
             "name": display_name,
             "type": "video" if suffix in DANCE_VIDEO_EXTENSIONS else "image",
-            "deletable": normalized.startswith("user-assets/"),
+            "deletable": normalized.startswith(
+                ("user-assets/dancing/", "user-assets/resting/")
+            ),
         }
 
     dance = config["dance"]
@@ -160,15 +162,10 @@ def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
             add_asset(resting, relative)
         if relative in dance_paths or relative in rest_paths:
             continue
-        if suffix in DANCE_VIDEO_EXTENSIONS:
+        if suffix in DANCE_VIDEO_EXTENSIONS or suffix in {".gif", ".webp", ".apng"}:
             add_asset(dancing, relative)
-        elif suffix in {".jpg", ".jpeg"}:
+        elif suffix in ALLOWED_REST_EXTENSIONS:
             add_asset(resting, relative)
-        else:
-            if suffix in ALLOWED_DANCE_EXTENSIONS:
-                add_asset(dancing, relative)
-            if suffix in ALLOWED_REST_EXTENSIONS:
-                add_asset(resting, relative)
 
     return {
         "dancing": list(dancing.values()),
@@ -205,6 +202,100 @@ def asset_destination(
         destination = destination_dir / f"{base_name}-{suffix}{extension}"
         suffix += 1
     return destination
+
+
+def copy_user_asset(
+    source: Path,
+    kind: str,
+    content: bytes | None = None,
+) -> str:
+    copied_content = source.read_bytes() if content is None else content
+    destination = asset_destination(
+        kind,
+        source.name,
+        content=copied_content,
+        source=source,
+    )
+    if not destination.exists():
+        shutil.copy2(source, destination)
+    return f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
+
+
+def prepare_legacy_asset_migration(
+    config: dict[str, Any],
+) -> tuple[dict[str, Any], list[Path], bool]:
+    migrated = copy.deepcopy(config)
+    dance = migrated["dance"]
+
+    def normalized(value: Any) -> str:
+        return str(value or "").replace("\\", "/")
+
+    dance_paths = {
+        normalized(dance["gif"]),
+        *(normalized(path) for path in dance["pool"]),
+    }
+    rest_path = normalized(dance["rest"])
+    cleanup: list[Path] = []
+    config_changed = False
+
+    USER_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    for source in sorted(USER_ASSETS_DIR.iterdir()):
+        if not source.is_file() or source.name.startswith("."):
+            continue
+        suffix = source.suffix.lower()
+        old_path = f"user-assets/{source.name}"
+        categories: list[str] = []
+        if old_path in dance_paths:
+            categories.append("gif")
+        if old_path == rest_path:
+            categories.append("rest")
+        if not categories:
+            if suffix in DANCE_VIDEO_EXTENSIONS or suffix in {
+                ".gif",
+                ".webp",
+                ".apng",
+            }:
+                categories.append("gif")
+            elif suffix in ALLOWED_REST_EXTENSIONS:
+                categories.append("rest")
+
+        content: bytes | None = None
+        destinations: dict[str, str] = {}
+        for kind in categories:
+            allowed = (
+                ALLOWED_DANCE_EXTENSIONS
+                if kind == "gif"
+                else ALLOWED_REST_EXTENSIONS
+            )
+            if suffix not in allowed:
+                continue
+            try:
+                if content is None:
+                    content = source.read_bytes()
+                destinations[kind] = copy_user_asset(source, kind, content)
+            except OSError:
+                continue
+        if not destinations:
+            continue
+
+        if old_path in dance_paths and "gif" in destinations:
+            dance["gif"] = (
+                destinations["gif"]
+                if normalized(dance["gif"]) == old_path
+                else dance["gif"]
+            )
+            dance["pool"] = [
+                destinations["gif"] if normalized(path) == old_path else path
+                for path in dance["pool"]
+            ]
+            config_changed = True
+        if old_path == rest_path and "rest" in destinations:
+            dance["rest"] = destinations["rest"]
+            config_changed = True
+        if len(destinations) == len(categories):
+            cleanup.append(source)
+
+    return migrated, cleanup, config_changed
 
 
 def validate_public_https_url(url: str) -> str:
@@ -597,6 +688,18 @@ class DesktopApi:
     def get_state(self) -> dict[str, Any]:
         settings = load_json(APP_SETTINGS_PATH)
         config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        try:
+            migrated, legacy_assets, config_changed = prepare_legacy_asset_migration(
+                config
+            )
+            if config_changed:
+                config = self.save_overlay_settings(migrated)["config"]
+            else:
+                config = migrated
+            for legacy_asset in legacy_assets:
+                legacy_asset.unlink(missing_ok=True)
+        except OSError:
+            config = load_overlay_config(OVERLAY_CONFIG_PATH)
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
@@ -749,14 +852,22 @@ class DesktopApi:
             "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
         }
 
-    def delete_asset(self, relative_path: str) -> dict[str, Any]:
+    def delete_asset(self, kind: str, relative_path: str) -> dict[str, Any]:
+        if kind not in {"gif", "rest"}:
+            return {"ok": False, "detail": "Unsupported asset type"}
         normalized = str(relative_path or "").replace("\\", "/").strip()
-        prefix = "user-assets/"
+        folder = "dancing" if kind == "gif" else "resting"
+        prefix = f"user-assets/{folder}/"
         if not normalized.startswith(prefix):
-            return {"ok": False, "detail": "Built-in media cannot be deleted"}
+            return {
+                "ok": False,
+                "detail": f"Only imported {folder} media can be deleted here",
+            }
 
         relative = Path(normalized.removeprefix(prefix))
-        allowed = ALLOWED_DANCE_EXTENSIONS | ALLOWED_REST_EXTENSIONS
+        allowed = (
+            ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
+        )
         if (
             not relative.parts
             or relative.is_absolute()
@@ -767,7 +878,7 @@ class DesktopApi:
 
         try:
             assets_root = USER_ASSETS_DIR.resolve()
-            target = (USER_ASSETS_DIR / relative).resolve()
+            target = (USER_ASSETS_DIR / folder / relative).resolve()
         except OSError:
             return {"ok": False, "detail": "Invalid media path"}
         try:
@@ -784,26 +895,53 @@ class DesktopApi:
         def same_asset(value: Any) -> bool:
             return str(value or "").replace("\\", "/") == normalized
 
-        remaining_pool = [
-            path for path in dance["pool"] if not same_asset(path)
-        ]
-        default_dance = DEFAULT_OVERLAY_CONFIG["dance"]["gif"]
-        if same_asset(dance["gif"]):
-            dance["gif"] = remaining_pool[0] if remaining_pool else default_dance
-        if not remaining_pool:
-            remaining_pool = [dance["gif"]]
-        if dance["gif"] not in remaining_pool:
-            remaining_pool.insert(0, dance["gif"])
-        dance["pool"] = remaining_pool
-        if same_asset(dance["rest"]):
-            dance["rest"] = DEFAULT_OVERLAY_CONFIG["dance"]["rest"]
+        try:
+            if kind == "gif":
+                if same_asset(dance["rest"]):
+                    if target.suffix.lower() not in ALLOWED_REST_EXTENSIONS:
+                        return {
+                            "ok": False,
+                            "detail": "This file is also used as the resting image",
+                        }
+                    dance["rest"] = copy_user_asset(target, "rest")
+                remaining_pool = [
+                    path for path in dance["pool"] if not same_asset(path)
+                ]
+                default_dance = DEFAULT_OVERLAY_CONFIG["dance"]["gif"]
+                if same_asset(dance["gif"]):
+                    dance["gif"] = (
+                        remaining_pool[0] if remaining_pool else default_dance
+                    )
+                if not remaining_pool:
+                    remaining_pool = [dance["gif"]]
+                if dance["gif"] not in remaining_pool:
+                    remaining_pool.insert(0, dance["gif"])
+                dance["pool"] = remaining_pool
+            else:
+                dance_references_target = same_asset(dance["gif"]) or any(
+                    same_asset(path) for path in dance["pool"]
+                )
+                if dance_references_target:
+                    if target.suffix.lower() not in ALLOWED_DANCE_EXTENSIONS:
+                        return {
+                            "ok": False,
+                            "detail": "This file is also used as dancing media",
+                        }
+                    preserved_path = copy_user_asset(target, "gif")
+                    if same_asset(dance["gif"]):
+                        dance["gif"] = preserved_path
+                    dance["pool"] = [
+                        preserved_path if same_asset(path) else path
+                        for path in dance["pool"]
+                    ]
+                if same_asset(dance["rest"]):
+                    dance["rest"] = DEFAULT_OVERLAY_CONFIG["dance"]["rest"]
+        except OSError:
+            return {"ok": False, "detail": "Could not separate that media file"}
 
         try:
             saved = self.save_overlay_settings(config)
             target.unlink()
-            if target.parent != assets_root:
-                with contextlib.suppress(OSError):
-                    target.parent.rmdir()
         except OSError:
             with contextlib.suppress(OSError):
                 self.save_overlay_settings(original_config)
