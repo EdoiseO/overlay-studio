@@ -60,7 +60,9 @@ Then start Spotify desktop playback on this PC. The overlay receives track chang
 Use **Add media** on the Dancing GIF page in Overlay Studio. Selected files are copied
 into `user-assets/dancing` or `user-assets/resting`. The desktop media library supports
 one fixed dance or a random pool. Dancing files up to 25 MB can also be dropped directly
-onto the media library. A source can be overridden with a URL param:
+onto the media library. Windows `.url` shortcuts to public HTTPS media can be selected
+or dropped too; the downloaded file is validated and limited to 25 MB. A source can be
+overridden with a URL param:
 
 ```text
 http://127.0.0.1:8473/overlays/larpdog-dance?dog=user-assets/dancing.gif

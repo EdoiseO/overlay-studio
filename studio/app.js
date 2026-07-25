@@ -488,13 +488,13 @@ function readDroppedFile(file) {
 
 async function importDroppedDanceFiles(fileList) {
   if (app.busy) return;
-  const allowed = new Set(["gif", "webp", "apng", "png", "webm", "mp4", "mov"]);
+  const allowed = new Set(["gif", "webp", "apng", "png", "webm", "mp4", "mov", "url"]);
   const files = [...fileList].filter((file) => {
     const extension = file.name.split(".").pop()?.toLowerCase();
     return extension && allowed.has(extension);
   });
   if (!files.length) {
-    showToast("Drop a supported GIF, image, or video");
+    showToast("Drop supported media or an Internet shortcut");
     return;
   }
 
@@ -503,8 +503,14 @@ async function importDroppedDanceFiles(fileList) {
   const failures = [];
   try {
     for (const file of files) {
-      if (file.size > 25 * 1024 * 1024) {
-        failures.push(`${file.name} is over 25 MB; use Add media`);
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const maximumBytes = extension === "url" ? 64 * 1024 : 25 * 1024 * 1024;
+      if (file.size > maximumBytes) {
+        failures.push(
+          extension === "url"
+            ? `${file.name} is not a valid Internet shortcut`
+            : `${file.name} is over 25 MB; use Add media`,
+        );
         continue;
       }
       try {

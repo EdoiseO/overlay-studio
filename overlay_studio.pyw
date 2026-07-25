@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import base64
 import binascii
+import configparser
 import contextlib
 import ctypes
+import ipaddress
 import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -65,6 +68,18 @@ ALLOWED_DANCE_EXTENSIONS = {
 ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
 DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
 MAX_DRAG_IMPORT_BYTES = 25 * 1024 * 1024
+MAX_SHORTCUT_BYTES = 64 * 1024
+REMOTE_MEDIA_TYPES = {
+    "image/apng": ".png",
+    "image/gif": ".gif",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/x-png": ".png",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+}
 
 
 def load_json(path: Path, fallback_path: Path | None = None) -> dict[str, Any]:
@@ -188,6 +203,198 @@ def asset_destination(
         destination = destination_dir / f"{base_name}-{suffix}{extension}"
         suffix += 1
     return destination
+
+
+def validate_public_https_url(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() != "https":
+        raise ValueError("Internet shortcuts must use HTTPS")
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("Internet shortcut address is not valid")
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError("Internet shortcut address is not valid") from error
+    if port not in {None, 443}:
+        raise ValueError("Internet shortcuts must use the standard HTTPS port")
+    if parsed.hostname.rstrip(".").lower().endswith(".local"):
+        raise ValueError("Internet shortcuts cannot use local network addresses")
+
+    try:
+        addresses = socket.getaddrinfo(
+            parsed.hostname,
+            443,
+            type=socket.SOCK_STREAM,
+        )
+    except socket.gaierror as error:
+        raise ValueError("Internet shortcut host could not be resolved") from error
+    if not addresses:
+        raise ValueError("Internet shortcut host could not be resolved")
+    for address in addresses:
+        host_address = address[4][0].split("%", 1)[0]
+        try:
+            ip_address = ipaddress.ip_address(host_address)
+        except ValueError as error:
+            raise ValueError("Internet shortcut host address is not valid") from error
+        if not ip_address.is_global:
+            raise ValueError("Internet shortcuts cannot use local network addresses")
+    return urllib.parse.urlunsplit(parsed)
+
+
+class PublicHttpsRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        request: urllib.request.Request,
+        file_pointer: Any,
+        code: int,
+        message: str,
+        headers: Any,
+        new_url: str,
+    ) -> urllib.request.Request | None:
+        target = urllib.parse.urljoin(request.full_url, new_url)
+        validate_public_https_url(target)
+        return super().redirect_request(
+            request,
+            file_pointer,
+            code,
+            message,
+            headers,
+            target,
+        )
+
+
+def parse_internet_shortcut(content: bytes) -> str:
+    if not content or len(content) > MAX_SHORTCUT_BYTES:
+        raise ValueError("Internet shortcut must be between 1 byte and 64 KB")
+
+    encodings = (
+        ("utf-16",)
+        if content.startswith((b"\xff\xfe", b"\xfe\xff"))
+        else ("utf-8-sig", "cp1252")
+    )
+    decoded: str | None = None
+    for encoding in encodings:
+        try:
+            decoded = content.decode(encoding)
+            break
+        except UnicodeError:
+            continue
+    if decoded is None:
+        raise ValueError("Could not read that Internet shortcut")
+
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read_string(decoded)
+    except configparser.Error as error:
+        raise ValueError("Could not read that Internet shortcut") from error
+    section = next(
+        (
+            name
+            for name in parser.sections()
+            if name.lower() == "internetshortcut"
+        ),
+        None,
+    )
+    if section is None:
+        raise ValueError("That file is not an Internet shortcut")
+    url = parser.get(section, "URL", fallback="").strip()
+    if not url:
+        raise ValueError("That Internet shortcut does not contain an address")
+    return validate_public_https_url(url)
+
+
+def sniff_media_extension(content: bytes) -> str | None:
+    if content.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if (
+        len(content) >= 12
+        and content.startswith(b"RIFF")
+        and content[8:12] == b"WEBP"
+    ):
+        return ".webp"
+    if content.startswith(b"\x1a\x45\xdf\xa3"):
+        return ".webm"
+    if len(content) >= 12 and content[4:8] == b"ftyp":
+        return ".mov" if content[8:12] == b"qt  " else ".mp4"
+    return None
+
+
+def download_shortcut_media(
+    kind: str,
+    shortcut_name: str,
+    shortcut_content: bytes,
+) -> tuple[str, str]:
+    url = parse_internet_shortcut(shortcut_content)
+    opener = urllib.request.build_opener(PublicHttpsRedirectHandler())
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "image/*,video/*;q=0.9",
+            "User-Agent": "Overlay Studio/1.0",
+        },
+    )
+    try:
+        with opener.open(request, timeout=15) as response:
+            final_url = validate_public_https_url(response.geturl())
+            content_type = (
+                response.headers.get("Content-Type", "")
+                .partition(";")[0]
+                .strip()
+                .lower()
+            )
+            content_length = response.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    declared_size = int(content_length)
+                except ValueError:
+                    declared_size = 0
+                if declared_size > MAX_DRAG_IMPORT_BYTES:
+                    raise ValueError("Shortcut media must be 25 MB or smaller")
+            content = response.read(MAX_DRAG_IMPORT_BYTES + 1)
+    except ValueError:
+        raise
+    except (OSError, urllib.error.URLError) as error:
+        raise ValueError("Could not download media from that Internet shortcut") from error
+
+    if not content or len(content) > MAX_DRAG_IMPORT_BYTES:
+        raise ValueError("Shortcut media must be between 1 byte and 25 MB")
+    extension = sniff_media_extension(content)
+    if extension is None:
+        raise ValueError("Internet shortcut did not download supported media")
+    declared_extension = REMOTE_MEDIA_TYPES.get(content_type)
+    if content_type and content_type != "application/octet-stream":
+        extensions_match = declared_extension == extension or {
+            declared_extension,
+            extension,
+        } == {".mov", ".mp4"}
+        if declared_extension is None or not extensions_match:
+            raise ValueError("Internet shortcut returned an unexpected file type")
+
+    allowed = ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
+    if extension not in allowed:
+        raise ValueError("Internet shortcut media is not supported here")
+
+    remote_name = Path(
+        urllib.parse.unquote(urllib.parse.urlsplit(final_url).path)
+    ).name
+    fallback_stem = Path(Path(shortcut_name).stem).stem
+    stem = Path(remote_name).stem if remote_name else fallback_stem
+    imported_name = f"{stem or kind}{extension}"
+    destination = asset_destination(kind, imported_name, content=content)
+    if not destination.exists():
+        temporary_path = destination.with_suffix(f"{destination.suffix}.tmp")
+        temporary_path.write_bytes(content)
+        temporary_path.replace(destination)
+    relative_path = f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
+    return relative_path, imported_name
 
 
 def server_address() -> tuple[str, int]:
@@ -409,11 +616,13 @@ class DesktopApi:
             (
                 "Animated GIF (*.gif)",
                 "Animated media (*.webp;*.apng;*.webm;*.mp4;*.mov)",
+                "Internet shortcuts (*.url)",
                 "All files (*.*)",
             )
             if kind == "gif"
             else (
                 "Images (*.png;*.jpg;*.jpeg;*.gif;*.webp;*.apng)",
+                "Internet shortcuts (*.url)",
                 "All files (*.*)",
             )
         )
@@ -429,7 +638,25 @@ class DesktopApi:
         allowed = (
             ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
         )
-        if source.suffix.lower() not in allowed:
+        extension = source.suffix.lower()
+        if extension == ".url":
+            try:
+                with source.open("rb") as shortcut_file:
+                    shortcut_content = shortcut_file.read(MAX_SHORTCUT_BYTES + 1)
+                relative_path, imported_name = download_shortcut_media(
+                    kind,
+                    source.name,
+                    shortcut_content,
+                )
+            except (OSError, ValueError) as error:
+                return {"ok": False, "detail": str(error)}
+            return {
+                "ok": True,
+                "path": relative_path,
+                "name": imported_name,
+                "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
+            }
+        if extension not in allowed:
             return {"ok": False, "detail": "Unsupported file type"}
 
         destination = asset_destination(kind, source.name, source=source)
@@ -456,25 +683,55 @@ class DesktopApi:
         allowed = (
             ALLOWED_DANCE_EXTENSIONS if kind == "gif" else ALLOWED_REST_EXTENSIONS
         )
-        if extension not in allowed:
-            return {"ok": False, "detail": f"Unsupported file type: {extension or 'none'}"}
+        if extension not in allowed and extension != ".url":
+            return {
+                "ok": False,
+                "detail": f"Unsupported file type: {extension or 'none'}",
+            }
 
         header, separator, encoded = str(data_url or "").partition(",")
         if not separator or ";base64" not in header.lower():
             return {"ok": False, "detail": "Could not read that dropped file"}
-        if len(encoded) > (MAX_DRAG_IMPORT_BYTES * 4 // 3) + 8:
+        maximum_bytes = (
+            MAX_SHORTCUT_BYTES if extension == ".url" else MAX_DRAG_IMPORT_BYTES
+        )
+        if len(encoded) > (maximum_bytes * 4 // 3) + 8:
             return {
                 "ok": False,
-                "detail": "Dropped files must be 25 MB or smaller; use Add media instead",
+                "detail": (
+                    "Internet shortcuts must be 64 KB or smaller"
+                    if extension == ".url"
+                    else "Dropped files must be 25 MB or smaller; use Add media instead"
+                ),
             }
         try:
             content = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError):
             return {"ok": False, "detail": "Could not decode that dropped file"}
-        if not content or len(content) > MAX_DRAG_IMPORT_BYTES:
+        if not content or len(content) > maximum_bytes:
             return {
                 "ok": False,
-                "detail": "Dropped files must be between 1 byte and 25 MB",
+                "detail": (
+                    "Internet shortcuts must be between 1 byte and 64 KB"
+                    if extension == ".url"
+                    else "Dropped files must be between 1 byte and 25 MB"
+                ),
+            }
+
+        if extension == ".url":
+            try:
+                relative_path, imported_name = download_shortcut_media(
+                    kind,
+                    supplied_name,
+                    content,
+                )
+            except ValueError as error:
+                return {"ok": False, "detail": str(error)}
+            return {
+                "ok": True,
+                "path": relative_path,
+                "name": imported_name,
+                "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
             }
 
         destination = asset_destination(kind, supplied_name, content=content)
