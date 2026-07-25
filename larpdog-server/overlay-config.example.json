@@ -1,5 +1,6 @@
 {
   "dance": {
+    "name": "Dancing GIF",
     "gif": "assets/dancing-dog.gif",
     "rest": "assets/resting-dog.png",
     "position": "bottom-left",

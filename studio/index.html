@@ -30,14 +30,14 @@
           <span>3 installed</span>
         </div>
         <div class="overlay-grid">
-          <button class="overlay-card" type="button" data-preview-kind="dance" aria-label="Preview Larpdog Dance">
+          <button class="overlay-card" id="danceCard" type="button" data-preview-kind="dance" aria-label="Preview Dancing GIF">
             <div class="live-preview preview-dance">
-              <iframe id="dancePreview" title="Live Larpdog Dance preview" tabindex="-1"></iframe>
+              <iframe id="dancePreview" title="Live Dancing GIF preview" tabindex="-1"></iframe>
               <span class="preview-offline">OFFLINE</span>
             </div>
             <div class="card-copy">
-              <strong>Larpdog Dance</strong>
-              <span>Audio-reactive dance GIF</span>
+              <strong id="danceCardName">Dancing GIF</strong>
+              <span>Dancing GIF - audio-reactive</span>
               <small><i class="status-dot"></i><b>OFFLINE</b></small>
             </div>
           </button>
@@ -94,7 +94,7 @@
         <div class="panel">
           <h2>Overlay URLs</h2>
           <div class="source-row">
-            <label for="serverDanceUrl">Larpdog Dance</label>
+            <label id="serverDanceLabel" for="serverDanceUrl">Dancing GIF</label>
             <input id="serverDanceUrl" readonly>
             <button class="primary-button compact" type="button" data-copy-source="dance">Copy</button>
             <button class="secondary-button compact" type="button" data-open-source="dance">Open</button>
@@ -121,12 +121,17 @@
       <section class="view detail-view" id="danceView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>
-          <h1>Larpdog Dance</h1>
+          <div class="detail-title">
+            <span>Dancing GIF</span>
+            <h1 id="danceDetailName">Dancing GIF</h1>
+          </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
         <div class="panel">
-          <h2>Dance GIF and layout</h2>
+          <h2>Dancing GIF settings</h2>
           <div class="form-grid">
+            <label for="danceName">Overlay name</label>
+            <input id="danceName" type="text" maxlength="48" autocomplete="off" placeholder="Dancing GIF">
             <label for="dancePosition">Position</label>
             <select id="dancePosition">
               <option value="bottom-left">Bottom left</option>
@@ -165,7 +170,7 @@
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
-            <label for="danceUrl">Dance source</label>
+            <label id="danceSourceLabel" for="danceUrl">Dancing GIF</label>
             <input id="danceUrl" readonly>
             <button class="primary-button compact" type="button" data-copy-source="dance">Copy</button>
             <button class="secondary-button compact" type="button" data-open-source="dance">Open</button>
@@ -315,7 +320,7 @@
   <dialog class="preview-dialog" id="overlayPreviewDialog" aria-labelledby="overlayPreviewTitle">
     <div class="preview-dialog-heading">
       <div>
-        <span>LIVE OBS PREVIEW</span>
+        <span id="overlayPreviewType">LIVE OBS PREVIEW</span>
         <h2 id="overlayPreviewTitle">Overlay preview</h2>
       </div>
       <button class="icon-button close-button" id="closePreviewButton" type="button" aria-label="Close preview" title="Close">x</button>

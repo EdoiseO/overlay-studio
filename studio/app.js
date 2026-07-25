@@ -75,21 +75,42 @@ function updatePreview(iframe, url, running) {
 
 const previewDetails = {
   dance: {
-    title: "Larpdog Dance",
+    title: "Dancing GIF",
+    type: "DANCING GIF",
     view: "danceView",
     canvas: [520, 420],
   },
   spotify: {
     title: "Spotify Overlay",
+    type: "SPOTIFY OVERLAY",
     view: "spotifyView",
     canvas: [620, 360],
   },
   counter: {
     title: "Match Record",
+    type: "MATCH RECORD",
     view: "counterView",
     canvas: [900, 320],
   },
 };
+
+function getDanceName(config = app.state?.config) {
+  const name = String(config?.dance?.name || "").trim();
+  return name || previewDetails.dance.title;
+}
+
+function renderDanceIdentity(config) {
+  const name = getDanceName(config);
+  byId("danceCardName").textContent = name;
+  byId("danceCard").setAttribute("aria-label", `Preview ${name}`);
+  byId("dancePreview").title = `Live ${name} preview`;
+  byId("danceDetailName").textContent = name;
+  byId("serverDanceLabel").textContent = name;
+  byId("danceSourceLabel").textContent = name;
+  if (app.previewKind === "dance") {
+    byId("overlayPreviewTitle").textContent = name;
+  }
+}
 
 function resizeLargePreview() {
   const stage = document.querySelector(".large-preview-stage");
@@ -120,7 +141,10 @@ function openOverlayPreview(kind) {
   const details = previewDetails[kind];
   if (!details) return;
   app.previewKind = kind;
-  byId("overlayPreviewTitle").textContent = details.title;
+  const title = kind === "dance" ? getDanceName() : details.title;
+  byId("overlayPreviewType").textContent = `${details.type} / LIVE OBS PREVIEW`;
+  byId("overlayPreviewTitle").textContent = title;
+  byId("largeOverlayPreview").title = `Live ${title} preview`;
   renderLargePreview(app.state || { running: false });
   byId("overlayPreviewDialog").showModal();
   requestAnimationFrame(resizeLargePreview);
@@ -199,6 +223,7 @@ function updateColorLabel(id) {
 }
 
 function fillConfig(config) {
+  byId("danceName").value = config.dance.name;
   byId("dancePosition").value = config.dance.position;
   byId("danceGif").value = config.dance.gif;
   byId("danceRest").value = config.dance.rest;
@@ -219,6 +244,7 @@ function fillConfig(config) {
 function gatherConfig() {
   return {
     dance: {
+      name: byId("danceName").value,
       gif: byId("danceGif").value,
       rest: byId("danceRest").value,
       position: byId("dancePosition").value,
@@ -248,6 +274,7 @@ function gatherConfig() {
 function renderState(state, hydrate = false) {
   app.state = state;
   setTheme(state.theme);
+  renderDanceIdentity(state.config);
   renderServerState(state);
   renderCounter(state.counter);
   if (hydrate) fillConfig(state.config);
@@ -299,7 +326,9 @@ async function saveOverlaySettings() {
   app.busy = true;
   try {
     const result = await callApi("save_overlay_settings", gatherConfig());
+    if (app.state) app.state.config = result.config;
     fillConfig(result.config);
+    renderDanceIdentity(result.config);
     logActivity(result.applied ? "Settings saved and applied" : "Settings saved");
     showToast(result.applied ? "Saved and applied" : "Saved");
   } catch (error) {
@@ -386,6 +415,7 @@ function bindEvents() {
   byId("saveSpotifyButton").addEventListener("click", saveOverlaySettings);
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
+    byId("danceName").value = defaults.dance.name;
     byId("dancePosition").value = defaults.dance.position;
     byId("danceGif").value = defaults.dance.gif;
     byId("danceRest").value = defaults.dance.rest;

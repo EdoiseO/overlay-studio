@@ -9,6 +9,7 @@ from typing import Any
 
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "dance": {
+        "name": "Dancing GIF",
         "gif": "assets/dancing-dog.gif",
         "rest": "assets/resting-dog.png",
         "position": "bottom-left",
@@ -59,6 +60,11 @@ def _asset_path(value: Any, default: str) -> str:
     return candidate
 
 
+def _overlay_name(value: Any, default: str) -> str:
+    candidate = " ".join(str(value or "").split())
+    return candidate[:48] or default
+
+
 def _color(value: Any, default: str) -> str:
     candidate = str(value or "").strip().removeprefix("#")
     return candidate.lower() if HEX_COLOR.fullmatch(candidate) else default
@@ -84,6 +90,7 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
 
     return {
         "dance": {
+            "name": _overlay_name(dance.get("name"), default_dance["name"]),
             "gif": _asset_path(
                 dance.get("gif", dance.get("media", legacy.get("dog"))),
                 default_dance["gif"],

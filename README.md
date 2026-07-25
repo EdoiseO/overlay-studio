@@ -4,14 +4,14 @@ Overlay Studio is a Windows desktop library for running, previewing, and customi
 local OBS browser-source overlays.
 
 <p align="center">
-  <img src="assets/larpdog-demo.gif" alt="Larpdog Dance overlay demo" width="520">
+  <img src="assets/larpdog-demo.gif" alt="Dancing GIF overlay demo" width="520">
 </p>
 
 ## Included overlays
 
 | Overlay | Purpose |
 | --- | --- |
-| **Larpdog Dance** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
+| **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
 | **Spotify Overlay** | Shows live Windows now-playing metadata, album artwork, and playback progress. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
 
@@ -58,7 +58,8 @@ only added inside Overlay Studio; the OBS sources remain transparent.
 
 ## Custom media
 
-Open **Larpdog Dance** and use **Browse** to choose custom media. Overlay Studio copies
+Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
+**Browse** to choose custom media. Overlay Studio copies
 the selected file into `user-assets/`, so moving or deleting the original file does not
 break the overlay.
 
@@ -147,7 +148,7 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 
 - `overlay_studio.pyw`: native WebView desktop shell and Python bridge
 - `studio/`: desktop interface
-- `overlay-studio.html`: Larpdog Dance and Spotify browser sources
+- `overlay-studio.html`: Dancing GIF and Spotify browser sources
 - `overlays/win-loss.html`: Match Record browser source
 - `assets/`: bundled default media
 - `user-assets/`: copied custom dance and resting media

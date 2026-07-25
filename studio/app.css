@@ -357,6 +357,24 @@ body.server-running .card-copy small {
   margin-bottom: 14px;
 }
 
+.detail-title {
+  min-width: 0;
+}
+
+.detail-title span {
+  display: block;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+}
+
+.detail-title h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .push-right {
   margin-left: auto;
 }
@@ -502,6 +520,7 @@ input[readonly] {
   gap: 11px 18px;
 }
 
+.form-grid > input[type="text"],
 .form-grid > input[type="number"],
 .form-grid > select {
   width: min(100%, 360px);

@@ -57,7 +57,7 @@ Then start Spotify desktop playback on this PC. The overlay receives track chang
 
 ## Custom Dance media
 
-Use **Browse** on the Larpdog Dance page in Overlay Studio. Selected files are copied
+Use **Browse** on the Dancing GIF page in Overlay Studio. Selected files are copied
 into the top-level `user-assets` folder. A source can also be overridden with a URL param:
 
 ```text
