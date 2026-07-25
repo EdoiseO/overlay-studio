@@ -59,7 +59,8 @@ Then start Spotify desktop playback on this PC. The overlay receives track chang
 
 Use **Add media** on the Dancing GIF page in Overlay Studio. Selected files are copied
 into `user-assets/dancing` or `user-assets/resting`. The desktop media library supports
-one fixed dance or a random pool. Imported files can be removed from their tile with the
+one fixed dance or a random pool that chooses a new dance when the song changes and
+keeps it across pause and resume. Imported files can be removed from their tile with the
 trash button; built-in assets cannot be deleted. Dancing and resting imports live in
 separate folders, so deleting from one library does not affect the other. Dancing files
 up to 25 MB can be dropped directly onto the media library. Windows `.url` shortcuts to

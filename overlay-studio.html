@@ -370,6 +370,7 @@ function setDogMedia(src) {
 }
 
 let lastDanceIndex = -1;
+let currentDanceSource = "";
 
 function chooseDanceSource() {
   if (DANCE_MODE !== "random" || DANCING_DOG_POOL.length === 1) {
@@ -384,11 +385,13 @@ function chooseDanceSource() {
   return DANCING_DOG_POOL[nextIndex];
 }
 
-function showDancingDog() {
-  const startingDance = dogResting;
+function showDancingDog(changeDance = false) {
   dogResting = false;
   dogWrap.classList.remove("resting");
-  if (startingDance) setDogMedia(chooseDanceSource());
+  if (!currentDanceSource || changeDance) {
+    currentDanceSource = chooseDanceSource();
+  }
+  setDogMedia(currentDanceSource);
 }
 
 function showRestingDog() {
@@ -587,6 +590,7 @@ function connectOverlayStudioServer() {
         window.__larpdog.lastTrackAt = Date.now();
         if (msg.isPlaying) {
           showSong({
+            trackId: msg.trackId,
             title: msg.title,
             artist: msg.artist,
             art: msg.art,
@@ -751,6 +755,7 @@ const $art = document.getElementById("art");
 const $eq = document.getElementById("eq");
 const $progressFill = document.getElementById("progressFill");
 let trackProgress = { progressMs: 0, durationMs: 0, startedAt: 0, active: false };
+let lastTrackIdentity = "";
 
 function setTrackLine(el, text) {
   const inner = el.querySelector(".marquee-text");
@@ -805,8 +810,26 @@ function paintProgress() {
 }
 requestAnimationFrame(paintProgress);
 
-function showSong({ title, artist, art, progressMs, durationMs }) {
-  showDancingDog();
+function trackIdentity({ trackId, title, artist, durationMs }) {
+  const explicitId = String(trackId || "").trim();
+  if (explicitId) return `id:${explicitId}`;
+  return [
+    String(title || "").trim().toLocaleLowerCase(),
+    String(artist || "").trim().toLocaleLowerCase(),
+    Math.max(0, Number(durationMs) || 0),
+  ].join("\u0000");
+}
+
+function showSong(song) {
+  const { title, artist, art, progressMs, durationMs } = song;
+  const nextTrackIdentity = trackIdentity(song);
+  const trackChanged = Boolean(
+    lastTrackIdentity
+    && nextTrackIdentity
+    && nextTrackIdentity !== lastTrackIdentity
+  );
+  if (nextTrackIdentity) lastTrackIdentity = nextTrackIdentity;
+  showDancingDog(trackChanged);
   setTrackLine($title, title || "-");
   setTrackLine($artist, artist || "");
   setProgress(progressMs, durationMs);
@@ -840,6 +863,7 @@ async function pollFile() {
     try {                                  // JSON form: {title, artist, art}
       const j = JSON.parse(raw);
       showSong({
+        trackId: j.trackId || j.id,
         title: j.title || j.song,
         artist: j.artist,
         art: j.art || j.albumArt,
@@ -865,6 +889,7 @@ async function pollSpotify() {
     const d = await r.json();
     if (!d || !d.item) return showIdle();
     showSong({
+      trackId: d.item.id || d.item.uri,
       title: d.item.name,
       artist: (d.item.artists || []).map(a => a.name).join(", "),
       art: d.item.album?.images?.[0]?.url,

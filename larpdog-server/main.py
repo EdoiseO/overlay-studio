@@ -122,6 +122,7 @@ class ClientHub:
         return {
             "type": "track",
             "isPlaying": False,
+            "trackId": "",
             "title": "",
             "artist": "",
             "art": None,
@@ -322,6 +323,7 @@ class MediaSessionWorker:
             {
                 "type": "track",
                 "isPlaying": False,
+                "trackId": "",
                 "title": "",
                 "artist": "",
                 "art": None,
@@ -444,6 +446,7 @@ class MediaSessionWorker:
             return {
                 "type": "track",
                 "isPlaying": False,
+                "trackId": "",
                 "title": "",
                 "artist": "",
                 "art": None,
@@ -462,6 +465,7 @@ class MediaSessionWorker:
             return {
                 "type": "track",
                 "isPlaying": False,
+                "trackId": "",
                 "title": "",
                 "artist": "",
                 "art": None,
@@ -479,6 +483,7 @@ class MediaSessionWorker:
         return {
             "type": "track",
             "isPlaying": True,
+            "trackId": identity,
             "title": title,
             "artist": artist,
             "art": self.last_art,

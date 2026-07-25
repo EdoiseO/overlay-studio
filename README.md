@@ -61,7 +61,8 @@ only added inside Overlay Studio; the OBS sources remain transparent.
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
 the resting and dancing media libraries to preview and select imported assets. Dancing
 media can use one fixed selection or a random pool that chooses a new dance each time
-playback becomes active. Overlay Studio copies imported files into `user-assets/`, so
+the song changes while preserving that dance across pause and resume. Overlay Studio
+copies imported files into `user-assets/`, so
 moving or deleting the original file does not break the overlay. Imported media can be
 removed with the trash button on its library tile; built-in media is protected. Dancing
 and resting imports are stored separately, so deleting one cannot remove the other.
