@@ -152,29 +152,11 @@
     transform: translateX(-50%) translateZ(90px) scale(1.06);
     opacity: 1; z-index: 5;
   }
-  .cover[data-slot="-1"] {
-    transform: translateX(-124%) translateZ(-40px) rotateY(26deg) scale(.94);
-    opacity: .82; filter: brightness(.72); z-index: 4;
-  }
-  .cover[data-slot="1"] {
-    transform: translateX(24%) translateZ(-40px) rotateY(-26deg) scale(.94);
-    opacity: .82; filter: brightness(.72); z-index: 4;
-  }
-  .cover[data-slot="-2"] {
-    transform: translateX(-186%) translateZ(-150px) rotateY(34deg) scale(.86);
-    opacity: .5; filter: brightness(.5); z-index: 3;
-  }
-  .cover[data-slot="2"] {
-    transform: translateX(86%) translateZ(-150px) rotateY(-34deg) scale(.86);
-    opacity: .5; filter: brightness(.5); z-index: 3;
-  }
   .cover[data-slot="hidden"] {
     transform: translateX(-50%) translateZ(-260px) scale(.7);
     opacity: 0; z-index: 1;
   }
 
-  /* only the centre card shows full text */
-  .cover:not([data-slot="0"]) .name { font-size: 13px; }
   .cover[data-slot="0"] .name { font-size: 17px; }
 
   /* subtle sheen sweep on the centre card */
@@ -282,7 +264,7 @@
   const CODE_BARS = 44;
   const MAX_MESSAGE_BYTES = 2 * 1024 * 1024;
   let codeBars = [];
-  let history = [];
+  let currentTrack = null;
   let audioLevel = 0;
   let socket = null;
   let reconnectTimer = 0;
@@ -290,7 +272,6 @@
   let stopped = false;
   let flowSettings = {
     scale: 1,
-    sideCovers: 2,
     glow: 1,
   };
   let playback = {
@@ -329,7 +310,6 @@
       : {};
     flowSettings = {
       scale: clamp(supplied.scale ?? 1, 0.5, 2),
-      sideCovers: Math.round(clamp(supplied.sideCovers ?? 2, 0, 2)),
       glow: clamp(supplied.glow ?? 1, 0, 2),
     };
     root.style.setProperty("--glow-a", String(flowSettings.glow * 0.4));
@@ -491,23 +471,12 @@
 
   function renderFlow() {
     flow.replaceChildren();
-    const slots = [{ track: history[0], slot: "0" }];
-    if (flowSettings.sideCovers >= 1) {
-      slots.unshift({ track: history[1], slot: "-1" });
-      slots.push({ track: history[1], slot: "1" });
-    }
-    if (flowSettings.sideCovers >= 2) {
-      slots.unshift({ track: history[2], slot: "-2" });
-      slots.push({ track: history[2], slot: "2" });
-    }
-    for (const { track, slot } of slots) {
-      if (!track) continue;
-      const element = buildCover(track);
-      flow.append(element);
-      requestAnimationFrame(() => {
-        element.dataset.slot = slot;
-      });
-    }
+    if (!currentTrack) return;
+    const element = buildCover(currentTrack);
+    flow.append(element);
+    requestAnimationFrame(() => {
+      element.dataset.slot = "0";
+    });
   }
 
   function extractPalette(image) {
@@ -553,7 +522,7 @@
     image.decoding = "async";
     image.addEventListener("load", () => {
       const palette = extractPalette(image);
-      if (!palette || history[0]?.id !== track.id) return;
+      if (!palette || currentTrack?.id !== track.id) return;
       root.style.setProperty("--a-rgb", palette[0].join(","));
       root.style.setProperty("--b-rgb", palette[1].join(","));
     }, { once: true });
@@ -563,18 +532,15 @@
   function applyTrack(message) {
     const track = normalizeTrack(message);
     if (!track) return;
-    const current = history[0];
+    const current = currentTrack;
     const isNew = !current || current.id !== track.id;
     const artworkChanged = current?.art !== track.art;
     if (isNew) {
-      history = [
-        track,
-        ...history.filter((item) => item.id !== track.id),
-      ].slice(0, 5);
+      currentTrack = track;
       buildCode(`${track.title}|${track.artist}`);
       applyTrackPalette(track);
     } else {
-      history[0] = { ...current, ...track };
+      currentTrack = { ...current, ...track };
     }
     if (isNew || artworkChanged) {
       renderFlow();

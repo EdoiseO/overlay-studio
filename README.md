@@ -14,7 +14,7 @@ local OBS browser-source overlays.
 | **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
 | **Spotify Overlay** | Shows live Windows now-playing metadata, album artwork, and playback progress. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
-| **Now Playing Flow** | Presents live media-session artwork as a coverflow with audio-reactive progress bars. |
+| **Now Playing Flow** | Presents the current media-session artwork with audio-reactive progress bars. |
 
 ## Requirements
 
@@ -60,10 +60,11 @@ only added inside Overlay Studio; the OBS sources remain transparent.
 
 ## Now Playing Flow
 
-Open **Now Playing Flow** to customize its library name, size, number of side covers,
-and artwork-colored glow. Side covers are built from recently played tracks as the
-media session changes. Saving applies the new appearance to connected Studio previews
-and OBS browser sources without changing their URL.
+Open **Now Playing Flow** to customize its library name, size, and artwork-colored
+glow. It intentionally shows only the current track. Spotify queue cards can be added
+after account authorization is introduced through the Connections area in Settings.
+Saving applies the new appearance to connected Studio previews and OBS browser sources
+without changing their URL.
 
 ## Custom media
 

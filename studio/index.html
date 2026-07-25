@@ -73,7 +73,7 @@
             </div>
             <div class="card-copy">
               <strong id="flowCardName">Now Playing Flow</strong>
-              <span>Coverflow + reactive progress</span>
+              <span>Current track + reactive progress</span>
               <small><i class="status-dot"></i><b>OFFLINE</b></small>
             </div>
           </button>
@@ -267,18 +267,12 @@
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
         <div class="panel">
-          <h2>Coverflow appearance</h2>
+          <h2>Player appearance</h2>
           <div class="form-grid">
             <label for="flowName">Overlay name</label>
             <input id="flowName" type="text" maxlength="48" autocomplete="off" placeholder="Now Playing Flow">
             <label for="flowScale">Scale</label>
             <input id="flowScale" type="number" min="0.5" max="2" step="0.05">
-            <label for="flowSideCovers">Side covers</label>
-            <select id="flowSideCovers">
-              <option value="0">None</option>
-              <option value="1">One per side</option>
-              <option value="2">Two per side</option>
-            </select>
             <label for="flowGlow">Glow strength</label>
             <div class="range-control">
               <input id="flowGlow" type="range" min="0" max="2" step="0.05">
@@ -368,6 +362,16 @@
       <div class="segmented-control" id="themeControl">
         <button type="button" data-theme-choice="dark">Dark</button>
         <button type="button" data-theme-choice="light">Light</button>
+      </div>
+    </div>
+    <div class="drawer-section">
+      <h3>Connections</h3>
+      <div class="connection-row">
+        <div>
+          <strong>Spotify</strong>
+          <span>Not connected</span>
+        </div>
+        <button class="secondary-button compact" type="button" disabled title="Spotify account authorization will be added in a future update">Connect</button>
       </div>
     </div>
     <div class="drawer-section">

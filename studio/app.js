@@ -493,7 +493,6 @@ function fillConfig(config) {
   setColor("colorC", config.spotify.colors.c);
   byId("flowName").value = config.flow.name;
   byId("flowScale").value = config.flow.scale;
-  byId("flowSideCovers").value = config.flow.sideCovers;
   byId("flowGlow").value = config.flow.glow;
   byId("flowGlowOutput").value = Number(config.flow.glow).toFixed(2);
   renderMediaLibraries();
@@ -533,7 +532,6 @@ function gatherConfig() {
     flow: {
       name: byId("flowName").value,
       scale: Number(byId("flowScale").value),
-      sideCovers: Number(byId("flowSideCovers").value),
       glow: Number(byId("flowGlow").value),
     },
     audio: {
@@ -841,7 +839,6 @@ function bindEvents() {
     const defaults = app.state.defaults.flow;
     byId("flowName").value = defaults.name;
     byId("flowScale").value = defaults.scale;
-    byId("flowSideCovers").value = defaults.sideCovers;
     byId("flowGlow").value = defaults.glow;
     byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
     logActivity("Now Playing Flow fields reset; save to apply");

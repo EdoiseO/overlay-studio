@@ -31,7 +31,6 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "flow": {
         "name": "Now Playing Flow",
         "scale": 1.0,
-        "sideCovers": 2,
         "glow": 1.0,
     },
     "audio": {
@@ -192,16 +191,6 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
                     2.0,
                 ),
                 2,
-            ),
-            "sideCovers": int(
-                round(
-                    _number(
-                        flow.get("sideCovers"),
-                        default_flow["sideCovers"],
-                        0,
-                        2,
-                    )
-                )
             ),
             "glow": round(
                 _number(

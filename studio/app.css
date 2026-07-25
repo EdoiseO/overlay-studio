@@ -944,6 +944,32 @@ body.drawer-open .settings-drawer {
   font-size: 12px;
 }
 
+.connection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.connection-row > div {
+  min-width: 0;
+}
+
+.connection-row strong,
+.connection-row span {
+  display: block;
+}
+
+.connection-row strong {
+  font-size: 13px;
+}
+
+.connection-row span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: 1fr 1fr;
