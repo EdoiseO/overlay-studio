@@ -22,6 +22,9 @@
     --muted: #9aa7b3;
     --panel: rgba(12, 17, 22, 0.94);
     --line: rgba(255, 255, 255, 0.14);
+    --identity-width: 260px;
+    --identity-padding-x: 18px;
+    --score-width: 116px;
   }
 
   * {
@@ -34,13 +37,15 @@
   }
 
   .stage {
-    width: min(760px, calc(100vw - 48px));
+    width: fit-content;
+    max-width: calc(100vw - 48px);
   }
 
   .record {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 132px 132px;
+    grid-template-columns: minmax(0, var(--identity-width)) repeat(2, var(--score-width));
+    width: fit-content;
     min-height: 118px;
     overflow: hidden;
     border: 1px solid var(--line);
@@ -64,7 +69,7 @@
     min-width: 0;
     flex-direction: column;
     justify-content: center;
-    padding: 22px 26px 18px;
+    padding: 22px var(--identity-padding-x) 18px;
     border-right: 1px solid var(--line);
   }
 
@@ -97,6 +102,17 @@
     white-space: nowrap;
   }
 
+  .title-measure {
+    position: fixed;
+    top: -10000px;
+    left: -10000px;
+    width: max-content;
+    max-width: none;
+    overflow: visible;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .score {
     display: flex;
     align-items: center;
@@ -124,13 +140,14 @@
   }
 
   @media (max-width: 560px) {
-    .record {
-      grid-template-columns: 1fr 82px 82px;
+    :root {
+      --identity-padding-x: 16px;
+      --score-width: 82px;
     }
 
     .identity {
-      padding-right: 14px;
-      padding-left: 16px;
+      padding-right: var(--identity-padding-x);
+      padding-left: var(--identity-padding-x);
     }
 
     .value {
@@ -161,20 +178,59 @@
 const title = document.getElementById("title");
 const wins = document.getElementById("wins");
 const losses = document.getElementById("losses");
+const record = document.querySelector(".record");
+const titleMeasure = title.cloneNode(false);
 const query = new URLSearchParams(location.search);
 const instanceId = query.get("i") || "";
+const MIN_IDENTITY_WIDTH = 188;
+const MAX_IDENTITY_WIDTH = 480;
+const MIN_RESPONSIVE_IDENTITY_WIDTH = 140;
+const CANVAS_GUTTER = 48;
+const TITLE_RENDERING_BUFFER = 40;
+titleMeasure.removeAttribute("id");
+titleMeasure.classList.add("title-measure");
+titleMeasure.setAttribute("aria-hidden", "true");
+document.body.append(titleMeasure);
 if (query.get("preview") === "studio") {
   document.documentElement.classList.add("overlay-studio-preview");
+}
+
+function syncRecordWidth() {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const scoreWidth = Number.parseFloat(rootStyle.getPropertyValue("--score-width")) || 116;
+  const paddingX =
+    Number.parseFloat(rootStyle.getPropertyValue("--identity-padding-x")) || 18;
+  const textWidth = titleMeasure.getBoundingClientRect().width;
+  const desiredWidth = Math.ceil(
+    textWidth + paddingX * 2 + TITLE_RENDERING_BUFFER,
+  );
+  const availableWidth = Math.max(
+    MIN_RESPONSIVE_IDENTITY_WIDTH,
+    window.innerWidth - CANVAS_GUTTER - scoreWidth * 2,
+  );
+  const maximumWidth = Math.min(MAX_IDENTITY_WIDTH, availableWidth);
+  const identityWidth = Math.min(
+    Math.max(desiredWidth, MIN_IDENTITY_WIDTH),
+    maximumWidth,
+  );
+  record.style.setProperty("--identity-width", `${identityWidth}px`);
+  const overflow = Math.ceil(title.scrollWidth - title.clientWidth);
+  if (overflow > 1 && identityWidth < maximumWidth) {
+    const correctedWidth = Math.min(identityWidth + overflow + 4, maximumWidth);
+    record.style.setProperty("--identity-width", `${correctedWidth}px`);
+  }
 }
 
 function render(state) {
   if (!state) return;
   title.textContent = state.title || "Match record";
+  titleMeasure.textContent = title.textContent;
   wins.textContent = Math.max(0, Number(state.wins) || 0);
   losses.textContent = Math.max(0, Number(state.losses) || 0);
   if (/^[0-9a-f]{6}$/i.test(state.accent || "")) {
     document.documentElement.style.setProperty("--accent", `#${state.accent}`);
   }
+  requestAnimationFrame(syncRecordWidth);
 }
 
 async function loadState() {
@@ -204,6 +260,8 @@ function connect() {
 
 loadState();
 connect();
+window.addEventListener("resize", syncRecordWidth);
+document.fonts?.ready.then(syncRecordWidth);
 </script>
 </body>
 </html>
