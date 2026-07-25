@@ -16,7 +16,15 @@ from typing import Any
 from aiohttp import web
 
 from counter_store import apply_counter_update, load_counter_state, save_counter_state
-from overlay_config import load_overlay_config, save_overlay_config
+from overlay_config import (
+    LEGACY_INSTANCE_IDS,
+    is_valid_instance_id,
+    load_overlay_config,
+    materialize_instance_config,
+    save_overlay_config,
+    update_instance_config,
+)
+from overlay_manifest import scan_overlay_manifests
 
 
 APP_NAME = "overlay-studio-server"
@@ -105,14 +113,14 @@ class ClientHub:
     def __init__(self) -> None:
         self._clients: set[web.WebSocketResponse] = set()
         self._last_track: dict[str, Any] | None = None
-        self._last_win_loss: dict[str, Any] | None = None
+        self._last_win_loss: dict[str, dict[str, Any]] = {}
 
     async def add(self, ws: web.WebSocketResponse) -> None:
         self._clients.add(ws)
         if self._last_track is not None:
             await ws.send_str(json.dumps(self._last_track, separators=(",", ":")))
-        if self._last_win_loss is not None:
-            await ws.send_str(json.dumps(self._last_win_loss, separators=(",", ":")))
+        for message in self._last_win_loss.values():
+            await ws.send_str(json.dumps(message, separators=(",", ":")))
 
     async def remove(self, ws: web.WebSocketResponse) -> None:
         self._clients.discard(ws)
@@ -136,7 +144,8 @@ class ClientHub:
         if message.get("type") == "track":
             self._last_track = message
         elif message.get("type") == "win-loss":
-            self._last_win_loss = message
+            key = str(message.get("instanceId") or "")
+            self._last_win_loss[key] = message
         if not self._clients:
             return
 
@@ -544,15 +553,43 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app["overlay_config_path"] = overlay_config_path
     app["counter_state_path"] = counter_state_path
 
-    async def serve_overlay(_request: web.Request) -> web.StreamResponse:
+    def request_instance(
+        request: web.Request,
+        expected_type: str | None = None,
+    ) -> tuple[str | None, dict[str, Any]]:
+        saved_config = load_overlay_config(overlay_config_path)
+        supplied = request.query.get("i")
+        if supplied is None or supplied == "":
+            return None, saved_config
+        if not is_valid_instance_id(supplied):
+            raise web.HTTPBadRequest(text="Invalid overlay instance")
+        instance = saved_config["instances"].get(supplied)
+        if not isinstance(instance, dict):
+            raise web.HTTPNotFound(text="Overlay instance not found")
+        if expected_type is not None and instance["type"] != expected_type:
+            raise web.HTTPNotFound(text="Overlay instance type does not match")
+        return supplied, saved_config
+
+    async def serve_overlay(request: web.Request) -> web.StreamResponse:
+        expected_type = {
+            "/overlays/larpdog-dance": "larpdog-dance",
+            "/overlays/larpdog-dance.html": "larpdog-dance",
+            "/overlays/spotify": "spotify",
+            "/overlays/spotify.html": "spotify",
+        }.get(request.path)
+        if expected_type is not None:
+            request_instance(request, expected_type)
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
         if not overlay_path.exists():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_path}")
         return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
 
-    async def serve_overlay_config(_request: web.Request) -> web.Response:
-        saved_config = load_overlay_config(overlay_config_path)
-        payload = json.dumps(saved_config, separators=(",", ":"))
+    async def serve_overlay_config(request: web.Request) -> web.Response:
+        instance_id, saved_config = request_instance(request)
+        payload = json.dumps(
+            materialize_instance_config(saved_config, instance_id),
+            separators=(",", ":"),
+        )
         return web.Response(
             text=(
                 f"window.OVERLAY_STUDIO_CONFIG={payload};"
@@ -562,9 +599,21 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             headers={"Cache-Control": "no-store"},
         )
 
-    async def get_overlay_config(_request: web.Request) -> web.Response:
+    async def get_overlay_config(request: web.Request) -> web.Response:
+        instance_id, saved_config = request_instance(request)
+        response_config = (
+            materialize_instance_config(saved_config, instance_id)
+            if instance_id
+            else saved_config
+        )
         return web.json_response(
-            load_overlay_config(overlay_config_path),
+            response_config,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def get_overlays(_request: web.Request) -> web.Response:
+        return web.json_response(
+            {"overlays": scan_overlay_manifests(overlays_dir)},
             headers={"Cache-Control": "no-store"},
         )
 
@@ -586,12 +635,39 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             raise web.HTTPBadRequest(text="Expected a JSON object") from None
         if not isinstance(submitted, dict):
             raise web.HTTPBadRequest(text="Expected a JSON object")
-        saved_config = save_overlay_config(overlay_config_path, submitted)
+        instance_id, current_config = request_instance(request)
+        if instance_id:
+            try:
+                updated = update_instance_config(
+                    current_config,
+                    instance_id,
+                    submitted,
+                )
+            except ValueError as exc:
+                raise web.HTTPBadRequest(text=str(exc)) from None
+            saved_config = save_overlay_config(overlay_config_path, updated)
+            instance_config = materialize_instance_config(
+                saved_config,
+                instance_id,
+            )
+            await hub.broadcast(
+                {
+                    "type": "config",
+                    "instanceId": instance_id,
+                    "config": instance_config,
+                }
+            )
+            instance = saved_config["instances"][instance_id]
+            if LEGACY_INSTANCE_IDS.get(instance["type"]) == instance_id:
+                await hub.broadcast({"type": "config", "config": saved_config})
+        else:
+            saved_config = save_overlay_config(overlay_config_path, submitted)
+            await hub.broadcast({"type": "config", "config": saved_config})
         config.setdefault("audio", {})["sensitivity"] = saved_config["audio"]["sensitivity"]
-        await hub.broadcast({"type": "config", "config": saved_config})
         return web.json_response(saved_config)
 
-    async def serve_win_loss(_request: web.Request) -> web.StreamResponse:
+    async def serve_win_loss(request: web.Request) -> web.StreamResponse:
+        request_instance(request, "win-loss")
         overlay_path = overlays_dir / "win-loss.html"
         if not overlay_path.exists():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_path}")
@@ -604,11 +680,13 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         overlay_path = overlays_dir / f"{overlay_name}.html"
         if not overlay_path.is_file():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_name}")
+        request_instance(request, overlay_name)
         return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
 
-    async def get_win_loss(_request: web.Request) -> web.Response:
+    async def get_win_loss(request: web.Request) -> web.Response:
+        instance_id, _saved_config = request_instance(request, "win-loss")
         return web.json_response(
-            load_counter_state(counter_state_path),
+            load_counter_state(counter_state_path, instance_id),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -624,12 +702,28 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             raise web.HTTPBadRequest(text="Expected a JSON object") from None
         if not isinstance(submitted, dict):
             raise web.HTTPBadRequest(text="Expected a JSON object")
+        instance_id, _saved_config = request_instance(request, "win-loss")
         try:
-            state = apply_counter_update(load_counter_state(counter_state_path), submitted)
+            state = apply_counter_update(
+                load_counter_state(counter_state_path, instance_id),
+                submitted,
+            )
         except ValueError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from None
-        saved_state = save_counter_state(counter_state_path, state)
-        await hub.broadcast({"type": "win-loss", "state": saved_state})
+        saved_state = save_counter_state(
+            counter_state_path,
+            state,
+            instance_id,
+        )
+        addressed_message: dict[str, Any] = {
+            "type": "win-loss",
+            "state": saved_state,
+        }
+        if instance_id:
+            addressed_message["instanceId"] = instance_id
+        await hub.broadcast(addressed_message)
+        if instance_id == LEGACY_INSTANCE_IDS["win-loss"]:
+            await hub.broadcast({"type": "win-loss", "state": saved_state})
         return web.json_response(saved_state)
 
     async def ws_handler(request: web.Request) -> web.WebSocketResponse:
@@ -667,11 +761,14 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/", serve_overlay)
     app.router.add_get("/overlay-studio.html", serve_overlay)
     app.router.add_get("/overlays/larpdog-dance", serve_overlay)
+    app.router.add_get("/overlays/larpdog-dance.html", serve_overlay)
     app.router.add_get("/overlays/spotify", serve_overlay)
+    app.router.add_get("/overlays/spotify.html", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
     app.router.add_get("/overlay-config.js", serve_overlay_config)
     app.router.add_get("/api/config", get_overlay_config)
     app.router.add_post("/api/config", update_overlay_config)
+    app.router.add_get("/api/overlays", get_overlays)
     app.router.add_get("/api/now-playing", get_now_playing)
     app.router.add_get("/overlays/win-loss", serve_win_loss)
     app.router.add_get("/overlays/win-loss.html", serve_win_loss)

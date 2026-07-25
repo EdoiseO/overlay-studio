@@ -4,6 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Win / Loss Record</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Match Record",
+  "description": "A live win and loss banner with independent counters and color.",
+  "category": "gaming",
+  "canvas": { "w": 900, "h": 320 },
+  "settings": ["title", "wins", "losses", "accent"],
+  "studioView": "counterView"
+}
+</script>
 <link rel="stylesheet" href="/assets/overlay-surface.css" />
 <style>
   :root {
@@ -151,7 +161,9 @@
 const title = document.getElementById("title");
 const wins = document.getElementById("wins");
 const losses = document.getElementById("losses");
-if (new URLSearchParams(location.search).get("preview") === "studio") {
+const query = new URLSearchParams(location.search);
+const instanceId = query.get("i") || "";
+if (query.get("preview") === "studio") {
   document.documentElement.classList.add("overlay-studio-preview");
 }
 
@@ -167,7 +179,9 @@ function render(state) {
 
 async function loadState() {
   try {
-    const response = await fetch("/api/win-loss", { cache: "no-store" });
+    const endpoint = new URL("/api/win-loss", location.origin);
+    if (instanceId) endpoint.searchParams.set("i", instanceId);
+    const response = await fetch(endpoint, { cache: "no-store" });
     if (response.ok) render(await response.json());
   } catch {}
 }
@@ -179,7 +193,10 @@ function connect() {
   socket.onmessage = event => {
     try {
       const message = JSON.parse(event.data);
-      if (message.type === "win-loss") render(message.state);
+      const messageInstance = String(message.instanceId || "");
+      if (message.type === "win-loss" && messageInstance === instanceId) {
+        render(message.state);
+      }
     } catch {}
   };
   socket.onclose = () => setTimeout(connect, 1500);

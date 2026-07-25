@@ -46,10 +46,14 @@ The overlay server starts automatically. Closing the desktop window leaves the s
 running so active OBS sources do not disappear. To shut everything down, open
 **Server Controls** and choose **Stop** before closing Overlay Studio.
 
-## Live previews
+## Overlay library
 
-The four-column library shows the current output of every installed overlay. Clicking a
-card opens a larger live preview with actions to:
+**My overlays** is a four-column, instance-based library. It can contain multiple
+copies of the same local overlay type with independent names, URLs, settings, and
+addressed state. Select **Add overlay** to open **Browse overlays**, which is generated
+from manifests embedded in local `overlays/*.html` files.
+
+Clicking an instance preview opens a larger live preview with actions to:
 
 - copy the OBS browser-source URL;
 - open the source in a browser;
@@ -57,6 +61,10 @@ card opens a larger live preview with actions to:
 
 These previews render the same live pages used by OBS. The dark preview background is
 only added inside Overlay Studio; the OBS sources remain transparent.
+
+Each card can copy its OBS URL, be renamed without changing that URL, or be removed
+from My overlays. Removing an instance does not delete its local overlay type, which
+remains available in Browse overlays.
 
 ## Now Playing Flow
 
@@ -111,6 +119,13 @@ http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
+```
+
+Those unqualified URLs remain supported for existing OBS scenes. New library instances
+include a validated `i` query parameter, for example:
+
+```text
+http://127.0.0.1:8473/overlays/win-loss?i=ranked
 ```
 
 Each dedicated page centers one transparent overlay object. Position the Browser

@@ -241,7 +241,14 @@
   </div>
 </div>
 
-<script src="overlay-config.js"></script>
+<script>
+{
+  const instanceId = new URLSearchParams(location.search).get("i");
+  const configUrl = new URL("/overlay-config.js", location.origin);
+  if (instanceId) configUrl.searchParams.set("i", instanceId);
+  document.write(`<script src="${configUrl.pathname}${configUrl.search}"><\/script>`);
+}
+</script>
 <script>
 /* =====================================================================
    CONFIG — tweak here, or override any value with a ?param in the URL
@@ -290,6 +297,7 @@ if (SAVED_SPOTIFY.colorMode || LEGACY_APPEARANCE.colorMode) {
 
 /* ---- URL param overrides ---- */
 const Q = new URLSearchParams(location.search);
+const INSTANCE_ID = Q.get("i") || "";
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
 if (Q.get("preview") === "studio") {
   document.documentElement.classList.add("overlay-studio-preview");
@@ -693,7 +701,8 @@ function connectOverlayStudioServer() {
         }
         else showIdle();
       } else if (msg.type === "config") {
-        location.reload();
+        const messageInstance = String(msg.instanceId || "");
+        if (messageInstance === INSTANCE_ID) location.reload();
       }
     };
     ws.onerror = () => { if (!connected) fail(); };

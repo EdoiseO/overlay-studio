@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 
 DEFAULT_COUNTER_STATE: dict[str, Any] = {
@@ -14,7 +14,9 @@ DEFAULT_COUNTER_STATE: dict[str, Any] = {
 }
 
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
+INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 ACTIONS = {"win", "loss", "undo-win", "undo-loss", "reset"}
+LEGACY_COUNTER_INSTANCE_ID = "match-record"
 
 
 def _count(value: Any, default: int) -> int:
@@ -47,6 +49,26 @@ def normalize_counter_state(raw: Any) -> dict[str, Any]:
     }
 
 
+def normalize_counter_document(raw: Any) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    if isinstance(source.get("legacy"), dict):
+        legacy = normalize_counter_state(source["legacy"])
+        supplied_instances = (
+            source.get("instances")
+            if isinstance(source.get("instances"), dict)
+            else {}
+        )
+    else:
+        legacy = normalize_counter_state(source)
+        supplied_instances = {}
+    instances: dict[str, dict[str, Any]] = {}
+    for instance_id, state in list(supplied_instances.items())[:64]:
+        candidate = str(instance_id or "")
+        if INSTANCE_ID.fullmatch(candidate):
+            instances[candidate] = normalize_counter_state(state)
+    return {"legacy": legacy, "instances": instances}
+
+
 def apply_counter_update(current: dict[str, Any], raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
     state = normalize_counter_state(current)
@@ -72,19 +94,74 @@ def apply_counter_update(current: dict[str, Any], raw: Any) -> dict[str, Any]:
     return normalize_counter_state(state)
 
 
-def load_counter_state(path: Path) -> dict[str, Any]:
+def load_counter_document(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return dict(DEFAULT_COUNTER_STATE)
+        return normalize_counter_document({})
     try:
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
-        return dict(DEFAULT_COUNTER_STATE)
-    return normalize_counter_state(raw)
+        return normalize_counter_document({})
+    return normalize_counter_document(raw)
 
 
-def save_counter_state(path: Path, raw: Any) -> dict[str, Any]:
-    state = normalize_counter_state(raw)
+def load_counter_state(
+    path: Path,
+    instance_id: str | None = None,
+) -> dict[str, Any]:
+    document = load_counter_document(path)
+    if not instance_id or instance_id == LEGACY_COUNTER_INSTANCE_ID:
+        return dict(document["legacy"])
+    return dict(
+        document["instances"].get(instance_id, DEFAULT_COUNTER_STATE)
+    )
+
+
+def load_counter_states(
+    path: Path,
+    instance_ids: Iterable[str],
+) -> dict[str, dict[str, Any]]:
+    return {
+        instance_id: load_counter_state(path, instance_id)
+        for instance_id in instance_ids
+        if INSTANCE_ID.fullmatch(str(instance_id or ""))
+    }
+
+
+def _write_counter_document(path: Path, document: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any]
+    if document["instances"]:
+        payload = document
+    else:
+        payload = document["legacy"]
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
-    temporary_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    temporary_path.write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
     temporary_path.replace(path)
+
+
+def save_counter_state(
+    path: Path,
+    raw: Any,
+    instance_id: str | None = None,
+) -> dict[str, Any]:
+    state = normalize_counter_state(raw)
+    document = load_counter_document(path)
+    if not instance_id or instance_id == LEGACY_COUNTER_INSTANCE_ID:
+        document["legacy"] = state
+    elif INSTANCE_ID.fullmatch(str(instance_id)):
+        document["instances"][str(instance_id)] = state
+    else:
+        raise ValueError("Invalid counter instance")
+    _write_counter_document(path, document)
     return state
+
+
+def remove_counter_instance(path: Path, instance_id: str) -> None:
+    if instance_id == LEGACY_COUNTER_INSTANCE_ID:
+        return
+    document = load_counter_document(path)
+    if document["instances"].pop(str(instance_id), None) is not None:
+        _write_counter_document(path, document)

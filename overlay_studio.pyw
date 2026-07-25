@@ -49,13 +49,24 @@ WINDOW_MIN_SIZE = (900, 620)
 WINDOW_MAX_SIZE = (1000, 700)
 
 sys.path.insert(0, str(SERVER_DIR))
-from counter_store import load_counter_state  # noqa: E402
+from counter_store import (  # noqa: E402
+    load_counter_state,
+    load_counter_states,
+    remove_counter_instance,
+)
 from overlay_config import (  # noqa: E402
     DEFAULT_OVERLAY_CONFIG,
+    add_overlay_instance as add_overlay_instance_config,
+    is_valid_instance_id,
     load_overlay_config,
+    materialize_instance_config,
     normalize_overlay_config,
+    remove_overlay_instance as remove_overlay_instance_config,
+    rename_overlay_instance as rename_overlay_instance_config,
     save_overlay_config as save_overlay_config_file,
+    update_instance_config,
 )
+from overlay_manifest import scan_overlay_manifests  # noqa: E402
 
 
 ALLOWED_DANCE_EXTENSIONS = {
@@ -847,8 +858,17 @@ class DesktopApi:
             "baseUrl": base_url(),
             "config": config,
             "defaults": DEFAULT_OVERLAY_CONFIG,
+            "catalog": scan_overlay_manifests(ROOT_DIR / "overlays"),
             "mediaLibrary": media_library(config),
             "counter": load_counter_state(COUNTER_STATE_PATH),
+            "counters": load_counter_states(
+                COUNTER_STATE_PATH,
+                (
+                    instance_id
+                    for instance_id, instance in config["instances"].items()
+                    if instance["type"] == "win-loss"
+                ),
+            ),
             "theme": (
                 str(settings.get("theme") or "dark")
                 if str(settings.get("theme") or "dark") in {"dark", "light"}
@@ -1109,10 +1129,86 @@ class DesktopApi:
             "library": media_library(saved["config"]),
         }
 
-    def save_overlay_settings(self, submitted: dict[str, Any]) -> dict[str, Any]:
+    def add_overlay_instance(self, overlay_type: str) -> dict[str, Any]:
+        catalog = {
+            manifest["type"]: manifest
+            for manifest in scan_overlay_manifests(ROOT_DIR / "overlays")
+        }
+        manifest = catalog.get(str(overlay_type or ""))
+        if manifest is None:
+            return {"ok": False, "detail": "Overlay type not found"}
+        config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        base_id = manifest["type"]
+        instance_id = base_id
+        suffix = 2
+        while instance_id in config["instances"]:
+            instance_id = f"{base_id}-{suffix}"
+            suffix += 1
+        try:
+            updated = add_overlay_instance_config(
+                config,
+                manifest["type"],
+                instance_id,
+                manifest["name"],
+            )
+            save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+        return {
+            "ok": True,
+            "instanceId": instance_id,
+            "state": self.get_state(),
+        }
+
+    def remove_overlay_instance(self, instance_id: str) -> dict[str, Any]:
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        try:
+            updated = remove_overlay_instance_config(config, instance_id)
+            save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
+            remove_counter_instance(COUNTER_STATE_PATH, instance_id)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+        return {"ok": True, "state": self.get_state()}
+
+    def rename_overlay_instance(
+        self,
+        instance_id: str,
+        name: str,
+    ) -> dict[str, Any]:
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        try:
+            updated = rename_overlay_instance_config(config, instance_id, name)
+            save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+        return {"ok": True, "state": self.get_state()}
+
+    def save_overlay_settings(
+        self,
+        submitted: dict[str, Any],
+        instance_id: str | None = None,
+    ) -> dict[str, Any]:
+        if instance_id:
+            if not is_valid_instance_id(instance_id):
+                return {"ok": False, "detail": "Invalid overlay instance"}
+            current = load_overlay_config(OVERLAY_CONFIG_PATH)
+            try:
+                normalized = update_instance_config(
+                    current,
+                    instance_id,
+                    submitted,
+                )
+            except ValueError as error:
+                return {"ok": False, "detail": str(error)}
+        else:
+            normalized = normalize_overlay_config(submitted)
         saved = save_overlay_config_file(
             OVERLAY_CONFIG_PATH,
-            normalize_overlay_config(submitted),
+            normalized,
         )
         server_config = load_json(SERVER_CONFIG_PATH, SERVER_CONFIG_EXAMPLE_PATH)
         audio = server_config.setdefault("audio", {})
@@ -1123,21 +1219,46 @@ class DesktopApi:
         applied = False
         if is_healthy():
             try:
-                request_json("/api/config", saved)
+                request_json(
+                    (
+                        f"/api/config?i={urllib.parse.quote(instance_id)}"
+                        if instance_id
+                        else "/api/config"
+                    ),
+                    submitted if instance_id else saved,
+                )
                 applied = True
             except (OSError, ValueError, urllib.error.URLError):
                 applied = False
-        return {"ok": True, "applied": applied, "config": saved}
+        return {
+            "ok": True,
+            "applied": applied,
+            "config": saved,
+            "instanceConfig": materialize_instance_config(saved, instance_id),
+        }
 
-    def update_counter(self, submitted: dict[str, Any]) -> dict[str, Any]:
+    def update_counter(
+        self,
+        submitted: dict[str, Any],
+        instance_id: str | None = None,
+    ) -> dict[str, Any]:
         if not isinstance(submitted, dict):
             return {"ok": False, "detail": "Expected counter values"}
+        if instance_id and not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
         if not is_healthy():
             success, detail = self._start_server_blocking()
             if not success:
                 return {"ok": False, "detail": detail}
         try:
-            state = request_json("/api/win-loss", submitted)
+            state = request_json(
+                (
+                    f"/api/win-loss?i={urllib.parse.quote(instance_id)}"
+                    if instance_id
+                    else "/api/win-loss"
+                ),
+                submitted,
+            )
         except (OSError, ValueError, urllib.error.URLError) as exc:
             return {"ok": False, "detail": str(exc)}
         return {"ok": True, "counter": state}

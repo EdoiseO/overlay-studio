@@ -4,12 +4,15 @@ const app = {
   initialized: false,
   pollPending: false,
   toastTimer: null,
-  previewKind: null,
+  previewInstanceId: null,
+  activeInstanceId: null,
   danceMode: "single",
   danceSelection: new Set(),
   mediaLibraryKey: "",
+  libraryKey: "",
   pendingDeleteAsset: null,
-  urls: {},
+  pendingRemoveInstanceId: null,
+  pendingRenameInstanceId: null,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -62,15 +65,6 @@ function setTheme(theme) {
   });
 }
 
-function sourceUrls(baseUrl) {
-  return {
-    dance: `${baseUrl}overlays/larpdog-dance`,
-    spotify: `${baseUrl}overlays/spotify`,
-    counter: `${baseUrl}overlays/win-loss`,
-    flow: `${baseUrl}overlays/now-playing-flow`,
-  };
-}
-
 function updatePreview(iframe, url, running) {
   const desired = running ? url : "";
   if (iframe.dataset.source === desired) return;
@@ -78,66 +72,244 @@ function updatePreview(iframe, url, running) {
   iframe.src = desired || "about:blank";
 }
 
-const previewDetails = {
-  dance: {
-    title: "Dancing GIF",
-    type: "DANCING GIF",
-    view: "danceView",
-    canvas: [520, 420],
-  },
-  spotify: {
-    title: "Spotify Overlay",
-    type: "SPOTIFY OVERLAY",
-    view: "spotifyView",
-    canvas: [620, 360],
-  },
-  counter: {
-    title: "Match Record",
-    type: "MATCH RECORD",
-    view: "counterView",
-    canvas: [900, 320],
-  },
-  flow: {
-    title: "Now Playing Flow",
-    type: "NOW PLAYING FLOW",
-    view: "flowView",
-    canvas: [760, 420],
-  },
-};
-
-function getDanceName(config = app.state?.config) {
-  const name = String(config?.dance?.name || "").trim();
-  return name || previewDetails.dance.title;
+function instances() {
+  return Object.values(app.state?.config?.instances || {});
 }
 
-function renderDanceIdentity(config) {
-  const name = getDanceName(config);
-  byId("danceCardName").textContent = name;
-  byId("danceCard").setAttribute("aria-label", `Preview ${name}`);
-  byId("dancePreview").title = `Live ${name} preview`;
-  byId("danceDetailName").textContent = name;
-  byId("serverDanceLabel").textContent = name;
-  byId("danceSourceLabel").textContent = name;
-  if (app.previewKind === "dance") {
-    byId("overlayPreviewTitle").textContent = name;
+function instanceById(instanceId) {
+  return app.state?.config?.instances?.[instanceId] || null;
+}
+
+function manifestFor(overlayType) {
+  return (app.state?.catalog || []).find((item) => item.type === overlayType) || null;
+}
+
+function activeInstance() {
+  return instanceById(app.activeInstanceId);
+}
+
+function instanceUrl(instance) {
+  const manifest = manifestFor(instance?.type);
+  if (!instance || !manifest || !app.state?.baseUrl) return "";
+  const url = new URL(manifest.route.replace(/^\//, ""), app.state.baseUrl);
+  url.searchParams.set("i", instance.id);
+  return url.toString();
+}
+
+function studioPreviewUrl(instance) {
+  const source = instanceUrl(instance);
+  if (!source) return "";
+  const url = new URL(source);
+  url.searchParams.set("preview", "studio");
+  return url.toString();
+}
+
+function materializeInstanceConfig(instance) {
+  const root = app.state?.config || {};
+  const materialized = {};
+  ["dance", "spotify", "flow", "audio", "nowPlaying"].forEach((key) => {
+    materialized[key] = structuredClone(root[key] || {});
+  });
+  Object.entries(instance?.config || {}).forEach(([key, value]) => {
+    materialized[key] = structuredClone(value);
+  });
+  return materialized;
+}
+
+function fitCardPreview(frame, manifest) {
+  const host = frame?.parentElement;
+  if (!host || !manifest) return;
+  const width = manifest.canvas.w;
+  const height = manifest.canvas.h;
+  const scale = Math.min(
+    host.clientWidth / width,
+    host.clientHeight / height,
+  ) * 0.88;
+  frame.style.width = `${width}px`;
+  frame.style.height = `${height}px`;
+  frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
+}
+
+function createCardAction(label, action, instanceId, className = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `card-action ${className}`.trim();
+  button.textContent = label;
+  button.dataset.instanceAction = action;
+  button.dataset.instanceId = instanceId;
+  return button;
+}
+
+function createOverlayCard(instance, running) {
+  const manifest = manifestFor(instance.type);
+  if (!manifest) return null;
+  const card = document.createElement("article");
+  card.className = "overlay-card";
+  card.dataset.instanceId = instance.id;
+
+  const previewButton = document.createElement("button");
+  previewButton.type = "button";
+  previewButton.className = "overlay-preview-button";
+  previewButton.dataset.previewInstance = instance.id;
+  previewButton.setAttribute("aria-label", `Preview ${instance.name}`);
+  const livePreview = document.createElement("div");
+  livePreview.className = "live-preview";
+  const frame = document.createElement("iframe");
+  frame.title = `Live ${instance.name} preview`;
+  frame.tabIndex = -1;
+  frame.dataset.source = running ? studioPreviewUrl(instance) : "";
+  frame.src = frame.dataset.source || "about:blank";
+  const offline = document.createElement("span");
+  offline.className = "preview-offline";
+  offline.textContent = "OFFLINE";
+  livePreview.append(frame, offline);
+  previewButton.append(livePreview);
+
+  const copy = document.createElement("div");
+  copy.className = "card-copy";
+  const name = document.createElement("strong");
+  name.textContent = instance.name;
+  const description = document.createElement("span");
+  description.textContent = manifest.description;
+  const canvas = document.createElement("span");
+  canvas.className = "canvas-size";
+  canvas.textContent = `${manifest.canvas.w} x ${manifest.canvas.h} canvas`;
+  const meta = document.createElement("div");
+  meta.className = "card-meta-row";
+  const status = document.createElement("small");
+  const dot = document.createElement("i");
+  dot.className = "status-dot";
+  const statusText = document.createElement("b");
+  statusText.textContent = running ? "RUNNING" : "OFFLINE";
+  status.append(dot, statusText);
+  meta.append(canvas, status);
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+  actions.append(
+    createCardAction("Copy", "copy", instance.id),
+    createCardAction("Rename", "rename", instance.id),
+    createCardAction("Remove", "remove", instance.id, "remove"),
+  );
+  copy.append(name, description, meta, actions);
+  card.append(previewButton, copy);
+  requestAnimationFrame(() => fitCardPreview(frame, manifest));
+  return card;
+}
+
+function createAddCard() {
+  const button = document.createElement("button");
+  button.className = "overlay-card add-card";
+  button.id = "addOverlayButton";
+  button.type = "button";
+  button.innerHTML = `
+    <span class="add-mark" aria-hidden="true">+</span>
+    <strong>Add overlay</strong>
+  `;
+  return button;
+}
+
+function renderLibrary(state) {
+  const key = JSON.stringify({
+    running: state.running,
+    baseUrl: state.baseUrl,
+    catalog: state.catalog,
+    instances: state.config?.instances,
+  });
+  if (key === app.libraryKey) return;
+  app.libraryKey = key;
+  const grid = byId("overlayGrid");
+  grid.replaceChildren();
+  instances().forEach((instance) => {
+    const card = createOverlayCard(instance, state.running);
+    if (card) grid.append(card);
+  });
+  grid.append(createAddCard());
+  const count = instances().length;
+  byId("overlayCount").textContent = `${count} installed`;
+}
+
+function renderCatalog() {
+  const grid = byId("catalogGrid");
+  grid.replaceChildren();
+  const catalog = app.state?.catalog || [];
+  if (!catalog.length) {
+    const empty = document.createElement("div");
+    empty.className = "catalog-empty";
+    empty.textContent = "No local overlays discovered";
+    grid.append(empty);
+    return;
   }
+  catalog.forEach((manifest) => {
+    const item = document.createElement("article");
+    item.className = "catalog-item";
+    const identity = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = manifest.name;
+    const meta = document.createElement("span");
+    meta.className = "catalog-meta";
+    meta.textContent =
+      `${manifest.category.toUpperCase()} / ${manifest.canvas.w} x ${manifest.canvas.h}`;
+    identity.append(name, meta);
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "primary-button compact";
+    add.textContent = "Add";
+    add.dataset.addOverlayType = manifest.type;
+    const description = document.createElement("p");
+    description.textContent = manifest.description;
+    item.append(identity, add, description);
+    grid.append(item);
+  });
 }
 
-function getFlowName(config = app.state?.config) {
-  const name = String(config?.flow?.name || "").trim();
-  return name || previewDetails.flow.title;
+function renderServerUrls() {
+  const container = byId("serverOverlayUrls");
+  container.replaceChildren();
+  instances().forEach((instance) => {
+    const row = document.createElement("div");
+    row.className = "source-row";
+    const label = document.createElement("label");
+    label.textContent = instance.name;
+    const input = document.createElement("input");
+    input.readOnly = true;
+    input.value = instanceUrl(instance);
+    input.setAttribute("aria-label", `${instance.name} OBS URL`);
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "primary-button compact";
+    copy.textContent = "Copy";
+    copy.dataset.instanceAction = "copy";
+    copy.dataset.instanceId = instance.id;
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "secondary-button compact";
+    open.textContent = "Open";
+    open.dataset.instanceAction = "open";
+    open.dataset.instanceId = instance.id;
+    row.append(label, input, copy, open);
+    container.append(row);
+  });
 }
 
-function renderFlowIdentity(config) {
-  const name = getFlowName(config);
-  byId("flowCardName").textContent = name;
-  byId("flowCard").setAttribute("aria-label", `Preview ${name}`);
-  byId("flowPreview").title = `Live ${name} preview`;
-  byId("flowDetailName").textContent = name;
-  byId("serverFlowLabel").textContent = name;
-  byId("flowSourceLabel").textContent = name;
-  if (app.previewKind === "flow") {
-    byId("overlayPreviewTitle").textContent = name;
+function renderActiveIdentity(instance) {
+  if (!instance) return;
+  const source = instanceUrl(instance);
+  if (instance.type === "larpdog-dance") {
+    byId("danceDetailName").textContent = instance.name;
+    byId("danceSourceLabel").textContent = instance.name;
+    byId("danceUrl").value = source;
+  } else if (instance.type === "spotify") {
+    byId("spotifyDetailName").textContent = instance.name;
+    byId("spotifySourceLabel").textContent = instance.name;
+    byId("spotifyUrl").value = source;
+  } else if (instance.type === "win-loss") {
+    byId("counterDetailName").textContent = instance.name;
+    byId("counterSourceLabel").textContent = instance.name;
+    byId("counterUrl").value = source;
+  } else if (instance.type === "now-playing-flow") {
+    byId("flowDetailName").textContent = instance.name;
+    byId("flowSourceLabel").textContent = instance.name;
+    byId("flowUrl").value = source;
   }
 }
 
@@ -356,9 +528,10 @@ async function deletePendingAsset() {
 function resizeLargePreview() {
   const stage = document.querySelector(".large-preview-stage");
   const iframe = byId("largeOverlayPreview");
-  const canvas = previewDetails[app.previewKind]?.canvas;
-  if (!stage || !iframe || !canvas) return;
-  const [width, height] = canvas;
+  const instance = instanceById(app.previewInstanceId);
+  const manifest = manifestFor(instance?.type);
+  if (!stage || !iframe || !manifest) return;
+  const { w: width, h: height } = manifest.canvas;
   const scale = Math.min(stage.clientWidth / width, stage.clientHeight / height) * 0.9;
   iframe.style.width = `${width}px`;
   iframe.style.height = `${height}px`;
@@ -368,30 +541,27 @@ function resizeLargePreview() {
 }
 
 function renderLargePreview(state) {
-  if (!app.previewKind) return;
+  const instance = instanceById(app.previewInstanceId);
+  if (!instance) return;
   const iframe = byId("largeOverlayPreview");
-  const url = app.urls[app.previewKind];
-  updatePreview(iframe, url ? `${url}?preview=studio` : "", state.running);
+  const url = instanceUrl(instance);
+  updatePreview(iframe, studioPreviewUrl(instance), state.running);
   byId("overlayPreviewStatus").textContent = state.running ? "Live and running" : "Server offline";
   byId("copyPreviewUrlButton").disabled = !url;
   byId("openPreviewSourceButton").disabled = !state.running || !url;
   byId("overlayPreviewDialog").classList.toggle("server-running", state.running);
 }
 
-function openOverlayPreview(kind) {
-  const details = previewDetails[kind];
-  if (!details) return;
-  app.previewKind = kind;
-  const title =
-    kind === "dance"
-      ? getDanceName()
-      : kind === "flow"
-        ? getFlowName()
-        : details.title;
-  byId("overlayPreviewType").textContent = `${details.type} / LIVE OBS PREVIEW`;
-  byId("overlayPreviewTitle").textContent = title;
-  byId("largeOverlayPreview").title = `Live ${title} preview`;
-  byId("customizePreviewButton").hidden = !details.view;
+function openOverlayPreview(instanceId) {
+  const instance = instanceById(instanceId);
+  const manifest = manifestFor(instance?.type);
+  if (!instance || !manifest) return;
+  app.previewInstanceId = instance.id;
+  byId("overlayPreviewType").textContent =
+    `${manifest.name.toUpperCase()} / LIVE OBS PREVIEW`;
+  byId("overlayPreviewTitle").textContent = instance.name;
+  byId("largeOverlayPreview").title = `Live ${instance.name} preview`;
+  byId("customizePreviewButton").hidden = !manifest.studioView;
   renderLargePreview(app.state || { running: false });
   byId("overlayPreviewDialog").showModal();
   requestAnimationFrame(resizeLargePreview);
@@ -421,25 +591,9 @@ function renderServerState(state) {
   });
   byId("headerServerButton").disabled = app.busy;
 
-  app.urls = sourceUrls(state.baseUrl);
-  const urlBindings = {
-    serverDanceUrl: "dance",
-    danceUrl: "dance",
-    serverSpotifyUrl: "spotify",
-    spotifyUrl: "spotify",
-    serverCounterUrl: "counter",
-    counterUrl: "counter",
-    serverFlowUrl: "flow",
-    flowUrl: "flow",
-  };
-  Object.entries(urlBindings).forEach(([id, kind]) => {
-    byId(id).value = app.urls[kind];
-  });
-
-  updatePreview(byId("dancePreview"), `${app.urls.dance}?preview=studio`, state.running);
-  updatePreview(byId("spotifyPreview"), `${app.urls.spotify}?preview=studio`, state.running);
-  updatePreview(byId("counterPreview"), `${app.urls.counter}?preview=studio`, state.running);
-  updatePreview(byId("flowPreview"), `${app.urls.flow}?preview=studio`, state.running);
+  renderLibrary(state);
+  renderServerUrls();
+  renderActiveIdentity(activeInstance());
   renderLargePreview(state);
 }
 
@@ -549,12 +703,22 @@ function renderState(state, hydrate = false) {
   const mediaLibraryChanged = mediaLibraryKey !== app.mediaLibraryKey;
   app.mediaLibraryKey = mediaLibraryKey;
   app.state = state;
+  if (app.activeInstanceId && !instanceById(app.activeInstanceId)) {
+    app.activeInstanceId = null;
+  }
   setTheme(state.theme);
-  renderDanceIdentity(state.config);
-  renderFlowIdentity(state.config);
   renderServerState(state);
-  renderCounter(state.counter);
-  if (hydrate) fillConfig(state.config);
+  const selected = activeInstance();
+  renderCounter(
+    selected?.type === "win-loss"
+      ? state.counters?.[selected.id]
+      : state.counter,
+  );
+  if (hydrate) {
+    fillConfig(
+      selected ? materializeInstanceConfig(selected) : state.config,
+    );
+  }
   else if (mediaLibraryChanged && byId("danceRest").value) renderMediaLibraries();
 }
 
@@ -719,13 +883,42 @@ function bindDanceDropZone() {
 
 async function saveOverlaySettings() {
   if (app.busy) return;
+  const instance = activeInstance();
+  if (!instance) {
+    showToast("Choose an overlay instance first");
+    return;
+  }
   app.busy = true;
   try {
-    const result = await callApi("save_overlay_settings", gatherConfig());
+    const result = await callApi(
+      "save_overlay_settings",
+      gatherConfig(),
+      instance.id,
+    );
+    if (!result.ok) {
+      showToast(result.detail || "Settings could not be saved");
+      return;
+    }
     if (app.state) app.state.config = result.config;
-    fillConfig(result.config);
-    renderDanceIdentity(result.config);
-    renderFlowIdentity(result.config);
+    fillConfig(result.instanceConfig || materializeInstanceConfig(instance));
+    const desiredName =
+      instance.type === "larpdog-dance"
+        ? byId("danceName").value
+        : instance.type === "now-playing-flow"
+          ? byId("flowName").value
+          : instance.name;
+    if (desiredName.trim() && desiredName.trim() !== instance.name) {
+      const renamed = await callApi(
+        "rename_overlay_instance",
+        instance.id,
+        desiredName,
+      );
+      if (renamed.ok) renderState(renamed.state, false);
+    } else {
+      app.libraryKey = "";
+      renderServerState(app.state);
+    }
+    renderActiveIdentity(activeInstance());
     logActivity(result.applied ? "Settings saved and applied" : "Settings saved");
     showToast(result.applied ? "Saved and applied" : "Saved");
   } catch (error) {
@@ -736,19 +929,137 @@ async function saveOverlaySettings() {
 }
 
 async function sendCounter(payload) {
-  const result = await callApi("update_counter", payload);
+  const instance = activeInstance();
+  if (!instance || instance.type !== "win-loss") return;
+  const result = await callApi("update_counter", payload, instance.id);
   if (!result.ok) {
     showToast(result.detail || "Counter update failed");
     return;
   }
+  app.state.counters = app.state.counters || {};
+  app.state.counters[instance.id] = result.counter;
   renderCounter(result.counter);
   logActivity(`Match record updated: ${result.counter.wins} wins, ${result.counter.losses} losses`);
 }
 
-async function copySource(kind) {
-  const result = await callApi("copy_text", app.urls[kind]);
+async function copySource(instanceId) {
+  const instance = instanceById(instanceId);
+  if (!instance) return;
+  const result = await callApi("copy_text", instanceUrl(instance));
   if (result.ok) showToast("OBS URL copied");
   else showToast(result.detail || "Copy failed");
+}
+
+function openSource(instanceId) {
+  const instance = instanceById(instanceId);
+  if (instance) callApi("open_url", instanceUrl(instance));
+}
+
+function openInstanceSettings(instanceId) {
+  const instance = instanceById(instanceId);
+  const manifest = manifestFor(instance?.type);
+  if (!instance || !manifest?.studioView) return;
+  app.activeInstanceId = instance.id;
+  fillConfig(materializeInstanceConfig(instance));
+  renderActiveIdentity(instance);
+  if (instance.type === "win-loss") {
+    renderCounter(app.state?.counters?.[instance.id] || app.state?.counter);
+  }
+  showView(manifest.studioView);
+}
+
+async function addOverlayType(overlayType) {
+  if (app.busy) return;
+  app.busy = true;
+  try {
+    const result = await callApi("add_overlay_instance", overlayType);
+    if (!result.ok) {
+      showToast(result.detail || "Overlay could not be added");
+      return;
+    }
+    app.libraryKey = "";
+    renderState(result.state, false);
+    logActivity(`Overlay added: ${instanceById(result.instanceId)?.name || overlayType}`);
+    showToast("Overlay added");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+  }
+}
+
+function requestRemoveOverlay(instanceId) {
+  const instance = instanceById(instanceId);
+  if (!instance) return;
+  app.pendingRemoveInstanceId = instance.id;
+  byId("removeOverlayName").textContent = instance.name;
+  byId("removeOverlayDialog").showModal();
+}
+
+async function removePendingOverlay() {
+  const instanceId = app.pendingRemoveInstanceId;
+  if (!instanceId || app.busy) return;
+  app.busy = true;
+  try {
+    const result = await callApi("remove_overlay_instance", instanceId);
+    if (!result.ok) {
+      showToast(result.detail || "Overlay could not be removed");
+      return;
+    }
+    if (app.activeInstanceId === instanceId) app.activeInstanceId = null;
+    app.libraryKey = "";
+    byId("removeOverlayDialog").close();
+    renderState(result.state, false);
+    logActivity("Overlay removed");
+    showToast("Overlay removed");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+  }
+}
+
+function requestRenameOverlay(instanceId) {
+  const instance = instanceById(instanceId);
+  if (!instance) return;
+  app.pendingRenameInstanceId = instance.id;
+  byId("renameOverlayInput").value = instance.name;
+  byId("renameOverlayDialog").showModal();
+  requestAnimationFrame(() => {
+    byId("renameOverlayInput").focus();
+    byId("renameOverlayInput").select();
+  });
+}
+
+async function renamePendingOverlay() {
+  const instanceId = app.pendingRenameInstanceId;
+  const name = byId("renameOverlayInput").value.trim();
+  if (!instanceId || !name || app.busy) return;
+  app.busy = true;
+  try {
+    const result = await callApi("rename_overlay_instance", instanceId, name);
+    if (!result.ok) {
+      showToast(result.detail || "Overlay could not be renamed");
+      return;
+    }
+    app.libraryKey = "";
+    byId("renameOverlayDialog").close();
+    renderState(result.state, false);
+    renderActiveIdentity(activeInstance());
+    logActivity(`Overlay renamed: ${name}`);
+    showToast("Overlay renamed");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+  }
+}
+
+function handleInstanceAction(action, instanceId) {
+  if (action === "copy") copySource(instanceId);
+  else if (action === "open") openSource(instanceId);
+  else if (action === "rename") requestRenameOverlay(instanceId);
+  else if (action === "remove") requestRemoveOverlay(instanceId);
 }
 
 function bindEvents() {
@@ -759,9 +1070,6 @@ function bindEvents() {
 
   document.querySelectorAll("[data-view-target]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.viewTarget));
-  });
-  document.querySelectorAll("[data-preview-kind]").forEach((button) => {
-    button.addEventListener("click", () => openOverlayPreview(button.dataset.previewKind));
   });
   document.querySelectorAll(".library-button").forEach((button) => {
     button.addEventListener("click", () => showView("libraryView"));
@@ -784,11 +1092,11 @@ function bindEvents() {
     button.addEventListener("click", () => callApi("open_folder", button.dataset.openFolder));
   });
 
-  document.querySelectorAll("[data-copy-source]").forEach((button) => {
-    button.addEventListener("click", () => copySource(button.dataset.copySource));
+  document.querySelectorAll("[data-copy-active]").forEach((button) => {
+    button.addEventListener("click", () => copySource(app.activeInstanceId));
   });
-  document.querySelectorAll("[data-open-source]").forEach((button) => {
-    button.addEventListener("click", () => callApi("open_url", app.urls[button.dataset.openSource]));
+  document.querySelectorAll("[data-open-active]").forEach((button) => {
+    button.addEventListener("click", () => openSource(app.activeInstanceId));
   });
 
   document.querySelectorAll("[data-choose-asset]").forEach((button) => {
@@ -865,8 +1173,49 @@ function bindEvents() {
     });
   });
 
-  byId("addOverlayButton").addEventListener("click", () => byId("addOverlayDialog").showModal());
+  const overlayGrid = byId("overlayGrid");
+  overlayGrid.addEventListener("click", (event) => {
+    const preview = event.target.closest("[data-preview-instance]");
+    if (preview) {
+      openOverlayPreview(preview.dataset.previewInstance);
+      return;
+    }
+    const action = event.target.closest("[data-instance-action]");
+    if (action) {
+      handleInstanceAction(action.dataset.instanceAction, action.dataset.instanceId);
+      return;
+    }
+    if (event.target.closest("#addOverlayButton")) {
+      renderCatalog();
+      byId("addOverlayDialog").showModal();
+    }
+  });
+  byId("serverOverlayUrls").addEventListener("click", (event) => {
+    const action = event.target.closest("[data-instance-action]");
+    if (action) handleInstanceAction(action.dataset.instanceAction, action.dataset.instanceId);
+  });
+  byId("catalogGrid").addEventListener("click", (event) => {
+    const add = event.target.closest("[data-add-overlay-type]");
+    if (add) addOverlayType(add.dataset.addOverlayType);
+  });
   byId("closeAddDialog").addEventListener("click", () => byId("addOverlayDialog").close());
+
+  const removeOverlayDialog = byId("removeOverlayDialog");
+  byId("cancelRemoveOverlay").addEventListener("click", () => removeOverlayDialog.close());
+  byId("confirmRemoveOverlay").addEventListener("click", removePendingOverlay);
+  removeOverlayDialog.addEventListener("close", () => {
+    app.pendingRemoveInstanceId = null;
+  });
+
+  const renameOverlayDialog = byId("renameOverlayDialog");
+  byId("cancelRenameOverlay").addEventListener("click", () => renameOverlayDialog.close());
+  byId("confirmRenameOverlay").addEventListener("click", renamePendingOverlay);
+  byId("renameOverlayInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") renamePendingOverlay();
+  });
+  renameOverlayDialog.addEventListener("close", () => {
+    app.pendingRenameInstanceId = null;
+  });
 
   const deleteMediaDialog = byId("deleteMediaDialog");
   byId("cancelDeleteMedia").addEventListener("click", () => deleteMediaDialog.close());
@@ -880,24 +1229,29 @@ function bindEvents() {
 
   const previewDialog = byId("overlayPreviewDialog");
   byId("closePreviewButton").addEventListener("click", closeOverlayPreview);
-  byId("copyPreviewUrlButton").addEventListener("click", () => copySource(app.previewKind));
+  byId("copyPreviewUrlButton").addEventListener("click", () => copySource(app.previewInstanceId));
   byId("openPreviewSourceButton").addEventListener("click", () => {
-    if (app.previewKind) callApi("open_url", app.urls[app.previewKind]);
+    openSource(app.previewInstanceId);
   });
   byId("customizePreviewButton").addEventListener("click", () => {
-    const details = previewDetails[app.previewKind];
-    if (!details) return;
+    const instanceId = app.previewInstanceId;
     closeOverlayPreview();
-    showView(details.view);
+    openInstanceSettings(instanceId);
   });
   previewDialog.addEventListener("click", (event) => {
     if (event.target === previewDialog) closeOverlayPreview();
   });
   previewDialog.addEventListener("close", () => {
-    app.previewKind = null;
+    app.previewInstanceId = null;
     updatePreview(byId("largeOverlayPreview"), "", false);
   });
-  window.addEventListener("resize", resizeLargePreview);
+  window.addEventListener("resize", () => {
+    resizeLargePreview();
+    document.querySelectorAll(".live-preview iframe").forEach((frame) => {
+      const instance = instanceById(frame.closest(".overlay-card")?.dataset.instanceId);
+      fitCardPreview(frame, manifestFor(instance?.type));
+    });
+  });
 }
 
 async function initialize() {

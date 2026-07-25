@@ -4,6 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Now Playing Flow</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Now Playing Flow",
+  "description": "Current media artwork with an audio-reactive progress strip.",
+  "category": "music",
+  "canvas": { "w": 760, "h": 420 },
+  "settings": ["name", "scale", "glow"],
+  "studioView": "flowView"
+}
+</script>
 <link rel="icon" href="data:," />
 <link rel="stylesheet" href="/assets/overlay-surface.css" />
 <style>
@@ -251,6 +261,7 @@
   "use strict";
 
   const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
   const previewMode =
     query.get("preview") === "studio" ||
     location.protocol === "file:";
@@ -325,7 +336,9 @@
   async function loadFlowSettings() {
     if (location.protocol === "file:") return;
     try {
-      const response = await fetch("/api/config", { cache: "no-store" });
+      const endpoint = new URL("/api/config", location.origin);
+      if (instanceId) endpoint.searchParams.set("i", instanceId);
+      const response = await fetch(endpoint, { cache: "no-store" });
       if (response.ok) applyFlowSettings(await response.json());
     } catch {
       return;
@@ -573,7 +586,8 @@
       if (message.isPlaying) applyTrack(message);
       else setIdle();
     } else if (message?.type === "config") {
-      applyFlowSettings(message.config);
+      const messageInstance = String(message.instanceId || "");
+      if (messageInstance === instanceId) applyFlowSettings(message.config);
     } else if (message?.type === "audio") {
       audioLevel = clamp(message.level, 0, 1);
       if (message.beat) audioLevel = Math.max(audioLevel, 0.85);

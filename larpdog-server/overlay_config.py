@@ -42,10 +42,28 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     },
 }
 
+INSTANCE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]*"
+INSTANCE_ID = re.compile(rf"^{INSTANCE_ID_PATTERN}$")
 POSITION_CHOICES = {"bottom-left", "bottom-right", "top-left", "top-right"}
 DANCE_MODE_CHOICES = {"single", "random"}
 COLOR_MODE_CHOICES = {"auto", "fixed", "art"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
+MAX_INSTANCES = 64
+
+LEGACY_INSTANCE_SPECS = (
+    ("dancing-gif", "larpdog-dance", "Dancing GIF"),
+    ("spotify-overlay", "spotify", "Spotify Overlay"),
+    ("match-record", "win-loss", "Match Record"),
+    ("now-playing-flow", "now-playing-flow", "Now Playing Flow"),
+)
+LEGACY_INSTANCE_IDS = {
+    overlay_type: instance_id
+    for instance_id, overlay_type, _name in LEGACY_INSTANCE_SPECS
+}
+
+
+def is_valid_instance_id(value: Any) -> bool:
+    return bool(INSTANCE_ID.fullmatch(str(value or "")))
 
 
 def _choice(value: Any, choices: set[str], default: str) -> str:
@@ -73,6 +91,10 @@ def _overlay_name(value: Any, default: str) -> str:
     return candidate[:48] or default
 
 
+def normalize_overlay_name(value: Any, default: str = "Overlay") -> str:
+    return _overlay_name(value, default)
+
+
 def _asset_list(value: Any, default: list[str]) -> list[str]:
     if not isinstance(value, list):
         return list(default)
@@ -89,17 +111,29 @@ def _color(value: Any, default: str) -> str:
     return candidate.lower() if HEX_COLOR.fullmatch(candidate) else default
 
 
-def normalize_overlay_config(raw: Any) -> dict[str, Any]:
+def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
-    legacy = source.get("appearance") if isinstance(source.get("appearance"), dict) else {}
+    legacy = (
+        source.get("appearance")
+        if isinstance(source.get("appearance"), dict)
+        else {}
+    )
     dance = source.get("dance") if isinstance(source.get("dance"), dict) else {}
-    spotify = source.get("spotify") if isinstance(source.get("spotify"), dict) else {}
+    spotify = (
+        source.get("spotify") if isinstance(source.get("spotify"), dict) else {}
+    )
     flow = source.get("flow") if isinstance(source.get("flow"), dict) else {}
     audio = source.get("audio") if isinstance(source.get("audio"), dict) else {}
     now_playing = (
-        source.get("nowPlaying") if isinstance(source.get("nowPlaying"), dict) else {}
+        source.get("nowPlaying")
+        if isinstance(source.get("nowPlaying"), dict)
+        else {}
     )
-    colors = spotify.get("colors") if isinstance(spotify.get("colors"), dict) else {}
+    colors = (
+        spotify.get("colors")
+        if isinstance(spotify.get("colors"), dict)
+        else {}
+    )
     if not colors and isinstance(legacy.get("colors"), dict):
         colors = legacy["colors"]
 
@@ -229,13 +263,180 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
     }
 
 
+def _instance_config(
+    overlay_type: str,
+    raw: Any,
+    fallback: dict[str, Any],
+) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    combined: dict[str, Any] = {}
+    keys: tuple[str, ...]
+    if overlay_type == "larpdog-dance":
+        keys = ("dance", "audio", "nowPlaying")
+    elif overlay_type == "spotify":
+        keys = ("spotify",)
+    elif overlay_type == "now-playing-flow":
+        keys = ("flow",)
+    else:
+        return {}
+    for key in keys:
+        value = source.get(key, fallback.get(key))
+        if isinstance(value, dict):
+            combined[key] = value
+    normalized = _normalize_flat_config(combined)
+    return {key: normalized[key] for key in keys}
+
+
+def _legacy_instances(flat: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    instances: dict[str, dict[str, Any]] = {}
+    for instance_id, overlay_type, default_name in LEGACY_INSTANCE_SPECS:
+        name = default_name
+        if overlay_type == "larpdog-dance":
+            name = flat["dance"]["name"]
+        elif overlay_type == "now-playing-flow":
+            name = flat["flow"]["name"]
+        instances[instance_id] = {
+            "id": instance_id,
+            "type": overlay_type,
+            "name": name,
+            "config": _instance_config(overlay_type, flat, flat),
+        }
+    return instances
+
+
+def normalize_overlay_config(raw: Any) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    flat = _normalize_flat_config(source)
+    has_instances = "instances" in source
+    supplied_instances = (
+        source.get("instances")
+        if isinstance(source.get("instances"), dict)
+        else {}
+    )
+    instances: dict[str, dict[str, Any]] = {}
+    if has_instances:
+        for supplied_id, supplied in list(supplied_instances.items())[:MAX_INSTANCES]:
+            instance_id = str(supplied_id or "")
+            if not is_valid_instance_id(instance_id) or not isinstance(supplied, dict):
+                continue
+            overlay_type = str(supplied.get("type") or "").strip()
+            if not is_valid_instance_id(overlay_type):
+                continue
+            instances[instance_id] = {
+                "id": instance_id,
+                "type": overlay_type,
+                "name": _overlay_name(
+                    supplied.get("name"),
+                    overlay_type.replace("-", " ").title(),
+                ),
+                "config": _instance_config(
+                    overlay_type,
+                    supplied.get("config"),
+                    flat,
+                ),
+            }
+    else:
+        instances = _legacy_instances(flat)
+
+    return {
+        **flat,
+        "instances": instances,
+    }
+
+
+def materialize_instance_config(
+    raw: Any,
+    instance_id: str | None,
+) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    materialized = {
+        key: copy.deepcopy(config[key])
+        for key in ("dance", "spotify", "flow", "audio", "nowPlaying")
+    }
+    if not instance_id:
+        return materialized
+    instance = config["instances"].get(str(instance_id))
+    if not isinstance(instance, dict):
+        return materialized
+    for key, value in instance["config"].items():
+        materialized[key] = copy.deepcopy(value)
+    return materialized
+
+
+def update_instance_config(
+    raw: Any,
+    instance_id: str,
+    submitted: Any,
+) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    instance = config["instances"].get(str(instance_id))
+    if not isinstance(instance, dict):
+        raise ValueError("Overlay instance not found")
+    current = materialize_instance_config(config, instance_id)
+    source = submitted if isinstance(submitted, dict) else {}
+    merged = copy.deepcopy(current)
+    for key in ("dance", "spotify", "flow", "audio", "nowPlaying"):
+        if isinstance(source.get(key), dict):
+            merged[key] = source[key]
+    instance["config"] = _instance_config(instance["type"], merged, current)
+
+    if LEGACY_INSTANCE_IDS.get(instance["type"]) == instance_id:
+        for key, value in instance["config"].items():
+            config[key] = copy.deepcopy(value)
+    return normalize_overlay_config(config)
+
+
+def add_overlay_instance(
+    raw: Any,
+    overlay_type: str,
+    instance_id: str,
+    name: str,
+) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    if not is_valid_instance_id(overlay_type) or not is_valid_instance_id(instance_id):
+        raise ValueError("Invalid overlay instance")
+    if instance_id in config["instances"]:
+        raise ValueError("Overlay instance already exists")
+    if len(config["instances"]) >= MAX_INSTANCES:
+        raise ValueError("Overlay instance limit reached")
+    flat = materialize_instance_config(config, None)
+    config["instances"][instance_id] = {
+        "id": instance_id,
+        "type": overlay_type,
+        "name": _overlay_name(name, overlay_type.replace("-", " ").title()),
+        "config": _instance_config(overlay_type, flat, flat),
+    }
+    return normalize_overlay_config(config)
+
+
+def rename_overlay_instance(
+    raw: Any,
+    instance_id: str,
+    name: Any,
+) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    instance = config["instances"].get(str(instance_id))
+    if not isinstance(instance, dict):
+        raise ValueError("Overlay instance not found")
+    instance["name"] = _overlay_name(name, instance["name"])
+    return normalize_overlay_config(config)
+
+
+def remove_overlay_instance(raw: Any, instance_id: str) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    if str(instance_id) not in config["instances"]:
+        raise ValueError("Overlay instance not found")
+    del config["instances"][str(instance_id)]
+    return normalize_overlay_config(config)
+
+
 def load_overlay_config(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return copy.deepcopy(DEFAULT_OVERLAY_CONFIG)
+        return normalize_overlay_config({})
     try:
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
-        return copy.deepcopy(DEFAULT_OVERLAY_CONFIG)
+        return normalize_overlay_config({})
     return normalize_overlay_config(raw)
 
 
