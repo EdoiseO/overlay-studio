@@ -14,6 +14,7 @@ local OBS browser-source overlays.
 | **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
 | **Spotify Overlay** | Shows live Windows now-playing metadata, album artwork, and playback progress. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
+| **Now Playing Flow** | Presents live media-session artwork as a coverflow with audio-reactive progress bars. |
 
 ## Requirements
 
@@ -101,6 +102,7 @@ Overlay Studio because a local `config.json` may use a different port.
 http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
+http://127.0.0.1:8473/overlays/now-playing-flow
 ```
 
 Each dedicated page centers one transparent overlay object. Position the Browser
@@ -111,6 +113,7 @@ Useful starting canvas sizes at scale `1.0` are:
 Dancing GIF      520 x 420
 Spotify Overlay  620 x 360
 Match Record     900 x 320
+Now Playing Flow 760 x 420
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined

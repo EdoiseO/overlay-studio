@@ -27,7 +27,7 @@
       <section class="view active" id="libraryView">
         <div class="view-heading">
           <h1>Your overlays</h1>
-          <span>3 installed</span>
+          <span>4 installed</span>
         </div>
         <div class="overlay-grid">
           <button class="overlay-card" id="danceCard" type="button" data-preview-kind="dance" aria-label="Preview Dancing GIF">
@@ -62,6 +62,18 @@
             <div class="card-copy">
               <strong>Match Record</strong>
               <span>Marvel Rivals wins / losses</span>
+              <small><i class="status-dot"></i><b>OFFLINE</b></small>
+            </div>
+          </button>
+
+          <button class="overlay-card" type="button" data-preview-kind="flow" aria-label="Preview Now Playing Flow">
+            <div class="live-preview preview-flow">
+              <iframe id="flowPreview" title="Live Now Playing Flow preview" tabindex="-1"></iframe>
+              <span class="preview-offline">OFFLINE</span>
+            </div>
+            <div class="card-copy">
+              <strong>Now Playing Flow</strong>
+              <span>Coverflow + reactive progress</span>
               <small><i class="status-dot"></i><b>OFFLINE</b></small>
             </div>
           </button>
@@ -110,6 +122,12 @@
             <input id="serverCounterUrl" readonly>
             <button class="primary-button compact" type="button" data-copy-source="counter">Copy</button>
             <button class="secondary-button compact" type="button" data-open-source="counter">Open</button>
+          </div>
+          <div class="source-row">
+            <label for="serverFlowUrl">Now Playing Flow</label>
+            <input id="serverFlowUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-source="flow">Copy</button>
+            <button class="secondary-button compact" type="button" data-open-source="flow">Open</button>
           </div>
         </div>
         <div class="panel activity-panel">

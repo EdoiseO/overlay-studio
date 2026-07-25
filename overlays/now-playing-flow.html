@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Now Playing Flow</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="/assets/overlay-surface.css" />
+<style>
+  :root {
+    --a-rgb: 226, 148, 42;
+    --b-rgb: 158, 60, 32;
+    --ink: #fff7ef;
+    --ink-dim: rgba(255, 247, 239, 0.62);
+    --card-w: 190px;
+    --card-h: 250px;
+    --render-scale: 1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* fallback copy of overlay-surface.css so this file also centers when
+     opened directly from disk, where /assets/... does not resolve */
+  html, body {
+    width: 100%; height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  body {
+    display: grid;
+    place-items: center;
+    font-family: "Fredoka", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--ink);
+  }
+
+  body > .overlay-content { grid-area: 1 / 1; }
+
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #1c2429);
+  }
+
+  .overlay-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    opacity: 0;
+    transform: scale(var(--render-scale));
+    transition: opacity .25s ease;
+  }
+
+  body.has-track .overlay-content {
+    opacity: 1;
+  }
+
+  .preview-empty {
+    display: none;
+  }
+
+  body.preview-mode:not(.has-track) .preview-empty {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    width: 330px;
+    min-height: 92px;
+    place-items: center;
+    padding: 18px 24px;
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 8px;
+    background: rgba(17, 22, 26, .72);
+    color: rgba(255,255,255,.72);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  /* ambient bloom — stays translucent so OBS still sees through */
+  .overlay-content::before {
+    content: "";
+    position: absolute;
+    inset: -6% -4%;
+    z-index: 0;
+    background:
+      radial-gradient(58% 44% at 50% 42%, rgba(var(--a-rgb), 0.40), transparent 70%),
+      radial-gradient(46% 38% at 50% 78%, rgba(var(--b-rgb), 0.30), transparent 72%);
+    filter: blur(14px);
+    pointer-events: none;
+    transition: background .8s ease;
+  }
+
+  /* ---------- coverflow ---------- */
+  .flow {
+    position: relative;
+    z-index: 1;
+    width: 690px; height: 258px;
+    perspective: 1100px;
+    transform-style: preserve-3d;
+  }
+
+  .cover {
+    position: absolute;
+    top: 0; left: 50%;
+    width: var(--card-w);
+    padding: 12px 12px 14px;
+    border-radius: 20px;
+    background: rgba(22, 18, 26, 0.42);
+    border: 1px solid rgba(255,255,255,0.24);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.30),
+      0 18px 40px rgba(0,0,0,0.45);
+    transform-origin: center center;
+    transition: transform .62s cubic-bezier(.22,.9,.28,1),
+                opacity .62s ease,
+                filter .62s ease;
+    will-change: transform, opacity;
+  }
+
+  .cover .art {
+    width: 100%; aspect-ratio: 1;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid; place-items: center;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+  }
+  .cover .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .cover .label { margin-top: 10px; text-align: center; overflow: hidden; }
+  .cover .name {
+    font-size: 15px; font-weight: 600; line-height: 1.15;
+    white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  }
+  .cover .sub {
+    font-size: 11.5px; color: var(--ink-dim); margin-top: 2px;
+    white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  }
+
+  /* slot positions: -2 -1 0 1 2 */
+  .cover[data-slot="0"] {
+    transform: translateX(-50%) translateZ(90px) scale(1.06);
+    opacity: 1; z-index: 5;
+  }
+  .cover[data-slot="-1"] {
+    transform: translateX(-124%) translateZ(-40px) rotateY(26deg) scale(.94);
+    opacity: .82; filter: brightness(.72); z-index: 4;
+  }
+  .cover[data-slot="1"] {
+    transform: translateX(24%) translateZ(-40px) rotateY(-26deg) scale(.94);
+    opacity: .82; filter: brightness(.72); z-index: 4;
+  }
+  .cover[data-slot="-2"] {
+    transform: translateX(-186%) translateZ(-150px) rotateY(34deg) scale(.86);
+    opacity: .5; filter: brightness(.5); z-index: 3;
+  }
+  .cover[data-slot="2"] {
+    transform: translateX(86%) translateZ(-150px) rotateY(-34deg) scale(.86);
+    opacity: .5; filter: brightness(.5); z-index: 3;
+  }
+  .cover[data-slot="hidden"] {
+    transform: translateX(-50%) translateZ(-260px) scale(.7);
+    opacity: 0; z-index: 1;
+  }
+
+  /* only the centre card shows full text */
+  .cover:not([data-slot="0"]) .name { font-size: 13px; }
+  .cover[data-slot="0"] .name { font-size: 17px; }
+
+  /* subtle sheen sweep on the centre card */
+  .cover[data-slot="0"] .art::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.16) 45%, transparent 60%);
+    animation: sheen 5.5s ease-in-out infinite;
+  }
+  .cover .art { position: relative; }
+  @keyframes sheen { 0%,100% { transform: translateX(-40%) } 50% { transform: translateX(40%) } }
+
+  /* ---------- transport pill ---------- */
+  .transport {
+    position: relative;
+    z-index: 1;
+    display: flex; align-items: center; gap: 18px;
+    width: 620px;
+    padding: 13px 26px;
+    border-radius: 999px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06) 40%, rgba(255,255,255,0.12)),
+      rgba(20, 16, 26, 0.50);
+    border: 1px solid rgba(255,255,255,0.28);
+    backdrop-filter: blur(20px) saturate(1.35);
+    -webkit-backdrop-filter: blur(20px) saturate(1.35);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.36),
+      0 14px 34px rgba(0,0,0,0.42);
+  }
+
+  /* ---------- spotify-code style bar strip ---------- */
+  .mark {
+    width: 34px; height: 34px; flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--ink);
+    display: grid; place-items: center;
+  }
+  .mark svg { width: 22px; height: 22px; }
+  .mark svg path { stroke: #14101a; stroke-width: 2.1; stroke-linecap: round; fill: none; }
+
+  .code {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 5px;
+    height: 40px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .code i {
+    display: block;
+    flex: 1 1 0;
+    min-width: 3px;
+    max-width: 6px;
+    border-radius: 999px;
+    background: var(--ink);
+    opacity: .32;
+    transform-origin: center;
+    transition: opacity .35s ease, background .6s ease, height .12s ease-out;
+  }
+  .code i.played {
+    opacity: 1;
+    background: rgb(var(--a-rgb));
+    box-shadow: 0 0 7px rgba(var(--a-rgb), .55);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover { transition: none; }
+    .cover[data-slot="0"] .art::after { animation: none; }
+  }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content" aria-live="polite">
+    <div class="flow" id="flow"></div>
+
+    <div class="transport">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 9.2c4.4-1.6 9.6-1.3 13.6.9" />
+          <path d="M6.2 12.9c3.6-1.2 7.8-.9 11 .8" />
+          <path d="M7.4 16.4c2.8-.9 6-.7 8.5.6" />
+        </svg>
+      </div>
+
+      <div class="code" id="code"></div>
+    </div>
+  </main>
+  <div class="preview-empty" id="previewEmpty">Connecting to media session</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const query = new URLSearchParams(location.search);
+  const previewMode =
+    query.get("preview") === "studio" ||
+    location.protocol === "file:";
+  const requestedScale = Math.max(
+    0.5,
+    Math.min(2, Number(query.get("scale")) || 1),
+  );
+  const root = document.documentElement;
+  const flow = document.getElementById("flow");
+  const code = document.getElementById("code");
+  const previewEmpty = document.getElementById("previewEmpty");
+  const CODE_BARS = 44;
+  const MAX_MESSAGE_BYTES = 2 * 1024 * 1024;
+  let codeBars = [];
+  let history = [];
+  let audioLevel = 0;
+  let socket = null;
+  let reconnectTimer = 0;
+  let reconnectDelay = 750;
+  let stopped = false;
+  let playback = {
+    playing: false,
+    progressMs: 0,
+    durationMs: 0,
+    receivedAt: performance.now(),
+  };
+
+  if (previewMode) {
+    root.classList.add("overlay-studio-preview");
+    document.body.classList.add("preview-mode");
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, Number(value) || 0));
+  }
+
+  function fitOverlay() {
+    const fit = Math.min(
+      requestedScale,
+      (window.innerWidth - 24) / 714,
+      (window.innerHeight - 24) / 382,
+    );
+    root.style.setProperty("--render-scale", String(Math.max(0.2, fit)));
+  }
+
+  function setPreviewStatus(message) {
+    if (previewMode) previewEmpty.textContent = message;
+  }
+
+  function hashString(text) {
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function fallbackTint(track) {
+    const hash = hashString(`${track.title}|${track.artist}`);
+    const hueA = hash % 360;
+    const hueB = (hueA + 52 + ((hash >>> 8) % 80)) % 360;
+    return `linear-gradient(140deg,hsl(${hueA} 68% 54%),hsl(${hueB} 55% 18%))`;
+  }
+
+  function hslToRgb(hue, saturation, lightness) {
+    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+    const segment = hue / 60;
+    const secondary = chroma * (1 - Math.abs((segment % 2) - 1));
+    const pairs = [
+      [chroma, secondary, 0],
+      [secondary, chroma, 0],
+      [0, chroma, secondary],
+      [0, secondary, chroma],
+      [secondary, 0, chroma],
+      [chroma, 0, secondary],
+    ];
+    const match = lightness - chroma / 2;
+    return pairs[Math.floor(segment) % 6].map((channel) => (
+      Math.round((channel + match) * 255)
+    ));
+  }
+
+  function applyTrackPalette(track) {
+    const hash = hashString(`${track.title}|${track.artist}`);
+    const hue = hash % 360;
+    const primary = hslToRgb(hue, 0.72, 0.58);
+    const secondary = hslToRgb((hue + 54) % 360, 0.62, 0.34);
+    root.style.setProperty("--a-rgb", primary.join(","));
+    root.style.setProperty("--b-rgb", secondary.join(","));
+  }
+
+  function safeArtSource(value) {
+    const source = typeof value === "string" ? value.trim() : "";
+    if (!source || source.length > 1024 * 1024) return "";
+    if (/^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(source)) return source;
+    try {
+      const url = new URL(source, location.href);
+      if (
+        url.origin === location.origin &&
+        (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/user-assets/"))
+      ) {
+        return url.href;
+      }
+    } catch {
+      return "";
+    }
+    return "";
+  }
+
+  function normalizeTrack(message) {
+    const title = String(message?.title || "").trim().slice(0, 180);
+    const artist = String(message?.artist || "").trim().slice(0, 180);
+    if (!title) return null;
+    return {
+      id: String(message?.trackId || `${title}|${artist}`).slice(0, 360),
+      title,
+      artist,
+      art: safeArtSource(message?.art),
+      progressMs: clamp(message?.progressMs, 0, 24 * 60 * 60 * 1000),
+      durationMs: clamp(message?.durationMs, 0, 24 * 60 * 60 * 1000),
+    };
+  }
+
+  function buildCode(seedText) {
+    code.replaceChildren();
+    codeBars = [];
+    let seed = hashString(seedText || "overlay-studio");
+    for (let index = 0; index < CODE_BARS; index += 1) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const ratio = ((seed >>> 8) & 0xffff) / 0xffff;
+      const bar = document.createElement("i");
+      const base = 0.18 + ratio * 0.82;
+      bar.dataset.base = String(base);
+      bar.style.height = `${base * 100}%`;
+      code.append(bar);
+      codeBars.push(bar);
+    }
+  }
+
+  function paintCodeProgress(ratio) {
+    const cut = Math.round(clamp(ratio, 0, 1) * CODE_BARS);
+    codeBars.forEach((bar, index) => {
+      bar.classList.toggle("played", index < cut);
+    });
+  }
+
+  function pulseCode(level, now) {
+    codeBars.forEach((bar, index) => {
+      const base = Number(bar.dataset.base) || 0.4;
+      const wobble = 1 + level * 0.35 * Math.sin(index * 1.7 + now / 190);
+      bar.style.height = `${clamp(base * wobble * 100, 10, 100)}%`;
+    });
+  }
+
+  function buildCover(track) {
+    const element = document.createElement("div");
+    element.className = "cover";
+    element.dataset.slot = "hidden";
+
+    const art = document.createElement("div");
+    art.className = "art";
+    art.style.background = fallbackTint(track);
+    if (track.art) {
+      const image = new Image();
+      image.alt = "";
+      image.decoding = "async";
+      image.addEventListener("error", () => image.remove(), { once: true });
+      image.src = track.art;
+      art.append(image);
+    }
+
+    const label = document.createElement("div");
+    label.className = "label";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = track.title;
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    sub.textContent = track.artist;
+    label.append(name, sub);
+
+    element.append(art, label);
+    return element;
+  }
+
+  function renderFlow() {
+    flow.replaceChildren();
+    const slots = [
+      { track: history[2], slot: "-2" },
+      { track: history[1], slot: "-1" },
+      { track: history[0], slot: "0" },
+      { track: history[1], slot: "1" },
+      { track: history[2], slot: "2" },
+    ];
+    for (const { track, slot } of slots) {
+      if (!track) continue;
+      const element = buildCover(track);
+      flow.append(element);
+      requestAnimationFrame(() => {
+        element.dataset.slot = slot;
+      });
+    }
+  }
+
+  function extractPalette(image) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 36;
+    canvas.height = 36;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    let pixels;
+    try {
+      pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    } catch {
+      return null;
+    }
+
+    const colors = [];
+    for (let index = 0; index < pixels.length; index += 20) {
+      if (pixels[index + 3] < 128) continue;
+      const rgb = [pixels[index], pixels[index + 1], pixels[index + 2]];
+      const max = Math.max(...rgb);
+      const min = Math.min(...rgb);
+      const saturation = max ? (max - min) / max : 0;
+      const brightness = (max + min) / 510;
+      if (saturation < 0.14 || brightness < 0.18 || brightness > 0.9) continue;
+      const score = saturation * (1 - Math.abs(brightness - 0.55));
+      colors.push({ rgb, score });
+    }
+    colors.sort((left, right) => right.score - left.score);
+    const first = colors[0]?.rgb;
+    const second = colors.find(({ rgb }) => (
+      first &&
+      Math.abs(rgb[0] - first[0]) +
+      Math.abs(rgb[1] - first[1]) +
+      Math.abs(rgb[2] - first[2]) > 80
+    ))?.rgb;
+    return first ? [first, second || first.map((channel) => Math.round(channel * 0.55))] : null;
+  }
+
+  function applyArtworkPalette(track) {
+    if (!track.art) return;
+    const image = new Image();
+    image.decoding = "async";
+    image.addEventListener("load", () => {
+      const palette = extractPalette(image);
+      if (!palette || history[0]?.id !== track.id) return;
+      root.style.setProperty("--a-rgb", palette[0].join(","));
+      root.style.setProperty("--b-rgb", palette[1].join(","));
+    }, { once: true });
+    image.src = track.art;
+  }
+
+  function applyTrack(message) {
+    const track = normalizeTrack(message);
+    if (!track) return;
+    const current = history[0];
+    const isNew = !current || current.id !== track.id;
+    const artworkChanged = current?.art !== track.art;
+    if (isNew) {
+      history = [
+        track,
+        ...history.filter((item) => item.id !== track.id),
+      ].slice(0, 5);
+      buildCode(`${track.title}|${track.artist}`);
+      applyTrackPalette(track);
+    } else {
+      history[0] = { ...current, ...track };
+    }
+    if (isNew || artworkChanged) {
+      renderFlow();
+      applyArtworkPalette(track);
+    }
+    playback = {
+      playing: true,
+      progressMs: track.progressMs,
+      durationMs: track.durationMs,
+      receivedAt: performance.now(),
+    };
+    document.body.classList.add("has-track");
+  }
+
+  function setIdle() {
+    playback.playing = false;
+    document.body.classList.remove("has-track");
+    setPreviewStatus("Waiting for media");
+  }
+
+  function handleMessage(event) {
+    if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE_BYTES) return;
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (message?.type === "track") {
+      if (message.isPlaying) applyTrack(message);
+      else setIdle();
+    } else if (message?.type === "audio") {
+      audioLevel = clamp(message.level, 0, 1);
+      if (message.beat) audioLevel = Math.max(audioLevel, 0.85);
+    }
+  }
+
+  function scheduleReconnect() {
+    if (stopped || reconnectTimer) return;
+    setPreviewStatus("Reconnecting to overlay server");
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = 0;
+      connect();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(8000, reconnectDelay * 1.7);
+  }
+
+  function connect() {
+    if (stopped || location.protocol === "file:") {
+      setPreviewStatus("Start Overlay Studio to preview live media");
+      return;
+    }
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    try {
+      socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    } catch {
+      scheduleReconnect();
+      return;
+    }
+    socket.addEventListener("open", () => {
+      reconnectDelay = 750;
+      setPreviewStatus("Waiting for media");
+    });
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener("close", scheduleReconnect, { once: true });
+    socket.addEventListener("error", () => socket?.close(), { once: true });
+  }
+
+  function animate(now) {
+    if (playback.playing && playback.durationMs > 0) {
+      const elapsed = now - playback.receivedAt;
+      paintCodeProgress((playback.progressMs + elapsed) / playback.durationMs);
+    } else {
+      paintCodeProgress(0);
+    }
+    audioLevel *= 0.93;
+    pulseCode(audioLevel, now);
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener("resize", fitOverlay);
+  window.addEventListener("pagehide", () => {
+    stopped = true;
+    clearTimeout(reconnectTimer);
+    socket?.close();
+  }, { once: true });
+
+  fitOverlay();
+  buildCode("overlay-studio");
+  connect();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

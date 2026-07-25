@@ -67,6 +67,7 @@ function sourceUrls(baseUrl) {
     dance: `${baseUrl}overlays/larpdog-dance`,
     spotify: `${baseUrl}overlays/spotify`,
     counter: `${baseUrl}overlays/win-loss`,
+    flow: `${baseUrl}overlays/now-playing-flow`,
   };
 }
 
@@ -95,6 +96,12 @@ const previewDetails = {
     type: "MATCH RECORD",
     view: "counterView",
     canvas: [900, 320],
+  },
+  flow: {
+    title: "Now Playing Flow",
+    type: "NOW PLAYING FLOW",
+    view: null,
+    canvas: [760, 420],
   },
 };
 
@@ -361,6 +368,7 @@ function openOverlayPreview(kind) {
   byId("overlayPreviewType").textContent = `${details.type} / LIVE OBS PREVIEW`;
   byId("overlayPreviewTitle").textContent = title;
   byId("largeOverlayPreview").title = `Live ${title} preview`;
+  byId("customizePreviewButton").hidden = !details.view;
   renderLargePreview(app.state || { running: false });
   byId("overlayPreviewDialog").showModal();
   requestAnimationFrame(resizeLargePreview);
@@ -398,6 +406,7 @@ function renderServerState(state) {
     spotifyUrl: "spotify",
     serverCounterUrl: "counter",
     counterUrl: "counter",
+    serverFlowUrl: "flow",
   };
   Object.entries(urlBindings).forEach(([id, kind]) => {
     byId(id).value = app.urls[kind];
@@ -406,6 +415,7 @@ function renderServerState(state) {
   updatePreview(byId("dancePreview"), `${app.urls.dance}?preview=studio`, state.running);
   updatePreview(byId("spotifyPreview"), `${app.urls.spotify}?preview=studio`, state.running);
   updatePreview(byId("counterPreview"), `${app.urls.counter}?preview=studio`, state.running);
+  updatePreview(byId("flowPreview"), `${app.urls.flow}?preview=studio`, state.running);
   renderLargePreview(state);
 }
 
