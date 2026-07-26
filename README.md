@@ -88,6 +88,13 @@ File signatures are checked during import. If selected media later becomes unava
 or cannot be decoded, the overlay keeps the current image and automatically tries
 another dance or the built-in resting image.
 
+Each Dancing GIF instance can keep up to five named profiles. A profile remembers its
+resting image, dancing selection or random pool, scale, beat sensitivity, and fallback
+BPM. Choose a profile from the dropdown to save the current profile and apply the
+selected one to connected Studio previews and OBS sources. Existing configurations are
+migrated into a `Default` profile automatically. Deleting a profile does not delete its
+imported media, and the final remaining profile is protected.
+
 GIFs, animated images, and videos up to 25 MB can also be dragged directly onto the
 **Dancing media** library. Windows `.url` Internet shortcuts to public HTTPS media are
 also supported, including media pages that publish a direct Open Graph image or video.

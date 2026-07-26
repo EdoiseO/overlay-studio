@@ -1,3 +1,5 @@
+const MAX_DANCE_PROFILES = 5;
+
 const app = {
   state: null,
   busy: false,
@@ -8,6 +10,9 @@ const app = {
   activeInstanceId: null,
   danceMode: "single",
   danceSelection: new Set(),
+  danceProfiles: [],
+  activeDanceProfileId: null,
+  danceProfileDialogMode: null,
   mediaLibraryKey: "",
   libraryKey: "",
   pendingDeleteAsset: null,
@@ -500,6 +505,236 @@ function setDanceMode(mode) {
   renderMediaLibraries();
 }
 
+function activeDanceProfile() {
+  return app.danceProfiles.find(
+    (profile) => profile.id === app.activeDanceProfileId,
+  ) || app.danceProfiles[0] || null;
+}
+
+function captureDanceProfile(profile) {
+  const dancePool = [...app.danceSelection];
+  const primaryDance =
+    dancePool[0] || app.state?.defaults?.dance?.gif || "assets/dancing-dog.gif";
+  return {
+    ...structuredClone(profile || {}),
+    mode: app.danceMode,
+    gif: primaryDance,
+    pool: dancePool.length ? dancePool : [primaryDance],
+    rest: byId("danceRest").value,
+    position:
+      profile?.position
+      || app.state?.defaults?.dance?.position
+      || "bottom-left",
+    scale: Number(byId("danceScale").value),
+    sensitivity: Number(byId("sensitivity").value),
+    fallbackBpm: Number(byId("fallbackBpm").value),
+  };
+}
+
+function syncActiveDanceProfile() {
+  const index = app.danceProfiles.findIndex(
+    (profile) => profile.id === app.activeDanceProfileId,
+  );
+  if (index < 0) return;
+  app.danceProfiles[index] = captureDanceProfile(app.danceProfiles[index]);
+}
+
+function loadDanceProfile(profile) {
+  if (!profile) return;
+  app.danceMode = profile.mode === "random" ? "random" : "single";
+  const pool = Array.isArray(profile.pool) && profile.pool.length
+    ? profile.pool
+    : [profile.gif];
+  app.danceSelection = new Set(
+    app.danceMode === "random" ? pool : [profile.gif || pool[0]],
+  );
+  byId("danceGif").value = profile.gif || pool[0] || "";
+  byId("danceRest").value = profile.rest || "";
+  byId("danceScale").value = profile.scale;
+  byId("sensitivity").value = profile.sensitivity;
+  byId("sensitivityOutput").value = Number(profile.sensitivity).toFixed(2);
+  byId("fallbackBpm").value = profile.fallbackBpm;
+  renderMediaLibraries();
+}
+
+function renderDanceProfileControls() {
+  const select = byId("danceProfileSelect");
+  select.replaceChildren();
+  app.danceProfiles.forEach((profile) => {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = profile.name;
+    option.selected = profile.id === app.activeDanceProfileId;
+    select.append(option);
+  });
+  byId("danceProfileCount").textContent =
+    `${app.danceProfiles.length} of ${MAX_DANCE_PROFILES}`;
+  select.disabled = app.busy || !app.danceProfiles.length;
+  byId("addDanceProfileButton").disabled =
+    app.busy || app.danceProfiles.length >= MAX_DANCE_PROFILES;
+  byId("renameDanceProfileButton").disabled =
+    app.busy || !app.danceProfiles.length;
+  byId("deleteDanceProfileButton").disabled =
+    app.busy || app.danceProfiles.length <= 1;
+}
+
+function hydrateDanceProfiles(config) {
+  const supplied = Array.isArray(config.dance.profiles)
+    ? config.dance.profiles.slice(0, MAX_DANCE_PROFILES)
+    : [];
+  app.danceProfiles = supplied.length
+    ? structuredClone(supplied)
+    : [{
+      id: "default",
+      name: "Default",
+      mode: config.dance.mode,
+      gif: config.dance.gif,
+      pool: config.dance.pool,
+      rest: config.dance.rest,
+      position: config.dance.position,
+      scale: config.dance.scale,
+      sensitivity: config.audio.sensitivity,
+      fallbackBpm: config.nowPlaying.fallbackBpm,
+    }];
+  app.activeDanceProfileId = app.danceProfiles.some(
+    (profile) => profile.id === config.dance.activeProfileId,
+  )
+    ? config.dance.activeProfileId
+    : app.danceProfiles[0].id;
+  loadDanceProfile(activeDanceProfile());
+  renderDanceProfileControls();
+}
+
+function nextDanceProfileId() {
+  let suffix = 2;
+  while (app.danceProfiles.some((profile) => profile.id === `profile-${suffix}`)) {
+    suffix += 1;
+  }
+  return `profile-${suffix}`;
+}
+
+async function switchDanceProfile(profileId) {
+  if (app.busy || profileId === app.activeDanceProfileId) return;
+  syncActiveDanceProfile();
+  const previousProfiles = structuredClone(app.danceProfiles);
+  const previousProfileId = app.activeDanceProfileId;
+  const selected = app.danceProfiles.find((profile) => profile.id === profileId);
+  if (!selected) {
+    renderDanceProfileControls();
+    return;
+  }
+  app.activeDanceProfileId = selected.id;
+  loadDanceProfile(selected);
+  renderDanceProfileControls();
+  const saved = await saveOverlaySettings({
+    successMessage: `${selected.name} applied`,
+    activityMessage: `Dance profile switched: ${selected.name}`,
+  });
+  if (!saved) {
+    app.danceProfiles = previousProfiles;
+    app.activeDanceProfileId = previousProfileId;
+    loadDanceProfile(activeDanceProfile());
+    renderDanceProfileControls();
+  }
+}
+
+function openDanceProfileDialog(mode) {
+  if (app.busy) return;
+  const current = activeDanceProfile();
+  if (mode === "create" && app.danceProfiles.length >= MAX_DANCE_PROFILES) {
+    showToast("Dance profile limit reached");
+    return;
+  }
+  if (mode === "rename" && !current) return;
+  app.danceProfileDialogMode = mode;
+  byId("danceProfileDialogTitle").textContent =
+    mode === "create" ? "New dance profile" : "Rename dance profile";
+  byId("danceProfileNameInput").value =
+    mode === "create" ? `Profile ${app.danceProfiles.length + 1}` : current.name;
+  byId("danceProfileDialog").showModal();
+  requestAnimationFrame(() => {
+    byId("danceProfileNameInput").focus();
+    byId("danceProfileNameInput").select();
+  });
+}
+
+async function saveDanceProfileDialog() {
+  const mode = app.danceProfileDialogMode;
+  const name = byId("danceProfileNameInput").value.trim();
+  if (!mode || !name || app.busy) return;
+  syncActiveDanceProfile();
+  const previousProfiles = structuredClone(app.danceProfiles);
+  const previousProfileId = app.activeDanceProfileId;
+  if (mode === "create") {
+    if (app.danceProfiles.length >= MAX_DANCE_PROFILES) {
+      showToast("Dance profile limit reached");
+      return;
+    }
+    const created = {
+      ...structuredClone(activeDanceProfile()),
+      id: nextDanceProfileId(),
+      name,
+    };
+    app.danceProfiles.push(created);
+    app.activeDanceProfileId = created.id;
+    loadDanceProfile(created);
+  } else {
+    const current = activeDanceProfile();
+    if (!current) return;
+    current.name = name;
+  }
+  renderDanceProfileControls();
+  byId("danceProfileDialog").close();
+  const saved = await saveOverlaySettings({
+    successMessage: mode === "create" ? "Profile created" : "Profile renamed",
+    activityMessage:
+      mode === "create"
+        ? `Dance profile created: ${name}`
+        : `Dance profile renamed: ${name}`,
+  });
+  if (!saved) {
+    app.danceProfiles = previousProfiles;
+    app.activeDanceProfileId = previousProfileId;
+    loadDanceProfile(activeDanceProfile());
+    renderDanceProfileControls();
+  }
+}
+
+function requestDeleteDanceProfile() {
+  const profile = activeDanceProfile();
+  if (!profile || app.danceProfiles.length <= 1 || app.busy) return;
+  byId("deleteDanceProfileName").textContent = profile.name;
+  byId("deleteDanceProfileDialog").showModal();
+}
+
+async function deleteDanceProfile() {
+  const profile = activeDanceProfile();
+  if (!profile || app.danceProfiles.length <= 1 || app.busy) return;
+  syncActiveDanceProfile();
+  const previousProfiles = structuredClone(app.danceProfiles);
+  const previousProfileId = app.activeDanceProfileId;
+  const deletedIndex = app.danceProfiles.findIndex(
+    (candidate) => candidate.id === profile.id,
+  );
+  app.danceProfiles.splice(deletedIndex, 1);
+  const nextProfile =
+    app.danceProfiles[Math.min(deletedIndex, app.danceProfiles.length - 1)];
+  app.activeDanceProfileId = nextProfile.id;
+  loadDanceProfile(nextProfile);
+  renderDanceProfileControls();
+  byId("deleteDanceProfileDialog").close();
+  const saved = await saveOverlaySettings({
+    successMessage: "Profile deleted",
+    activityMessage: `Dance profile deleted: ${profile.name}`,
+  });
+  if (!saved) {
+    app.danceProfiles = previousProfiles;
+    app.activeDanceProfileId = previousProfileId;
+    loadDanceProfile(activeDanceProfile());
+    renderDanceProfileControls();
+  }
+}
+
 function requestDeleteAsset(asset, kind) {
   app.pendingDeleteAsset = { ...asset, kind };
   byId("deleteMediaName").textContent = asset.name;
@@ -521,22 +756,13 @@ async function deletePendingAsset() {
     app.state.config = result.config;
     app.state.mediaLibrary = result.library;
     app.mediaLibraryKey = JSON.stringify(result.library);
-    if (asset.kind === "gif") {
-      app.danceSelection.delete(asset.path);
-      if (!app.danceSelection.size) {
-        app.danceSelection.add(result.config.dance.gif);
-      }
-      byId("danceGif").value = [...app.danceSelection][0];
-    } else if (app.danceSelection.has(asset.path)) {
-      app.danceSelection.delete(asset.path);
-      result.config.dance.pool.forEach((path) => app.danceSelection.add(path));
-      byId("danceGif").value = [...app.danceSelection][0];
-    }
-    if (byId("danceRest").value === asset.path) {
-      byId("danceRest").value = result.config.dance.rest;
-    }
+    const selectedInstance = activeInstance();
+    fillConfig(
+      selectedInstance
+        ? materializeInstanceConfig(selectedInstance)
+        : result.config,
+    );
     byId("deleteMediaDialog").close();
-    renderMediaLibraries();
     logActivity(`Media deleted: ${result.name}`);
     showToast(`${result.name} deleted`);
   } catch (error) {
@@ -650,16 +876,7 @@ function updateColorLabel(id) {
 
 function fillConfig(config) {
   byId("danceName").value = config.dance.name;
-  app.danceMode = config.dance.mode === "random" ? "random" : "single";
-  app.danceSelection = new Set(
-    app.danceMode === "random" ? config.dance.pool : [config.dance.gif],
-  );
-  byId("danceGif").value = config.dance.gif;
-  byId("danceRest").value = config.dance.rest;
-  byId("danceScale").value = config.dance.scale;
-  byId("sensitivity").value = config.audio.sensitivity;
-  byId("sensitivityOutput").value = Number(config.audio.sensitivity).toFixed(2);
-  byId("fallbackBpm").value = config.nowPlaying.fallbackBpm;
+  hydrateDanceProfiles(config);
 
   byId("spotifyScale").value = config.spotify.scale;
   byId("playerWidth").value = config.spotify.cardWidth;
@@ -675,21 +892,29 @@ function fillConfig(config) {
 }
 
 function gatherConfig() {
-  const dancePool = [...app.danceSelection];
+  syncActiveDanceProfile();
+  const profile = activeDanceProfile();
+  const dancePool = Array.isArray(profile?.pool) ? profile.pool : [];
   const primaryDance =
-    dancePool[0] || app.state?.defaults?.dance?.gif || "assets/dancing-dog.gif";
+    profile?.gif
+    || dancePool[0]
+    || app.state?.defaults?.dance?.gif
+    || "assets/dancing-dog.gif";
   return {
     dance: {
       name: byId("danceName").value,
-      mode: app.danceMode,
+      activeProfileId: profile?.id || "default",
+      profiles: structuredClone(app.danceProfiles),
+      mode: profile?.mode || "single",
       gif: primaryDance,
       pool: dancePool.length ? dancePool : [primaryDance],
-      rest: byId("danceRest").value,
+      rest: profile?.rest || byId("danceRest").value,
       position:
-        app.state?.config?.dance?.position
+        profile?.position
+        || app.state?.config?.dance?.position
         || app.state?.defaults?.dance?.position
         || "bottom-left",
-      scale: Number(byId("danceScale").value),
+      scale: Number(profile?.scale ?? byId("danceScale").value),
     },
     spotify: {
       position:
@@ -712,10 +937,10 @@ function gatherConfig() {
     },
     audio: {
       enabled: true,
-      sensitivity: Number(byId("sensitivity").value),
+      sensitivity: Number(profile?.sensitivity ?? byId("sensitivity").value),
     },
     nowPlaying: {
-      fallbackBpm: Number(byId("fallbackBpm").value),
+      fallbackBpm: Number(profile?.fallbackBpm ?? byId("fallbackBpm").value),
     },
   };
 }
@@ -903,14 +1128,15 @@ function bindDanceDropZone() {
   });
 }
 
-async function saveOverlaySettings() {
-  if (app.busy) return;
+async function saveOverlaySettings(options = {}) {
+  if (app.busy) return false;
   const instance = activeInstance();
   if (!instance) {
     showToast("Choose an overlay instance first");
-    return;
+    return false;
   }
   app.busy = true;
+  renderDanceProfileControls();
   try {
     const result = await callApi(
       "save_overlay_settings",
@@ -919,7 +1145,7 @@ async function saveOverlaySettings() {
     );
     if (!result.ok) {
       showToast(result.detail || "Settings could not be saved");
-      return;
+      return false;
     }
     if (app.state) app.state.config = result.config;
     fillConfig(result.instanceConfig || materializeInstanceConfig(instance));
@@ -941,12 +1167,21 @@ async function saveOverlaySettings() {
       renderServerState(app.state);
     }
     renderActiveIdentity(activeInstance());
-    logActivity(result.applied ? "Settings saved and applied" : "Settings saved");
-    showToast(result.applied ? "Saved and applied" : "Saved");
+    logActivity(
+      options.activityMessage
+      || (result.applied ? "Settings saved and applied" : "Settings saved"),
+    );
+    showToast(
+      options.successMessage
+      || (result.applied ? "Saved and applied" : "Saved"),
+    );
+    return true;
   } catch (error) {
     showToast(String(error.message || error));
+    return false;
   } finally {
     app.busy = false;
+    renderDanceProfileControls();
   }
 }
 
@@ -1127,6 +1362,19 @@ function bindEvents() {
   document.querySelectorAll("[data-dance-mode]").forEach((button) => {
     button.addEventListener("click", () => setDanceMode(button.dataset.danceMode));
   });
+  byId("danceProfileSelect").addEventListener("change", (event) => {
+    switchDanceProfile(event.target.value);
+  });
+  byId("addDanceProfileButton").addEventListener("click", () => {
+    openDanceProfileDialog("create");
+  });
+  byId("renameDanceProfileButton").addEventListener("click", () => {
+    openDanceProfileDialog("rename");
+  });
+  byId("deleteDanceProfileButton").addEventListener(
+    "click",
+    requestDeleteDanceProfile,
+  );
 
   byId("sensitivity").addEventListener("input", () => {
     byId("sensitivityOutput").value = Number(byId("sensitivity").value).toFixed(2);
@@ -1138,9 +1386,9 @@ function bindEvents() {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
 
-  byId("saveDanceButton").addEventListener("click", saveOverlaySettings);
-  byId("saveSpotifyButton").addEventListener("click", saveOverlaySettings);
-  byId("saveFlowButton").addEventListener("click", saveOverlaySettings);
+  byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
     byId("danceName").value = defaults.dance.name;
@@ -1238,6 +1486,27 @@ function bindEvents() {
   renameOverlayDialog.addEventListener("close", () => {
     app.pendingRenameInstanceId = null;
   });
+
+  const danceProfileDialog = byId("danceProfileDialog");
+  byId("cancelDanceProfile").addEventListener("click", () => {
+    danceProfileDialog.close();
+  });
+  byId("confirmDanceProfile").addEventListener("click", saveDanceProfileDialog);
+  byId("danceProfileNameInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") saveDanceProfileDialog();
+  });
+  danceProfileDialog.addEventListener("close", () => {
+    app.danceProfileDialogMode = null;
+  });
+
+  const deleteDanceProfileDialog = byId("deleteDanceProfileDialog");
+  byId("cancelDeleteDanceProfile").addEventListener("click", () => {
+    deleteDanceProfileDialog.close();
+  });
+  byId("confirmDeleteDanceProfile").addEventListener(
+    "click",
+    deleteDanceProfile,
+  );
 
   const deleteMediaDialog = byId("deleteMediaDialog");
   byId("cancelDeleteMedia").addEventListener("click", () => deleteMediaDialog.close());

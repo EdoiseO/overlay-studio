@@ -69,6 +69,21 @@
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
+        <div class="panel profile-panel">
+          <div class="profile-heading">
+            <div>
+              <h2>Dance profiles</h2>
+              <span id="danceProfileCount">1 of 5</span>
+            </div>
+            <div class="profile-controls">
+              <label class="sr-only" for="danceProfileSelect">Active dance profile</label>
+              <select id="danceProfileSelect" aria-label="Active dance profile"></select>
+              <button class="secondary-button compact" id="addDanceProfileButton" type="button">New</button>
+              <button class="secondary-button compact" id="renameDanceProfileButton" type="button">Rename</button>
+              <button class="danger-button compact" id="deleteDanceProfileButton" type="button">Delete</button>
+            </div>
+          </div>
+        </div>
         <div class="panel">
           <h2>Dancing GIF settings</h2>
           <div class="form-grid">
@@ -340,6 +355,25 @@
     <div class="dialog-actions">
       <button class="secondary-button" id="cancelRenameOverlay" type="button">Cancel</button>
       <button class="primary-button" id="confirmRenameOverlay" type="button">Save</button>
+    </div>
+  </dialog>
+
+  <dialog class="rename-dialog" id="danceProfileDialog" aria-labelledby="danceProfileDialogTitle">
+    <h2 id="danceProfileDialogTitle">New dance profile</h2>
+    <label for="danceProfileNameInput">Profile name</label>
+    <input id="danceProfileNameInput" type="text" maxlength="32" autocomplete="off">
+    <div class="dialog-actions">
+      <button class="secondary-button" id="cancelDanceProfile" type="button">Cancel</button>
+      <button class="primary-button" id="confirmDanceProfile" type="button">Save</button>
+    </div>
+  </dialog>
+
+  <dialog class="confirmation-dialog" id="deleteDanceProfileDialog" aria-labelledby="deleteDanceProfileTitle">
+    <h2 id="deleteDanceProfileTitle">Delete dance profile?</h2>
+    <p><strong id="deleteDanceProfileName">This profile</strong> will be removed. Imported media files will remain in the library.</p>
+    <div class="dialog-actions">
+      <button class="secondary-button" id="cancelDeleteDanceProfile" type="button">Cancel</button>
+      <button class="danger-button" id="confirmDeleteDanceProfile" type="button">Delete</button>
     </div>
   </dialog>
 

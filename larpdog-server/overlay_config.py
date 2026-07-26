@@ -7,15 +7,31 @@ from pathlib import Path
 from typing import Any
 
 
+DEFAULT_DANCE_PROFILE: dict[str, Any] = {
+    "id": "default",
+    "name": "Default",
+    "mode": "single",
+    "gif": "assets/dancing-dog.gif",
+    "pool": ["assets/dancing-dog.gif"],
+    "rest": "assets/resting-dog.png",
+    "position": "bottom-left",
+    "scale": 1.0,
+    "sensitivity": 1.0,
+    "fallbackBpm": 120,
+}
+
+
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "dance": {
         "name": "Dancing GIF",
-        "mode": "single",
-        "gif": "assets/dancing-dog.gif",
-        "pool": ["assets/dancing-dog.gif"],
-        "rest": "assets/resting-dog.png",
-        "position": "bottom-left",
-        "scale": 1.0,
+        "activeProfileId": DEFAULT_DANCE_PROFILE["id"],
+        "profiles": [copy.deepcopy(DEFAULT_DANCE_PROFILE)],
+        "mode": DEFAULT_DANCE_PROFILE["mode"],
+        "gif": DEFAULT_DANCE_PROFILE["gif"],
+        "pool": list(DEFAULT_DANCE_PROFILE["pool"]),
+        "rest": DEFAULT_DANCE_PROFILE["rest"],
+        "position": DEFAULT_DANCE_PROFILE["position"],
+        "scale": DEFAULT_DANCE_PROFILE["scale"],
     },
     "spotify": {
         "position": "bottom-left",
@@ -44,11 +60,13 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
 
 INSTANCE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]*"
 INSTANCE_ID = re.compile(rf"^{INSTANCE_ID_PATTERN}$")
+DANCE_PROFILE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
 POSITION_CHOICES = {"bottom-left", "bottom-right", "top-left", "top-right"}
 DANCE_MODE_CHOICES = {"single", "random"}
 COLOR_MODE_CHOICES = {"auto", "fixed", "art"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 MAX_INSTANCES = 64
+MAX_DANCE_PROFILES = 5
 
 LEGACY_INSTANCE_SPECS = (
     ("dancing-gif", "larpdog-dance", "Dancing GIF"),
@@ -91,6 +109,11 @@ def _overlay_name(value: Any, default: str) -> str:
     return candidate[:48] or default
 
 
+def _profile_name(value: Any, default: str) -> str:
+    candidate = " ".join(str(value or "").split())
+    return candidate[:32] or default
+
+
 def normalize_overlay_name(value: Any, default: str = "Overlay") -> str:
     return _overlay_name(value, default)
 
@@ -109,6 +132,74 @@ def _asset_list(value: Any, default: list[str]) -> list[str]:
 def _color(value: Any, default: str) -> str:
     candidate = str(value or "").strip().removeprefix("#")
     return candidate.lower() if HEX_COLOR.fullmatch(candidate) else default
+
+
+def _profile_id(value: Any, index: int, used_ids: set[str]) -> str:
+    candidate = str(value or "").strip()
+    if not DANCE_PROFILE_ID.fullmatch(candidate) or candidate in used_ids:
+        candidate = "default" if index == 0 else f"profile-{index + 1}"
+    suffix = 2
+    unique = candidate
+    while unique in used_ids:
+        unique = f"{candidate[:28]}-{suffix}"
+        suffix += 1
+    return unique
+
+
+def _normalize_dance_profile(
+    raw: Any,
+    *,
+    index: int,
+    used_ids: set[str],
+    fallback: dict[str, Any],
+) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    profile_id = _profile_id(source.get("id"), index, used_ids)
+    used_ids.add(profile_id)
+    dance_gif = _asset_path(source.get("gif"), fallback["gif"])
+    dance_pool = _asset_list(source.get("pool"), [dance_gif])
+    if dance_gif not in dance_pool:
+        dance_pool.insert(0, dance_gif)
+    return {
+        "id": profile_id,
+        "name": _profile_name(source.get("name"), f"Profile {index + 1}"),
+        "mode": _choice(
+            source.get("mode"),
+            DANCE_MODE_CHOICES,
+            fallback["mode"],
+        ),
+        "gif": dance_gif,
+        "pool": dance_pool,
+        "rest": _asset_path(source.get("rest"), fallback["rest"]),
+        "position": _choice(
+            source.get("position"),
+            POSITION_CHOICES,
+            fallback["position"],
+        ),
+        "scale": round(
+            _number(source.get("scale"), fallback["scale"], 0.5, 2.0),
+            2,
+        ),
+        "sensitivity": round(
+            _number(
+                source.get("sensitivity"),
+                fallback["sensitivity"],
+                0.3,
+                3.0,
+            ),
+            2,
+        ),
+        "fallbackBpm": int(
+            round(
+                _number(
+                    source.get("fallbackBpm"),
+                    fallback["fallbackBpm"],
+                    40,
+                    240,
+                )
+            )
+        ),
+    }
 
 
 def _normalize_flat_config(raw: Any) -> dict[str, Any]:
@@ -149,35 +240,117 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     dance_pool = _asset_list(dance.get("pool"), [dance_gif])
     if dance_gif not in dance_pool:
         dance_pool.insert(0, dance_gif)
+    dance_mode = _choice(
+        dance.get("mode"),
+        DANCE_MODE_CHOICES,
+        default_dance["mode"],
+    )
+    dance_rest = _asset_path(
+        dance.get("rest", legacy.get("rest")),
+        default_dance["rest"],
+    )
+    dance_position = _choice(
+        dance.get("position", legacy.get("position")),
+        POSITION_CHOICES,
+        default_dance["position"],
+    )
+    dance_scale = round(
+        _number(
+            dance.get("scale", legacy.get("scale")),
+            default_dance["scale"],
+            0.5,
+            2.0,
+        ),
+        2,
+    )
+    audio_sensitivity = round(
+        _number(
+            audio.get("sensitivity"),
+            defaults["audio"]["sensitivity"],
+            0.3,
+            3.0,
+        ),
+        2,
+    )
+    fallback_bpm = int(
+        round(
+            _number(
+                now_playing.get("fallbackBpm"),
+                defaults["nowPlaying"]["fallbackBpm"],
+                40,
+                240,
+            )
+        )
+    )
+    profile_fallback = {
+        "mode": dance_mode,
+        "gif": dance_gif,
+        "pool": dance_pool,
+        "rest": dance_rest,
+        "position": dance_position,
+        "scale": dance_scale,
+        "sensitivity": audio_sensitivity,
+        "fallbackBpm": fallback_bpm,
+    }
+    supplied_profiles = dance.get("profiles")
+    profile_sources = (
+        supplied_profiles[:MAX_DANCE_PROFILES]
+        if isinstance(supplied_profiles, list)
+        else []
+    )
+    if not profile_sources:
+        profile_sources = [
+            {
+                "id": "default",
+                "name": "Default",
+                **profile_fallback,
+            }
+        ]
+    used_profile_ids: set[str] = set()
+    dance_profiles = [
+        _normalize_dance_profile(
+            profile,
+            index=index,
+            used_ids=used_profile_ids,
+            fallback=profile_fallback,
+        )
+        for index, profile in enumerate(profile_sources)
+        if isinstance(profile, dict)
+    ]
+    if not dance_profiles:
+        dance_profiles = [
+            _normalize_dance_profile(
+                {
+                    "id": "default",
+                    "name": "Default",
+                    **profile_fallback,
+                },
+                index=0,
+                used_ids=set(),
+                fallback=profile_fallback,
+            )
+        ]
+    requested_profile_id = str(dance.get("activeProfileId") or "").strip()
+    active_profile = next(
+        (
+            profile
+            for profile in dance_profiles
+            if profile["id"] == requested_profile_id
+        ),
+        dance_profiles[0],
+    )
 
     return {
         "dance": {
             "name": _overlay_name(dance.get("name"), default_dance["name"]),
-            "mode": _choice(
-                dance.get("mode"),
-                DANCE_MODE_CHOICES,
-                default_dance["mode"],
-            ),
-            "gif": dance_gif,
-            "pool": dance_pool,
-            "rest": _asset_path(
-                dance.get("rest", legacy.get("rest")),
-                default_dance["rest"],
-            ),
-            "position": _choice(
-                dance.get("position", legacy.get("position")),
-                POSITION_CHOICES,
-                default_dance["position"],
-            ),
-            "scale": round(
-                _number(
-                    dance.get("scale", legacy.get("scale")),
-                    default_dance["scale"],
-                    0.5,
-                    2.0,
-                ),
-                2,
-            ),
+            "activeProfileId": active_profile["id"],
+            "profiles": dance_profiles,
+            "mode": active_profile["mode"],
+            "gif": active_profile["gif"],
+            "pool": list(active_profile["pool"]),
+            "rest": active_profile["rest"],
+            "position": active_profile["position"],
+            "scale": active_profile["scale"],
         },
         "spotify": {
             "position": _choice(
@@ -238,27 +411,10 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         },
         "audio": {
             "enabled": bool(audio.get("enabled", defaults["audio"]["enabled"])),
-            "sensitivity": round(
-                _number(
-                    audio.get("sensitivity"),
-                    defaults["audio"]["sensitivity"],
-                    0.3,
-                    3.0,
-                ),
-                2,
-            ),
+            "sensitivity": active_profile["sensitivity"],
         },
         "nowPlaying": {
-            "fallbackBpm": int(
-                round(
-                    _number(
-                        now_playing.get("fallbackBpm"),
-                        defaults["nowPlaying"]["fallbackBpm"],
-                        40,
-                        240,
-                    )
-                )
-            )
+            "fallbackBpm": active_profile["fallbackBpm"],
         },
     }
 

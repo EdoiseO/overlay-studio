@@ -1064,37 +1064,78 @@ class DesktopApi:
 
         original_config = load_overlay_config(OVERLAY_CONFIG_PATH)
         config = copy.deepcopy(original_config)
-        dance = config["dance"]
 
         def same_asset(value: Any) -> bool:
             return str(value or "").replace("\\", "/") == normalized
 
+        dance_sections = [config["dance"]]
+        dance_sections.extend(
+            instance["config"]["dance"]
+            for instance in config["instances"].values()
+            if (
+                instance.get("type") == "larpdog-dance"
+                and isinstance(instance.get("config"), dict)
+                and isinstance(instance["config"].get("dance"), dict)
+            )
+        )
+
+        def dance_entries() -> list[dict[str, Any]]:
+            entries: list[dict[str, Any]] = []
+            for dance in dance_sections:
+                entries.append(dance)
+                profiles = dance.get("profiles")
+                if isinstance(profiles, list):
+                    entries.extend(
+                        profile
+                        for profile in profiles
+                        if isinstance(profile, dict)
+                    )
+            return entries
+
+        entries = dance_entries()
         try:
             if kind == "gif":
-                if same_asset(dance["rest"]):
+                preserved_rest = None
+                if any(same_asset(entry.get("rest")) for entry in entries):
                     if target.suffix.lower() not in ALLOWED_REST_EXTENSIONS:
                         return {
                             "ok": False,
                             "detail": "This file is also used as the resting image",
                         }
-                    dance["rest"] = copy_user_asset(target, "rest")
-                remaining_pool = [
-                    path for path in dance["pool"] if not same_asset(path)
-                ]
+                    preserved_rest = copy_user_asset(target, "rest")
                 default_dance = DEFAULT_OVERLAY_CONFIG["dance"]["gif"]
-                if same_asset(dance["gif"]):
-                    dance["gif"] = (
-                        remaining_pool[0] if remaining_pool else default_dance
-                    )
-                if not remaining_pool:
-                    remaining_pool = [dance["gif"]]
-                if dance["gif"] not in remaining_pool:
-                    remaining_pool.insert(0, dance["gif"])
-                dance["pool"] = remaining_pool
+                for entry in entries:
+                    if preserved_rest and same_asset(entry.get("rest")):
+                        entry["rest"] = preserved_rest
+                    pool = entry.get("pool")
+                    remaining_pool = [
+                        path
+                        for path in (pool if isinstance(pool, list) else [])
+                        if not same_asset(path)
+                    ]
+                    if same_asset(entry.get("gif")):
+                        entry["gif"] = (
+                            remaining_pool[0] if remaining_pool else default_dance
+                        )
+                    if not remaining_pool:
+                        remaining_pool = [entry.get("gif") or default_dance]
+                    if entry.get("gif") not in remaining_pool:
+                        remaining_pool.insert(0, entry.get("gif") or default_dance)
+                    entry["pool"] = list(dict.fromkeys(remaining_pool))
             else:
-                dance_references_target = same_asset(dance["gif"]) or any(
-                    same_asset(path) for path in dance["pool"]
+                dance_references_target = any(
+                    same_asset(entry.get("gif"))
+                    or any(
+                        same_asset(path)
+                        for path in (
+                            entry.get("pool")
+                            if isinstance(entry.get("pool"), list)
+                            else []
+                        )
+                    )
+                    for entry in entries
                 )
+                preserved_path = None
                 if dance_references_target:
                     if target.suffix.lower() not in ALLOWED_DANCE_EXTENSIONS:
                         return {
@@ -1102,14 +1143,19 @@ class DesktopApi:
                             "detail": "This file is also used as dancing media",
                         }
                     preserved_path = copy_user_asset(target, "gif")
-                    if same_asset(dance["gif"]):
-                        dance["gif"] = preserved_path
-                    dance["pool"] = [
-                        preserved_path if same_asset(path) else path
-                        for path in dance["pool"]
-                    ]
-                if same_asset(dance["rest"]):
-                    dance["rest"] = DEFAULT_OVERLAY_CONFIG["dance"]["rest"]
+                for entry in entries:
+                    if preserved_path and same_asset(entry.get("gif")):
+                        entry["gif"] = preserved_path
+                    pool = entry.get("pool")
+                    if preserved_path and isinstance(pool, list):
+                        entry["pool"] = list(
+                            dict.fromkeys(
+                                preserved_path if same_asset(path) else path
+                                for path in pool
+                            )
+                        )
+                    if same_asset(entry.get("rest")):
+                        entry["rest"] = DEFAULT_OVERLAY_CONFIG["dance"]["rest"]
         except OSError:
             return {"ok": False, "detail": "Could not separate that media file"}
 

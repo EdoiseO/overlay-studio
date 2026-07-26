@@ -72,8 +72,14 @@ are signature-checked during import, and missing or undecodable selections fall 
 without replacing the visible overlay with a broken image. Files up to 25 MB can be
 dropped directly onto the media library. Windows `.url` shortcuts to
 public HTTPS media or media pages with Open Graph links can be selected or dropped too;
-the downloaded file is validated and limited to 25 MB. A source can be overridden with
-a URL param:
+the downloaded file is validated and limited to 25 MB.
+
+Each Dancing GIF instance supports up to five named profiles. Profiles preserve their
+own resting image, dancing selection or random pool, scale, sensitivity, and fallback
+BPM. The active profile is materialized into the legacy dance, audio, and now-playing
+fields so existing overlay pages and OBS browser-source URLs continue to work.
+
+A source can be overridden with a URL param:
 
 ```text
 http://127.0.0.1:8473/overlays/larpdog-dance?dog=user-assets/dancing.gif

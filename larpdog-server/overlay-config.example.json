@@ -1,6 +1,23 @@
 {
   "dance": {
     "name": "Dancing GIF",
+    "activeProfileId": "default",
+    "profiles": [
+      {
+        "id": "default",
+        "name": "Default",
+        "mode": "single",
+        "gif": "assets/dancing-dog.gif",
+        "pool": [
+          "assets/dancing-dog.gif"
+        ],
+        "rest": "assets/resting-dog.png",
+        "position": "bottom-left",
+        "scale": 1.0,
+        "sensitivity": 1.0,
+        "fallbackBpm": 120
+      }
+    ],
     "mode": "single",
     "gif": "assets/dancing-dog.gif",
     "pool": [

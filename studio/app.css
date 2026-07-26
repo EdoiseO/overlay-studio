@@ -33,6 +33,17 @@ body[data-theme="light"] {
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html,
 body {
   width: 100%;
@@ -430,6 +441,43 @@ body.server-running .card-copy small {
   margin: 0 0 15px;
   font-size: 15px;
   line-height: 20px;
+}
+
+.profile-panel {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.profile-heading,
+.profile-controls {
+  display: flex;
+  align-items: center;
+}
+
+.profile-heading {
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.profile-heading h2 {
+  margin-bottom: 0;
+}
+
+.profile-heading span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.profile-controls {
+  min-width: 0;
+  gap: 8px;
+}
+
+.profile-controls select {
+  width: 240px;
 }
 
 .server-details {
