@@ -953,7 +953,33 @@ body.drawer-open .settings-drawer {
 }
 
 .close-button {
-  font-size: 20px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  border: 1px solid transparent;
+  color: var(--muted);
+}
+
+.close-button:hover {
+  border-color: var(--border);
+  background: var(--panel-alt);
+  color: var(--ink);
+}
+
+.close-button:active {
+  background: var(--border);
+}
+
+.close-icon {
+  display: block;
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .settings-drawer nav {
@@ -1115,7 +1141,7 @@ dialog .primary-button {
   border-bottom: 1px solid var(--border);
 }
 
-.catalog-heading span {
+.catalog-heading > div > span {
   display: block;
   margin-bottom: 3px;
   color: var(--accent);
@@ -1207,7 +1233,7 @@ dialog .primary-button {
   min-width: 0;
 }
 
-.preview-dialog-heading span {
+.preview-dialog-heading > div > span {
   display: block;
   margin-bottom: 3px;
   color: var(--accent);
