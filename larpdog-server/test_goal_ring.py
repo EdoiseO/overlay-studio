@@ -1,4 +1,5 @@
 import math
+import re
 import unittest
 from pathlib import Path
 
@@ -31,6 +32,16 @@ class GoalRingTests(unittest.TestCase):
                 dash_offset = arc * (1 - ratio)
                 visible_arc = arc - dash_offset
                 self.assertAlmostEqual(visible_arc / arc, ratio)
+
+    def test_goal_label_preserves_space_for_font_descenders(self) -> None:
+        source = (ROOT_DIR / "overlays" / "goal.html").read_text(
+            encoding="utf-8"
+        )
+        label_rule = re.search(r"\.label\s*\{(?P<body>[^}]*)\}", source)
+
+        self.assertIsNotNone(label_rule)
+        self.assertIn("padding-bottom: .16em", label_rule.group("body"))
+        self.assertIn("line-height: 1.15", label_rule.group("body"))
 
 
 if __name__ == "__main__":
