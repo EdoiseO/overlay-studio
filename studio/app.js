@@ -73,7 +73,15 @@ const SOCIAL_PLATFORMS = [
   { id: "instagram", name: "Instagram", mark: "IG", color: "#E1306C" },
   { id: "x", name: "X", mark: "X", color: "#101014" },
   { id: "twitter", name: "Twitter", mark: "TW", color: "#1D9BF0" },
-  { id: "tiktok", name: "TikTok", mark: "TT", color: "#101014" },
+  {
+    id: "tiktok",
+    name: "TikTok",
+    mark: "TT",
+    color: "#25F4EE",
+    surface: "#F6F7FB",
+    ink: "#101014",
+    shadow: "-1px -1px #25F4EE, 1px 1px #FE2C55",
+  },
   { id: "discord", name: "Discord", mark: "D", color: "#5865F2" },
   { id: "kick", name: "Kick", mark: "K", color: "#53FC18", ink: "#101014" },
   { id: "facebook", name: "Facebook", mark: "F", color: "#1877F2" },
@@ -1504,8 +1512,14 @@ function renderSocialAccounts(accounts, overlayType) {
     const mark = document.createElement("span");
     mark.className = "social-platform-mark";
     mark.textContent = platform.mark;
-    mark.style.setProperty("--platform-color", platform.color);
+    mark.style.setProperty(
+      "--platform-color",
+      platform.surface || platform.color,
+    );
     if (platform.ink) mark.style.setProperty("--platform-ink", platform.ink);
+    if (platform.shadow) {
+      mark.style.setProperty("--platform-shadow", platform.shadow);
+    }
 
     const name = document.createElement("span");
     name.className = "social-platform-name";
@@ -1656,6 +1670,8 @@ function renderSocial(social, overlayType = activeInstance()?.type) {
   });
   renderSocialAccounts(config.accounts, overlayType);
   byId("socialIconShape").value = config.iconShape || "rounded";
+  byId("socialIconBackground").checked = config.iconBackground !== false;
+  byId("socialIconShape").disabled = !byId("socialIconBackground").checked;
   byId("socialSize").value = config.size || "medium";
   byId("socialScale").value = Number(config.scale) || 1;
   byId("socialScaleOutput").value = Number(config.scale || 1).toFixed(2);
@@ -1703,6 +1719,7 @@ function gatherSocialSettings() {
     heading: byId("socialHeading").value,
     align: byId("socialAlign").value,
     iconShape: byId("socialIconShape").value,
+    iconBackground: byId("socialIconBackground").checked,
     size: byId("socialSize").value,
     brand: byId("socialBrand").checked,
     color: byId("socialColor").value.slice(1),
@@ -2493,6 +2510,9 @@ function bindEvents() {
   });
   byId("socialOutline").addEventListener("input", () => {
     byId("socialOutlineOutput").value = byId("socialOutline").value;
+  });
+  byId("socialIconBackground").addEventListener("change", () => {
+    byId("socialIconShape").disabled = !byId("socialIconBackground").checked;
   });
   byId("socialCycle").addEventListener("input", () => {
     byId("socialCycleOutput").value =

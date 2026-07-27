@@ -175,6 +175,7 @@ class SocialOverlayConfigTests(unittest.TestCase):
                     "accounts": accounts,
                     "layout": "fused",
                     "iconShape": "hex",
+                    "iconBackground": False,
                     "outline": 99,
                     "scale": 0.1,
                 }
@@ -191,6 +192,7 @@ class SocialOverlayConfigTests(unittest.TestCase):
         self.assertFalse(social["accounts"][0]["handle"].startswith("@"))
         self.assertEqual(social["layout"], "fused")
         self.assertEqual(social["iconShape"], "hex")
+        self.assertFalse(social["iconBackground"])
         self.assertEqual(social["outline"], 8)
         self.assertEqual(social["scale"], 0.5)
 

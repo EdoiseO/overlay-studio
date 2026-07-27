@@ -1223,6 +1223,7 @@ output {
   color: var(--platform-ink, #ffffff);
   font-size: 12px;
   font-weight: 900;
+  text-shadow: var(--platform-shadow, none);
 }
 
 .social-platform-name {

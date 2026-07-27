@@ -54,6 +54,7 @@ DEFAULT_SOCIAL_CONFIG: dict[str, Any] = {
     "heading": "Stay connected",
     "align": "center",
     "iconShape": "rounded",
+    "iconBackground": True,
     "size": "medium",
     "brand": True,
     "color": "f6f7fb",
@@ -295,6 +296,9 @@ def _normalize_social(raw: Any, overlay_type: str = "social") -> dict[str, Any]:
             source.get("iconShape"),
             SOCIAL_ICON_SHAPES,
             defaults["iconShape"],
+        ),
+        "iconBackground": bool(
+            source.get("iconBackground", defaults["iconBackground"])
         ),
         "size": _choice(
             source.get("size"),

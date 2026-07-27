@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -78,6 +79,9 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertNotIn("event.origin !== location.origin", shared)
         self.assertIn("social.createGlyph", bar)
         self.assertIn("social.createGlyph", rotator)
+        self.assertIn("symbols-only", bar)
+        self.assertIn("symbols-only", rotator)
+        self.assertIn("iconBackground", shared)
         self.assertIn("content.hidden = accounts.length === 0", bar)
         self.assertIn("content.hidden = accounts.length === 0", rotator)
         self.assertIn('studioView": "socialView"', bar)
@@ -91,6 +95,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('id="socialHandleInput"', markup)
         self.assertIn('id="socialAddButton"', markup)
         self.assertIn('id="socialEmptyState"', markup)
+        self.assertIn('id="socialIconBackground"', markup)
         self.assertNotIn('data-social-enabled', markup)
         self.assertIn("function addSocialAccount()", script)
         self.assertIn("function socialHandleFromInput(value)", script)
@@ -111,6 +116,55 @@ class CustomizerPreviewContractTests(unittest.TestCase):
 
         self.assertNotIn("scheduleCustomizerDraft()", preview_function)
         self.assertIn("if (nextKey === settingsKey) return", rotator)
+
+    def test_tiktok_brand_colors_are_readable_on_dark_shell(self) -> None:
+        shared = (
+            ROOT_DIR / "assets" / "social-platforms.js"
+        ).read_text(encoding="utf-8")
+        studio = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        match = re.search(
+            r'tiktok:\s+\{[^}]*color:\s+"(#[0-9a-f]+)"'
+            r'[^}]*surface:\s+"(#[0-9a-f]+)"'
+            r'[^}]*ink:\s+"(#[0-9a-f]+)"',
+            shared,
+        )
+
+        self.assertIsNotNone(match)
+        color, surface, ink = match.groups()
+        self.assertGreaterEqual(self._contrast_ratio(color, "#141418"), 4.5)
+        self.assertGreaterEqual(self._contrast_ratio(surface, ink), 4.5)
+        self.assertIn('{ color: "#25f4ee", dx: -1.15, dy: -.7 }', shared)
+        self.assertIn('{ color: "#fe2c55", dx: 1.15, dy: .7 }', shared)
+        self.assertIn('surface: "#F6F7FB"', studio)
+        self.assertIn(
+            'shadow: "-1px -1px #25F4EE, 1px 1px #FE2C55"',
+            studio,
+        )
+
+    @staticmethod
+    def _contrast_ratio(first: str, second: str) -> float:
+        def luminance(color: str) -> float:
+            channels = [
+                int(color[index : index + 2], 16) / 255
+                for index in (1, 3, 5)
+            ]
+            linear = [
+                value / 12.92
+                if value <= 0.04045
+                else ((value + 0.055) / 1.055) ** 2.4
+                for value in channels
+            ]
+            return (
+                linear[0] * 0.2126
+                + linear[1] * 0.7152
+                + linear[2] * 0.0722
+            )
+
+        brighter, darker = sorted(
+            (luminance(first), luminance(second)),
+            reverse=True,
+        )
+        return (brighter + 0.05) / (darker + 0.05)
 
 
 if __name__ == "__main__":

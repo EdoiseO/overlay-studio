@@ -10,7 +10,7 @@
   "description": "A configurable row of selected social platforms with individual or shared handles and five icon shapes.",
   "category": "branding",
   "canvas": { "w": 1200, "h": 160 },
-  "settings": ["accounts", "layout", "mode", "sharedName", "heading", "size", "brand", "color", "shellColor", "textColor", "font", "weight", "outline", "align", "iconShape", "scale"],
+  "settings": ["accounts", "layout", "mode", "sharedName", "heading", "size", "brand", "color", "shellColor", "textColor", "font", "weight", "outline", "align", "iconShape", "iconBackground", "scale"],
   "studioView": "socialView"
 }
 </script>
@@ -132,6 +132,17 @@
       0 0 0 var(--outline) var(--shell),
       0 3px 10px rgba(0, 0, 0, .35);
   }
+  .bar.symbols-only .icon,
+  .bar.symbols-only.outlined .icon {
+    overflow: visible;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    clip-path: none;
+    transform: none;
+  }
+  .bar.symbols-only .icon .glyph { transform: none; }
+  .bar.symbols-only .glyph svg { width: 78%; height: 78%; }
   .bar.flat { --gap: 42px; }
   .bar.flat .name { max-width: 250px; }
   .bar.compact { --gap: 15px; --icon: 34px; --name-size: 22px; }
@@ -198,14 +209,18 @@
 
   function buildIcon(account, settings) {
     const meta = social.PLATFORMS[account.platform];
-    const background =
-      settings.brand && meta ? meta.color : `#${settings.color}`;
+    const background = settings.brand && meta
+      ? meta.surface || meta.color
+      : `#${settings.color}`;
+    const glyphColor = settings.iconBackground
+      ? (settings.brand && meta?.ink ? meta.ink : social.contrast(background))
+      : (settings.brand && meta ? meta.bare || meta.color : `#${settings.color}`);
     const icon = document.createElement("span");
     icon.className = `icon shape-${settings.iconShape}`;
     icon.style.setProperty("--brand-color", background);
     icon.style.setProperty(
       "--glyph-color",
-      settings.brand && meta?.ink ? meta.ink : social.contrast(background),
+      glyphColor,
     );
     const glyph = document.createElement("span");
     glyph.className = "glyph";
@@ -215,7 +230,11 @@
       image.src = account.icon;
       glyph.append(image);
     } else {
-      glyph.append(social.createGlyph(account.platform));
+      glyph.append(social.createGlyph(
+        account.platform,
+        settings.brand,
+        !settings.iconBackground,
+      ));
     }
     icon.append(glyph);
     return icon;
@@ -226,6 +245,7 @@
     content.hidden = accounts.length === 0;
     bar.replaceChildren();
     bar.className = "bar";
+    bar.classList.toggle("symbols-only", !settings.iconBackground);
     bar.classList.toggle("many", accounts.length > 5);
     stack.dataset.align = settings.align;
     heading.hidden = settings.layout !== "stacked";

@@ -129,11 +129,13 @@ platforms. If none are selected, the source stays transparent instead of showing
 placeholder content.
 
 Both overlays support platform brand colors, a fixed accent palette, five icon shapes,
-three sizes, five fonts, and bounded scaling. Social Bar also offers sticker, flat,
-compact, heading, and fused-capsule layouts with individual or shared handles. Social
-Rotator offers capsule, rounded, square, and cut-corner shells plus slide, fade, and
-flip transitions, a 1.5-to-30-second interval, and optional platform and timer labels.
-The same Social Studio page provides a live draft preview before settings are saved.
+optional shape backgrounds, three sizes, five fonts, and bounded scaling. Turning
+shape backgrounds off displays each platform logo as a standalone symbol. Social Bar
+also offers sticker, flat, compact, heading, and fused-capsule layouts with individual
+or shared handles. Social Rotator offers capsule, rounded, square, and cut-corner
+shells plus slide, fade, and flip transitions, a 1.5-to-30-second interval, and
+optional platform and timer labels. The same Social Studio page provides a live draft
+preview before settings are saved.
 
 ## Custom media
 

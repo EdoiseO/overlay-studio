@@ -10,9 +10,9 @@
     twitch:    { name: "Twitch", color: "#9146ff", path: "M3 3h18v10.5l-5 5h-3.5L9 21v-2.5H3zM9 7h2v5H9zm5 0h2v5h-2z" },
     youtube:   { name: "YouTube", color: "#ff0000", scale: .94, path: "M23 12s0-3.7-.5-5.4a2.8 2.8 0 0 0-2-2C18.8 4 12 4 12 4s-6.8 0-8.5.6a2.8 2.8 0 0 0-2 2C1 8.3 1 12 1 12s0 3.7.5 5.4a2.8 2.8 0 0 0 2 2C5.2 20 12 20 12 20s6.8 0 8.5-.6a2.8 2.8 0 0 0 2-2C23 15.7 23 12 23 12zM10 15.5v-7l6 3.5z" },
     instagram: { name: "Instagram", color: "#e1306c", scale: .93, path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm5.8-3.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z" },
-    x:         { name: "X", color: "#101014", scale: .88, path: "M3 3h4.5l4.2 5.7L16.8 3H21l-6.8 8.2L21.4 21h-4.5l-4.6-6.2L7 21H2.8l7.2-8.6z" },
+    x:         { name: "X", color: "#101014", bare: "#ffffff", scale: .88, path: "M3 3h4.5l4.2 5.7L16.8 3H21l-6.8 8.2L21.4 21h-4.5l-4.6-6.2L7 21H2.8l7.2-8.6z" },
     twitter:   { name: "Twitter", color: "#1d9bf0", dx: .2, dy: .35, scale: .94, path: "M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.8-2.2c-.8.5-1.7.8-2.6 1a4 4 0 0 0-6.9 3.7A11.4 11.4 0 0 1 3.8 4.6a4 4 0 0 0 1.2 5.4c-.6 0-1.2-.2-1.8-.5a4 4 0 0 0 3.2 4 4 4 0 0 1-1.8.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1z" },
-    tiktok:    { name: "TikTok", color: "#101014", dx: -1.25, dy: .5, scale: .9, path: "M14.5 2h3.1a5.9 5.9 0 0 0 4.4 4.6v3.2a9 9 0 0 1-4.3-1.3v6a6.6 6.6 0 1 1-5.7-6.5v3.3a3.4 3.4 0 1 0 2.5 3.2z" },
+    tiktok:    { name: "TikTok", color: "#25f4ee", surface: "#f6f7fb", ink: "#101014", layers: [{ color: "#25f4ee", dx: -1.15, dy: -.7 }, { color: "#fe2c55", dx: 1.15, dy: .7 }, { color: "#101014", bareColor: "#ffffff" }], dx: -1.25, dy: .5, scale: .82, path: "M14.5 2h3.1a5.9 5.9 0 0 0 4.4 4.6v3.2a9 9 0 0 1-4.3-1.3v6a6.6 6.6 0 1 1-5.7-6.5v3.3a3.4 3.4 0 1 0 2.5 3.2z" },
     discord:   { name: "Discord", color: "#5865f2", dy: .85, scale: .92, path: "M19.3 5.4A16 16 0 0 0 15.5 4l-.3.5a12 12 0 0 1 3 1.5 14 14 0 0 0-12.4 0 12 12 0 0 1 3-1.5L8.5 4a16 16 0 0 0-3.8 1.4C2.3 9 1.7 12.5 2 16a16 16 0 0 0 4.8 2.4l.9-1.4a10 10 0 0 1-1.6-.8l.4-.3a11.4 11.4 0 0 0 9 0l.4.3a10 10 0 0 1-1.6.8l.9 1.4A16 16 0 0 0 22 16c.4-4-.6-7.5-2.7-10.6zM9 14.4a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm6 0a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
     kick:      { name: "Kick", color: "#53fc18", ink: "#101014", scale: .88, path: "M3 3h6v6h3V6h3V3h6v9h-3v3h3v6h-6v-3h-3v-3H9v6H3z" },
     facebook:  { name: "Facebook", color: "#1877f2", dy: .1, scale: .94, path: "M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z" },
@@ -20,7 +20,7 @@
     telegram:  { name: "Telegram", color: "#2aabee", dx: .65, scale: .92, path: "M21.9 4.3 18.7 20c-.2 1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1L18.2 6c.4-.4-.1-.6-.6-.2L6.1 13.1l-4.9-1.5c-1-.3-1-1 .2-1.5l19.1-7.4c.9-.3 1.6.2 1.4 1.6z" },
     whatsapp:  { name: "WhatsApp", color: "#25d366", scale: .92, path: "M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 2a8 8 0 1 1-4.2 14.8l-.3-.2-2.5.7.7-2.4-.2-.3A8 8 0 0 1 12 4zm-3 4c-.3 0-.7.1-1 .5-.4.4-1 1-1 2.3s1 2.6 1.2 2.8c.1.2 2 3.1 4.9 4.2 2.4.9 2.9.7 3.4.7.5-.1 1.6-.7 1.9-1.3.2-.7.2-1.2.1-1.3l-.6-.3-1.9-.9c-.3-.1-.5-.2-.7.1l-.9 1.1c-.2.2-.3.3-.6.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5v-.5l-.9-2.1c-.2-.5-.4-.5-.6-.5z" },
     linkedin:  { name: "LinkedIn", color: "#0a66c2", dx: -.35, dy: -.15, scale: .9, path: "M4.9 3.5a2.4 2.4 0 1 1 0 4.9 2.4 2.4 0 0 1 0-4.9zM3 9.5h4v11H3zm7 0h3.8v1.5h.1a4.2 4.2 0 0 1 3.8-2c4 0 4.8 2.6 4.8 6v5.5h-4v-4.9c0-1.2 0-2.7-1.7-2.7s-2 1.3-2 2.6v5H10z" },
-    threads:   { name: "Threads", color: "#101014", dx: -.6, scale: .9, path: "M12.2 2C6.9 2 3.5 5.6 3.5 12s3.4 10 8.7 10c4.5 0 7.4-2.5 8.1-6.1l-2.4-.5c-.5 2.4-2.4 4.1-5.7 4.1-3.7 0-6-2.6-6-7.5s2.3-7.5 6-7.5c3 0 4.9 1.4 5.5 3.6-1-.4-2.1-.6-3.4-.6-3.2 0-5.3 1.6-5.3 4.1 0 2.4 1.9 4 4.6 4 2.9 0 4.7-1.8 5-4.8h.1c.7 1 1 2.3 1 3.6l2.3-.1c0-5.9-3.4-9.3-8.8-9.3zm.3 8.9c1.2 0 2.2.2 3 .5-.2 2-1.4 3.1-3.2 3.1-1.4 0-2.3-.7-2.3-1.8s1-1.8 2.5-1.8z" },
+    threads:   { name: "Threads", color: "#101014", bare: "#ffffff", dx: -.6, scale: .9, path: "M12.2 2C6.9 2 3.5 5.6 3.5 12s3.4 10 8.7 10c4.5 0 7.4-2.5 8.1-6.1l-2.4-.5c-.5 2.4-2.4 4.1-5.7 4.1-3.7 0-6-2.6-6-7.5s2.3-7.5 6-7.5c3 0 4.9 1.4 5.5 3.6-1-.4-2.1-.6-3.4-.6-3.2 0-5.3 1.6-5.3 4.1 0 2.4 1.9 4 4.6 4 2.9 0 4.7-1.8 5-4.8h.1c.7 1 1 2.3 1 3.6l2.3-.1c0-5.9-3.4-9.3-8.8-9.3zm.3 8.9c1.2 0 2.2.2 3 .5-.2 2-1.4 3.1-3.2 3.1-1.4 0-2.3-.7-2.3-1.8s1-1.8 2.5-1.8z" },
     bluesky:   { name: "Bluesky", color: "#0085ff", dx: 2, dy: 2.2, scale: .95, path: "M12 10.8C10.9 8.7 7.9 4.7 5.1 3 2.4 1.4 1.4 2.3 1.4 4.2c0 1.9 1 6.4 1.7 7.6.7 1.2 2.1 1.6 3.4 1.4-2 .3-3.8 1-1.5 3.6 2.5 2.9 3.5-.6 4-2.4l1-2.6 1 2.6c.5 1.8 1.5 5.3 4 2.4 2.3-2.6.5-3.3-1.5-3.6 1.3.2 2.7-.2 3.4-1.4.7-1.2 1.7-5.7 1.7-7.6 0-1.9-1-2.8-3.7-1.2-2.8 1.7-5.8 5.7-6.9 7.8z" },
     reddit:    { name: "Reddit", color: "#ff4500", dx: .7, dy: .4, scale: .89, path: "M22 11.2a2.4 2.4 0 0 0-4.1-1.7 11.7 11.7 0 0 0-5.8-1.8l1-4.6 3.2.7a1.9 1.9 0 1 0 .2-1.6l-3.9-.8a.6.6 0 0 0-.7.5l-1.2 5.6a11.7 11.7 0 0 0-5.9 1.8A2.4 2.4 0 1 0 2 14.4a4 4 0 0 0 0 .8c0 3.6 4.2 6.5 9.4 6.5s9.4-2.9 9.4-6.5a4 4 0 0 0 0-.8 2.4 2.4 0 0 0 1.2-3.2zM9.1 14.9a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm7.3 2.6c-1.2 1.2-3.5 1.3-4.2 1.3s-3-.1-4.2-1.3a.5.5 0 0 1 .7-.7c.8.8 2.4 1 3.5 1s2.8-.2 3.5-1a.5.5 0 0 1 .7.7zm-1.5-2.6a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
   };
@@ -44,7 +44,7 @@
     })),
     layout: "sticker", mode: "individual", sharedName: "",
     heading: "Stay connected", align: "center", iconShape: "rounded",
-    size: "medium", brand: true, color: "f6f7fb",
+    iconBackground: true, size: "medium", brand: true, color: "f6f7fb",
     shellColor: "141418", textColor: "ffffff", font: "display",
     weight: 800, outline: 3, scale: 1, cycle: 4,
     rotatorShape: "capsule", transition: "slide", prefix: "@",
@@ -124,6 +124,10 @@
       heading: short(source.heading, 32, DEFAULTS.heading),
       align: choice(source.align, "align"),
       iconShape: choice(source.iconShape, "iconShape"),
+      iconBackground: bool(
+        source.iconBackground,
+        DEFAULTS.iconBackground,
+      ),
       size: choice(source.size, "size"),
       brand: bool(source.brand, DEFAULTS.brand),
       color: hex(source.color, DEFAULTS.color),
@@ -180,7 +184,7 @@
     if (query.has("style") && !query.has("rotatorShape")) {
       result.rotatorShape = query.get("style") === "plain" ? "square" : query.get("style");
     }
-    ["brand", "timer", "showPlatform"].forEach(key => {
+    ["brand", "iconBackground", "timer", "showPlatform"].forEach(key => {
       if (!query.has(key)) return;
       result[key] = !["off", "false", "0"].includes(String(query.get(key)).toLowerCase());
     });
@@ -203,7 +207,7 @@
     const overrides = queryOverrides(query, overlayType);
     const hasQueryOverride = [
       "accounts", ...ORDER, "layout", "mode", "sharedName", "heading",
-      "align", "iconShape", "size", "brand", "color", "shellColor",
+      "align", "iconShape", "iconBackground", "size", "brand", "color", "shellColor",
       "textColor", "font", "weight", "outline", "scale", "cycle",
       "rotatorShape", "transition", "prefix", "timer", "showPlatform", "style",
     ].some(key => query.has(key));
@@ -213,7 +217,7 @@
     );
   }
 
-  function createGlyph(platform) {
+  function createGlyph(platform, branded = true, bare = false) {
     const meta = PLATFORMS[platform];
     if (!meta) return document.createTextNode("");
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -228,11 +232,25 @@
       "transform",
       `translate(${12 + dx} ${12 + dy}) scale(${scale}) translate(-12 -12)`,
     );
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("fill-rule", "evenodd");
-    path.setAttribute("clip-rule", "evenodd");
-    path.setAttribute("d", meta.path);
-    group.append(path);
+    const layers = branded && Array.isArray(meta.layers)
+      ? meta.layers
+      : [{}];
+    layers.forEach(layer => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("fill-rule", "evenodd");
+      path.setAttribute("clip-rule", "evenodd");
+      path.setAttribute("d", meta.path);
+      const layerColor = bare && layer.bareColor
+        ? layer.bareColor
+        : layer.color;
+      if (layerColor) path.setAttribute("fill", layerColor);
+      const layerDx = Number(layer.dx) || 0;
+      const layerDy = Number(layer.dy) || 0;
+      if (layerDx || layerDy) {
+        path.setAttribute("transform", `translate(${layerDx} ${layerDy})`);
+      }
+      group.append(path);
+    });
     svg.append(group);
     return svg;
   }
