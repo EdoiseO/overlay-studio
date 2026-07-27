@@ -1102,7 +1102,9 @@ function syncGoalBarFormat() {
 }
 
 function syncGoalBarLayout() {
-  byId("goalBarWidth").disabled = byId("goalBarLayout").value === "vertical";
+  const vertical = byId("goalBarLayout").value === "vertical";
+  byId("goalBarWidth").disabled = vertical;
+  byId("goalBarIcon").disabled = !vertical;
 }
 
 function renderGoalBar(goal, force = false) {

@@ -98,8 +98,9 @@ restored when Overlay Studio restarts.
 Add **Goal Bar** for a compact follower, tip, subscription, bits, or custom progress
 display. Its Studio page controls horizontal or vertical orientation, three bar sizes,
 shell visibility, icon, corners, width, palette, type, glow, scale, and bounded
-perspective tilt. Each Goal Bar keeps progress and appearance independently from Goal
-Widgets and other Goal Bar instances.
+perspective tilt. Horizontal bars omit the icon badge for a cleaner label row; vertical
+bars can use the follower, tip, subscription, or bits icon. Each Goal Bar keeps progress
+and appearance independently from Goal Widgets and other Goal Bar instances.
 
 ## Custom media
 
