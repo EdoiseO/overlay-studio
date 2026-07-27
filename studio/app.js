@@ -112,6 +112,19 @@ function studioPreviewUrl(instance) {
   return url.toString();
 }
 
+function catalogPreviewUrl(manifest) {
+  if (!manifest || !app.state?.baseUrl) return "";
+  const url = new URL(manifest.route.replace(/^\//, ""), app.state.baseUrl);
+  url.searchParams.set("preview", "studio");
+  url.searchParams.set("catalog", "1");
+  if (manifest.type === "goal" || manifest.type === "goal-bar") {
+    url.searchParams.set("current", "64");
+    url.searchParams.set("target", "100");
+    url.searchParams.set("demo", "off");
+  }
+  return url.toString();
+}
+
 function materializeInstanceConfig(instance) {
   const root = app.state?.config || {};
   const materialized = {};
@@ -144,12 +157,41 @@ function fitCardPreview(frame, manifest) {
 function fitCardPreviewHost(host) {
   const frame = host?.querySelector("iframe");
   const instanceId = host?.closest(".overlay-card")?.dataset.instanceId;
-  fitCardPreview(frame, manifestFor(instanceById(instanceId)?.type));
+  const overlayType = host?.closest(".catalog-item")?.dataset.overlayType;
+  const manifest = overlayType
+    ? manifestFor(overlayType)
+    : manifestFor(instanceById(instanceId)?.type);
+  fitCardPreview(frame, manifest);
 }
 
 const cardPreviewObserver = new ResizeObserver((entries) => {
   entries.forEach((entry) => fitCardPreviewHost(entry.target));
 });
+
+const catalogPreviewObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    const frame = entry.target.querySelector("iframe");
+    if (!frame || frame.dataset.loaded === "true") return;
+    frame.dataset.loaded = "true";
+    updatePreview(frame, frame.dataset.previewUrl || "", app.state?.running);
+  });
+}, {
+  root: byId("catalogGrid"),
+  rootMargin: "120px 0px",
+});
+
+function clearCatalogPreviews() {
+  byId("catalogGrid").querySelectorAll(".catalog-preview").forEach((host) => {
+    catalogPreviewObserver.unobserve(host);
+    cardPreviewObserver.unobserve(host);
+    const frame = host.querySelector("iframe");
+    if (frame) {
+      frame.dataset.loaded = "false";
+      updatePreview(frame, "", false);
+    }
+  });
+}
 
 function createCardAction(label, action, instanceId, className = "") {
   const button = document.createElement("button");
@@ -260,6 +302,7 @@ function renderLibrary(state) {
 
 function renderCatalog() {
   const grid = byId("catalogGrid");
+  clearCatalogPreviews();
   grid.replaceChildren();
   const catalog = app.state?.catalog || [];
   if (!catalog.length) {
@@ -272,6 +315,22 @@ function renderCatalog() {
   catalog.forEach((manifest) => {
     const item = document.createElement("article");
     item.className = "catalog-item";
+    item.dataset.overlayType = manifest.type;
+    const preview = document.createElement("div");
+    preview.className = "live-preview catalog-preview";
+    const frame = document.createElement("iframe");
+    frame.title = `${manifest.name} preview`;
+    frame.tabIndex = -1;
+    frame.loading = "lazy";
+    frame.dataset.loaded = "false";
+    frame.dataset.previewUrl = catalogPreviewUrl(manifest);
+    frame.dataset.source = "";
+    frame.src = "about:blank";
+    frame.addEventListener("load", () => fitCardPreview(frame, manifest));
+    const offline = document.createElement("span");
+    offline.className = "preview-offline";
+    offline.textContent = "OFFLINE";
+    preview.append(frame, offline);
     const identity = document.createElement("div");
     const name = document.createElement("strong");
     name.textContent = manifest.name;
@@ -287,8 +346,11 @@ function renderCatalog() {
     add.dataset.addOverlayType = manifest.type;
     const description = document.createElement("p");
     description.textContent = manifest.description;
-    item.append(identity, add, description);
+    item.append(preview, identity, add, description);
     grid.append(item);
+    cardPreviewObserver.observe(preview);
+    catalogPreviewObserver.observe(preview);
+    requestAnimationFrame(() => fitCardPreview(frame, manifest));
   });
 }
 
@@ -1737,7 +1799,9 @@ function bindEvents() {
     const add = event.target.closest("[data-add-overlay-type]");
     if (add) addOverlayType(add.dataset.addOverlayType);
   });
-  byId("closeAddDialog").addEventListener("click", () => byId("addOverlayDialog").close());
+  const addOverlayDialog = byId("addOverlayDialog");
+  byId("closeAddDialog").addEventListener("click", () => addOverlayDialog.close());
+  addOverlayDialog.addEventListener("close", clearCatalogPreviews);
 
   const removeOverlayDialog = byId("removeOverlayDialog");
   byId("cancelRemoveOverlay").addEventListener("click", () => removeOverlayDialog.close());

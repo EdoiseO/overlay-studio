@@ -39,6 +39,7 @@ body[data-theme="light"] {
   height: 1px;
   padding: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
@@ -1227,20 +1228,31 @@ dialog .primary-button {
 }
 
 .catalog-dialog {
-  width: min(760px, calc(100vw - 80px));
+  width: min(860px, calc(100vw - 80px));
+  height: min(620px, calc(100vh - 80px));
   max-width: none;
   max-height: calc(100vh - 80px);
   padding: 0;
   overflow: hidden;
 }
 
+.catalog-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
 .catalog-heading {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border);
+  background: var(--panel);
 }
 
 .catalog-heading > div > span {
@@ -1256,11 +1268,13 @@ dialog .primary-button {
 }
 
 .catalog-grid {
-  max-height: calc(100vh - 160px);
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 18px 18px;
 }
 
@@ -1273,6 +1287,21 @@ dialog .primary-button {
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--panel-alt);
+}
+
+.catalog-preview {
+  position: relative;
+  inset: auto;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 142px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.catalog-preview iframe {
+  background: var(--panel);
 }
 
 .catalog-item strong,

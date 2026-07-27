@@ -53,7 +53,9 @@ running so active OBS sources do not disappear. To shut everything down, open
 **My overlays** is a four-column, instance-based library. It can contain multiple
 copies of the same local overlay type with independent names, URLs, settings, and
 addressed state. Select **Add overlay** to open **Browse overlays**, which is generated
-from manifests embedded in local `overlays/*.html` files.
+from manifests embedded in local `overlays/*.html` files. Every catalog entry includes
+a live scaled preview; previews load only near the visible scroll area and unload when
+Browse overlays closes.
 
 Clicking an instance preview opens a larger live preview with actions to:
 
