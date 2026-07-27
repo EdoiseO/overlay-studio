@@ -705,6 +705,15 @@ def hidden_process_options() -> dict[str, Any]:
     return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
 
 
+def server_process_options() -> dict[str, Any]:
+    options = hidden_process_options()
+    if getattr(sys, "frozen", False):
+        environment = os.environ.copy()
+        environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        options["env"] = environment
+    return options
+
+
 class DesktopApi:
     def __init__(self) -> None:
         self._window: webview.Window | None = None
@@ -819,7 +828,7 @@ class DesktopApi:
                     cwd=SERVER_DIR,
                     stdout=output,
                     stderr=errors,
-                    **hidden_process_options(),
+                    **server_process_options(),
                 )
             PID_PATH.write_text(str(process.pid), encoding="ascii")
         except OSError as exc:

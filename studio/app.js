@@ -555,7 +555,6 @@ function renderCustomizerPreview(state = app.state) {
   }
   updatePreview(frame, source, Boolean(state?.running));
   requestAnimationFrame(fitCustomizerPreview);
-  scheduleCustomizerDraft();
 }
 
 function fitCardPreviewHost(host) {

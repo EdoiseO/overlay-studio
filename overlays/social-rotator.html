@@ -235,6 +235,7 @@
   let index = 0;
   let cycleTimer = null;
   let paintTimer = null;
+  let settingsKey = "";
 
   function restart(element, className) {
     element.classList.remove(className);
@@ -286,6 +287,9 @@
   }
 
   function apply(next) {
+    const nextKey = JSON.stringify(next);
+    if (nextKey === settingsKey) return;
+    settingsKey = nextKey;
     settings = next;
     accounts = settings.accounts.filter(account => account.enabled);
     index = 0;

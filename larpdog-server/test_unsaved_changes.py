@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +53,25 @@ class UnsavedChangesContractTests(unittest.TestCase):
             return_value={"confirmUnsavedChanges": False},
         ):
             self.assertTrue(api._on_window_closing())
+
+    def test_frozen_server_starts_as_independent_pyinstaller_process(self) -> None:
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.dict(os.environ, {"PYINSTALLER_RESET_ENVIRONMENT": "0"}),
+        ):
+            options = overlay_studio.server_process_options()
+
+        self.assertEqual(
+            options["env"]["PYINSTALLER_RESET_ENVIRONMENT"],
+            "1",
+        )
+        self.assertIsNot(options["env"], os.environ)
+
+    def test_source_server_does_not_override_process_environment(self) -> None:
+        with patch.object(sys, "frozen", False, create=True):
+            options = overlay_studio.server_process_options()
+
+        self.assertNotIn("env", options)
 
 
 if __name__ == "__main__":

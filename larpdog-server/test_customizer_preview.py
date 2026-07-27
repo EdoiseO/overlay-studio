@@ -97,6 +97,21 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn("remove.dataset.socialRemove = platform.id", script)
         self.assertIn("if (!account.enabled) return", script)
 
+    def test_state_poll_does_not_restart_rotator_draft(self) -> None:
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        rotator = (
+            ROOT_DIR / "overlays" / "social-rotator.html"
+        ).read_text(encoding="utf-8")
+        preview_start = script.index("function renderCustomizerPreview(")
+        preview_end = script.index(
+            "function fitCardPreviewHost(",
+            preview_start,
+        )
+        preview_function = script[preview_start:preview_end]
+
+        self.assertNotIn("scheduleCustomizerDraft()", preview_function)
+        self.assertIn("if (nextKey === settingsKey) return", rotator)
+
 
 if __name__ == "__main__":
     unittest.main()
