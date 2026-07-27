@@ -226,9 +226,10 @@
   const R = 120;
   const CIRC = 2 * Math.PI * R;
   const ARC = CIRC * (300 / 360);
-  [document.getElementById("track"), fill].forEach(el => {
-    el.setAttribute("stroke-dasharray", `${ARC} ${CIRC - ARC}`);
-  });
+  const track = document.getElementById("track");
+  track.setAttribute("stroke-dasharray", `${ARC} ${CIRC - ARC}`);
+  // A full-circumference gap prevents the progress dash from repeating.
+  fill.setAttribute("stroke-dasharray", `${ARC} ${CIRC}`);
   fill.style.strokeDashoffset = ARC;
 
   /* ---- helpers ---- */

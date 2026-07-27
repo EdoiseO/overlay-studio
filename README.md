@@ -89,8 +89,9 @@ without changing their URL.
 Add **Goal Widget** from Browse overlays to track a tip, subscriber, follower, or
 custom numeric goal. Its Studio page controls the label, current and target values,
 currency or plain-number formatting, colors, font, particles, percentage, scale, and
-glow. Progress is stored independently for every Goal Widget instance and is restored
-when Overlay Studio restarts.
+glow. The circular fill tracks `current / target` proportionally and caps visually at
+100 percent. Progress is stored independently for every Goal Widget instance and is
+restored when Overlay Studio restarts.
 
 ## Goal Bar
 
