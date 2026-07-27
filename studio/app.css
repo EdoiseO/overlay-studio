@@ -1166,6 +1166,82 @@ output {
   accent-color: var(--accent);
 }
 
+.social-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.social-panel-heading h2 {
+  margin-bottom: 3px;
+}
+
+.social-panel-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.social-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.social-platform-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px 30px minmax(76px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-alt);
+}
+
+.social-platform-row:focus-within {
+  border-color: var(--accent);
+}
+
+.social-platform-row > input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+
+.social-platform-mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--platform-color, var(--accent));
+  color: var(--platform-ink, #ffffff);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.social-platform-name {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-platform-row > input[type="text"] {
+  min-width: 0;
+  width: 100%;
+}
+
+[data-social-bar-only][hidden],
+[data-social-rotator-only][hidden] {
+  display: none;
+}
+
 .scoreboard {
   display: flex;
   align-items: stretch;
@@ -1776,5 +1852,9 @@ dialog .primary-button {
   .preview-dialog-footer {
     padding-right: 14px;
     padding-left: 14px;
+  }
+
+  .social-platform-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

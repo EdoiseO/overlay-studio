@@ -99,3 +99,17 @@ Use the shared surface classes:
 Keep overlay content in normal document flow. Do not anchor it to a stream corner or
 build a full scene inside the page. Give the OBS Browser Source a canvas comfortably
 larger than the object, then position that source in OBS.
+
+## Built-in social overlays
+
+`social.html` and `social-rotator.html` share their platform definitions, centered SVG
+glyphs, defaults, query compatibility, and live-update handling through
+`assets/social-platforms.js`. Their `accounts` setting is an ordered list of platform,
+enabled, and handle values. Social Bar accepts up to eight enabled platforms; Social
+Rotator accepts all supported platforms. Both deliberately render an empty transparent
+source when no account is enabled.
+
+Use the shared `socialView` customizer for selection, colors, fonts, icon shapes, scale,
+and live drafts. Bar-specific controls choose the row layout, shared-handle mode,
+alignment, heading, and outline. Rotator-specific controls choose the shell shape,
+transition, interval, prefix, timer, and platform label.

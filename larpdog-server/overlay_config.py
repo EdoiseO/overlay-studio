@@ -20,6 +20,57 @@ DEFAULT_DANCE_PROFILE: dict[str, Any] = {
     "fallbackBpm": 120,
 }
 
+SOCIAL_PLATFORMS = (
+    "twitch",
+    "youtube",
+    "instagram",
+    "x",
+    "twitter",
+    "tiktok",
+    "discord",
+    "kick",
+    "facebook",
+    "snapchat",
+    "telegram",
+    "whatsapp",
+    "linkedin",
+    "threads",
+    "bluesky",
+    "reddit",
+)
+DEFAULT_SOCIAL_ACCOUNTS = [
+    {
+        "platform": platform,
+        "enabled": platform in {"twitch", "youtube", "instagram", "tiktok"},
+        "handle": "yourname",
+    }
+    for platform in SOCIAL_PLATFORMS
+]
+DEFAULT_SOCIAL_CONFIG: dict[str, Any] = {
+    "accounts": copy.deepcopy(DEFAULT_SOCIAL_ACCOUNTS),
+    "layout": "sticker",
+    "mode": "individual",
+    "sharedName": "",
+    "heading": "Stay connected",
+    "align": "center",
+    "iconShape": "rounded",
+    "size": "medium",
+    "brand": True,
+    "color": "f6f7fb",
+    "shellColor": "141418",
+    "textColor": "ffffff",
+    "font": "display",
+    "weight": 800,
+    "outline": 3,
+    "scale": 1.0,
+    "cycle": 4.0,
+    "rotatorShape": "capsule",
+    "transition": "slide",
+    "prefix": "@",
+    "timer": True,
+    "showPlatform": True,
+}
+
 
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "dance": {
@@ -56,6 +107,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "nowPlaying": {
         "fallbackBpm": 120,
     },
+    "social": copy.deepcopy(DEFAULT_SOCIAL_CONFIG),
 }
 
 INSTANCE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]*"
@@ -64,9 +116,18 @@ DANCE_PROFILE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
 POSITION_CHOICES = {"bottom-left", "bottom-right", "top-left", "top-right"}
 DANCE_MODE_CHOICES = {"single", "random"}
 COLOR_MODE_CHOICES = {"auto", "fixed", "art"}
+SOCIAL_LAYOUT_CHOICES = {"sticker", "flat", "compact", "stacked", "fused"}
+SOCIAL_MODE_CHOICES = {"individual", "shared"}
+SOCIAL_ALIGN_CHOICES = {"left", "center", "right"}
+SOCIAL_ICON_SHAPES = {"rounded", "circle", "square", "diamond", "hex"}
+SOCIAL_SIZE_CHOICES = {"small", "medium", "large"}
+SOCIAL_FONT_CHOICES = {"sans", "display", "round", "mono", "serif"}
+SOCIAL_ROTATOR_SHAPES = {"capsule", "rounded", "square", "cut"}
+SOCIAL_TRANSITIONS = {"slide", "fade", "flip"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 MAX_INSTANCES = 64
 MAX_DANCE_PROFILES = 5
+MAX_SOCIAL_BAR_ACCOUNTS = 8
 
 LEGACY_INSTANCE_SPECS = (
     ("dancing-gif", "larpdog-dance", "Dancing GIF"),
@@ -132,6 +193,159 @@ def _asset_list(value: Any, default: list[str]) -> list[str]:
 def _color(value: Any, default: str) -> str:
     candidate = str(value or "").strip().removeprefix("#")
     return candidate.lower() if HEX_COLOR.fullmatch(candidate) else default
+
+
+def _short_text(value: Any, default: str, maximum: int) -> str:
+    candidate = " ".join(str(value or "").split())
+    return candidate[:maximum] if candidate else default
+
+
+def _normalize_social_accounts(
+    raw: Any,
+    *,
+    overlay_type: str,
+) -> list[dict[str, Any]]:
+    supplied = raw if isinstance(raw, list) else []
+    has_supplied_accounts = isinstance(raw, list)
+    by_platform: dict[str, dict[str, Any]] = {}
+    for item in supplied[: len(SOCIAL_PLATFORMS)]:
+        if not isinstance(item, dict):
+            continue
+        platform = str(item.get("platform") or "").strip().lower()
+        if platform not in SOCIAL_PLATFORMS or platform in by_platform:
+            continue
+        handle = _short_text(
+            str(item.get("handle") or "").lstrip("@"),
+            "",
+            64,
+        )
+        by_platform[platform] = {
+            "platform": platform,
+            "enabled": bool(item.get("enabled")),
+            "handle": handle,
+        }
+
+    accounts: list[dict[str, Any]] = []
+    enabled_count = 0
+    for default in DEFAULT_SOCIAL_ACCOUNTS:
+        fallback = (
+            {
+                "platform": default["platform"],
+                "enabled": False,
+                "handle": default["handle"],
+            }
+            if has_supplied_accounts
+            else copy.deepcopy(default)
+        )
+        account = by_platform.get(default["platform"], fallback)
+        enabled = bool(account["enabled"])
+        if (
+            overlay_type == "social"
+            and enabled
+            and enabled_count >= MAX_SOCIAL_BAR_ACCOUNTS
+        ):
+            enabled = False
+        if enabled:
+            enabled_count += 1
+        accounts.append(
+            {
+                "platform": default["platform"],
+                "enabled": enabled,
+                "handle": account["handle"],
+            }
+        )
+    return accounts
+
+
+def _normalize_social(raw: Any, overlay_type: str = "social") -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    defaults = DEFAULT_SOCIAL_CONFIG
+    prefix = (
+        defaults["prefix"]
+        if "prefix" not in source
+        else " ".join(str(source.get("prefix") or "").split())[:4]
+    )
+    return {
+        "accounts": _normalize_social_accounts(
+            source.get("accounts"),
+            overlay_type=overlay_type,
+        ),
+        "layout": _choice(
+            source.get("layout"),
+            SOCIAL_LAYOUT_CHOICES,
+            defaults["layout"],
+        ),
+        "mode": _choice(
+            source.get("mode"),
+            SOCIAL_MODE_CHOICES,
+            defaults["mode"],
+        ),
+        "sharedName": _short_text(source.get("sharedName"), "", 64),
+        "heading": _short_text(
+            source.get("heading"),
+            defaults["heading"],
+            32,
+        ),
+        "align": _choice(
+            source.get("align"),
+            SOCIAL_ALIGN_CHOICES,
+            defaults["align"],
+        ),
+        "iconShape": _choice(
+            source.get("iconShape"),
+            SOCIAL_ICON_SHAPES,
+            defaults["iconShape"],
+        ),
+        "size": _choice(
+            source.get("size"),
+            SOCIAL_SIZE_CHOICES,
+            defaults["size"],
+        ),
+        "brand": bool(source.get("brand", defaults["brand"])),
+        "color": _color(source.get("color"), defaults["color"]),
+        "shellColor": _color(
+            source.get("shellColor"),
+            defaults["shellColor"],
+        ),
+        "textColor": _color(
+            source.get("textColor"),
+            defaults["textColor"],
+        ),
+        "font": _choice(
+            source.get("font"),
+            SOCIAL_FONT_CHOICES,
+            defaults["font"],
+        ),
+        "weight": int(
+            round(_number(source.get("weight"), defaults["weight"], 300, 900))
+        ),
+        "outline": int(
+            round(_number(source.get("outline"), defaults["outline"], 0, 8))
+        ),
+        "scale": round(
+            _number(source.get("scale"), defaults["scale"], 0.5, 2.0),
+            2,
+        ),
+        "cycle": round(
+            _number(source.get("cycle"), defaults["cycle"], 1.5, 30.0),
+            1,
+        ),
+        "rotatorShape": _choice(
+            source.get("rotatorShape"),
+            SOCIAL_ROTATOR_SHAPES,
+            defaults["rotatorShape"],
+        ),
+        "transition": _choice(
+            source.get("transition"),
+            SOCIAL_TRANSITIONS,
+            defaults["transition"],
+        ),
+        "prefix": prefix,
+        "timer": bool(source.get("timer", defaults["timer"])),
+        "showPlatform": bool(
+            source.get("showPlatform", defaults["showPlatform"])
+        ),
+    }
 
 
 def _profile_id(value: Any, index: int, used_ids: set[str]) -> str:
@@ -220,6 +434,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         if isinstance(source.get("nowPlaying"), dict)
         else {}
     )
+    social = source.get("social") if isinstance(source.get("social"), dict) else {}
     colors = (
         spotify.get("colors")
         if isinstance(spotify.get("colors"), dict)
@@ -416,6 +631,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         "nowPlaying": {
             "fallbackBpm": active_profile["fallbackBpm"],
         },
+        "social": _normalize_social(social),
     }
 
 
@@ -433,6 +649,13 @@ def _instance_config(
         keys = ("spotify",)
     elif overlay_type == "now-playing-flow":
         keys = ("flow",)
+    elif overlay_type in {"social", "social-rotator"}:
+        return {
+            "social": _normalize_social(
+                source.get("social"),
+                overlay_type,
+            )
+        }
     else:
         return {}
     for key in keys:
@@ -507,7 +730,14 @@ def materialize_instance_config(
     config = normalize_overlay_config(raw)
     materialized = {
         key: copy.deepcopy(config[key])
-        for key in ("dance", "spotify", "flow", "audio", "nowPlaying")
+        for key in (
+            "dance",
+            "spotify",
+            "flow",
+            "audio",
+            "nowPlaying",
+            "social",
+        )
     }
     if not instance_id:
         return materialized
@@ -531,7 +761,7 @@ def update_instance_config(
     current = materialize_instance_config(config, instance_id)
     source = submitted if isinstance(submitted, dict) else {}
     merged = copy.deepcopy(current)
-    for key in ("dance", "spotify", "flow", "audio", "nowPlaying"):
+    for key in ("dance", "spotify", "flow", "audio", "nowPlaying", "social"):
         if isinstance(source.get(key), dict):
             merged[key] = source[key]
     instance["config"] = _instance_config(instance["type"], merged, current)

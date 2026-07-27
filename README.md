@@ -18,6 +18,8 @@ local OBS browser-source overlays.
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
+| **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
+| **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
 
 ## Requirements
 
@@ -116,6 +118,21 @@ corners, icon, font, and color settings. The fill is proportional to `current / 
 including a fully empty track at zero. Every Goal Pill instance stores its own progress
 and appearance.
 
+## Social overlays
+
+Add **Social Bar** or **Social Rotator** from Browse overlays, then choose exactly which
+platforms should appear and enter a handle for each one. Social Bar supports up to
+eight visible accounts to keep a single OBS source readable; Social Rotator can cycle
+through all available platforms. If none are selected, the source stays transparent
+instead of showing placeholder content.
+
+Both overlays support platform brand colors, a fixed accent palette, five icon shapes,
+three sizes, five fonts, and bounded scaling. Social Bar also offers sticker, flat,
+compact, heading, and fused-capsule layouts with individual or shared handles. Social
+Rotator offers capsule, rounded, square, and cut-corner shells plus slide, fade, and
+flip transitions, a 1.5-to-30-second interval, and optional platform and timer labels.
+The same Social Studio page provides a live draft preview before settings are saved.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -171,6 +188,8 @@ http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
 http://127.0.0.1:8473/overlays/goal-bar
 http://127.0.0.1:8473/overlays/goal-pill
+http://127.0.0.1:8473/overlays/social
+http://127.0.0.1:8473/overlays/social-rotator
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -192,6 +211,8 @@ Now Playing Flow 760 x 420
 Goal Widget      460 x 520
 Goal Bar         860 x 560
 Goal Pill        720 x 220
+Social Bar      1200 x 160
+Social Rotator   640 x 200
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined

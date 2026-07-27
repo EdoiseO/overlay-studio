@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Social Bar</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Social Bar",
+  "description": "A configurable row of selected social platforms with individual or shared handles and five icon shapes.",
+  "category": "branding",
+  "canvas": { "w": 1200, "h": 160 },
+  "settings": ["accounts", "layout", "mode", "sharedName", "heading", "size", "brand", "color", "shellColor", "textColor", "font", "weight", "outline", "align", "iconShape", "scale"],
+  "studioView": "socialView"
+}
+</script>
+<link rel="stylesheet" href="/assets/overlay-surface.css">
+<style>
+  :root {
+    --accent: #f6f7fb;
+    --shell: #141418;
+    --ink: #ffffff;
+    --scale: 1;
+    --weight: 800;
+    --icon: 44px;
+    --name-size: 30px;
+    --gap: 26px;
+    --outline: 3px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    font-family: var(--font-stack, "Segoe UI", system-ui, sans-serif);
+  }
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #16181d);
+  }
+
+  .overlay-content {
+    width: 100%;
+    padding: 18px 28px;
+    transform: scale(var(--scale));
+    transform-origin: center;
+  }
+  .stack {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .stack[data-align="left"] { align-items: flex-start; }
+  .stack[data-align="right"] { align-items: flex-end; }
+  .bar {
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--gap);
+  }
+  .item {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .icon {
+    width: var(--icon);
+    height: var(--icon);
+    flex: 0 0 var(--icon);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--brand-color, var(--accent));
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+  }
+  .glyph {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+  }
+  .glyph svg {
+    width: 62%;
+    height: 62%;
+    display: block;
+    overflow: visible;
+    fill: var(--glyph-color, #ffffff);
+  }
+  .glyph img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+  .icon.shape-circle { border-radius: 50%; }
+  .icon.shape-square { border-radius: 6px; }
+  .icon.shape-diamond {
+    border-radius: 8px;
+    transform: rotate(45deg) scale(.8);
+  }
+  .icon.shape-diamond .glyph { transform: rotate(-45deg) scale(1.16); }
+  .icon.shape-hex {
+    border-radius: 0;
+    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  }
+  .name,
+  .shared {
+    overflow: hidden;
+    max-width: 300px;
+    color: var(--ink);
+    font-size: var(--name-size);
+    font-weight: var(--weight);
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bar.outlined .name,
+  .bar.outlined .shared {
+    paint-order: stroke fill;
+    -webkit-text-stroke: var(--outline) var(--shell);
+    text-shadow: 0 3px 0 rgba(0, 0, 0, .35);
+  }
+  .bar.outlined .icon {
+    box-shadow:
+      0 0 0 var(--outline) var(--shell),
+      0 3px 10px rgba(0, 0, 0, .35);
+  }
+  .bar.flat { --gap: 42px; }
+  .bar.flat .name { max-width: 250px; }
+  .bar.compact { --gap: 15px; --icon: 34px; --name-size: 22px; }
+  .bar.compact .item { gap: 7px; }
+  .heading {
+    color: var(--ink);
+    font-size: 21px;
+    font-style: italic;
+    font-weight: var(--weight);
+    line-height: 26px;
+    text-transform: uppercase;
+  }
+  .bar.stacked { --gap: 28px; --icon: 30px; --name-size: 19px; }
+  .bar.fused {
+    --gap: 0;
+    padding: 8px 18px 8px 10px;
+    border-radius: 999px;
+    background: var(--shell);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .4);
+  }
+  .bar.fused .item { gap: 0; margin-right: 6px; }
+  .bar.fused .shared { margin-left: 12px; }
+  .bar.shared-mode { --gap: 10px; }
+  .bar.shared-mode .shared {
+    max-width: 380px;
+    margin-left: 8px;
+    font-style: italic;
+  }
+  .bar.size-small { --icon: 30px; --name-size: 20px; --gap: 18px; }
+  .bar.size-large { --icon: 56px; --name-size: 38px; --gap: 32px; }
+  .bar.size-large .name { max-width: 340px; }
+  .bar.many { --gap: 14px; --name-size: 23px; }
+  .bar.many .item { gap: 8px; }
+  .bar.size-large.many { --icon: 46px; --name-size: 27px; --gap: 16px; }
+  .bar.compact.many,
+  .bar.stacked.many { --gap: 11px; }
+  .bar.fused.many { --gap: 0; }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content" id="content" hidden>
+    <div class="stack" id="stack">
+      <div class="heading" id="heading" hidden></div>
+      <div class="bar" id="bar"></div>
+    </div>
+  </main>
+
+<script src="/assets/social-platforms.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const OVERLAY_TYPE = "social";
+  const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
+  if (query.get("preview") === "studio" || location.protocol === "file:") {
+    document.documentElement.classList.add("overlay-studio-preview");
+  }
+  const social = window.OverlaySocial;
+  const content = document.getElementById("content");
+  const stack = document.getElementById("stack");
+  const heading = document.getElementById("heading");
+  const bar = document.getElementById("bar");
+
+  function buildIcon(account, settings) {
+    const meta = social.PLATFORMS[account.platform];
+    const background =
+      settings.brand && meta ? meta.color : `#${settings.color}`;
+    const icon = document.createElement("span");
+    icon.className = `icon shape-${settings.iconShape}`;
+    icon.style.setProperty("--brand-color", background);
+    icon.style.setProperty(
+      "--glyph-color",
+      settings.brand && meta?.ink ? meta.ink : social.contrast(background),
+    );
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    if (account.icon) {
+      const image = new Image();
+      image.alt = "";
+      image.src = account.icon;
+      glyph.append(image);
+    } else {
+      glyph.append(social.createGlyph(account.platform));
+    }
+    icon.append(glyph);
+    return icon;
+  }
+
+  function apply(settings) {
+    const accounts = settings.accounts.filter(account => account.enabled);
+    content.hidden = accounts.length === 0;
+    bar.replaceChildren();
+    bar.className = "bar";
+    bar.classList.toggle("many", accounts.length > 5);
+    stack.dataset.align = settings.align;
+    heading.hidden = settings.layout !== "stacked";
+    heading.textContent = settings.heading;
+
+    document.documentElement.style.setProperty("--accent", `#${settings.color}`);
+    document.documentElement.style.setProperty("--shell", `#${settings.shellColor}`);
+    document.documentElement.style.setProperty("--ink", `#${settings.textColor}`);
+    document.documentElement.style.setProperty("--font-stack", social.FONTS[settings.font]);
+    document.documentElement.style.setProperty("--weight", String(settings.weight));
+    document.documentElement.style.setProperty("--outline", `${settings.outline}px`);
+    document.documentElement.style.setProperty("--scale", String(settings.scale));
+
+    if (settings.layout !== "sticker") bar.classList.add(settings.layout);
+    if (settings.outline > 0) bar.classList.add("outlined");
+    if (settings.layout === "stacked") bar.classList.add("stacked");
+    if (settings.size !== "medium") bar.classList.add(`size-${settings.size}`);
+
+    const shared = settings.mode === "shared" || settings.layout === "fused";
+    if (shared) bar.classList.add("shared-mode");
+    accounts.forEach(account => {
+      const item = document.createElement("span");
+      item.className = "item";
+      item.append(buildIcon(account, settings));
+      if (!shared) {
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = account.handle ? `@${account.handle}` : "";
+        item.append(name);
+      }
+      bar.append(item);
+    });
+    if (shared) {
+      const name = document.createElement("span");
+      name.className = "shared";
+      const sharedName = String(
+        settings.sharedName || accounts[0]?.handle || "",
+      ).replace(/^@+/, "");
+      name.textContent = sharedName ? `@${sharedName}` : "";
+      bar.append(name);
+    }
+  }
+
+  social.load(instanceId, OVERLAY_TYPE, query).then(settings => {
+    apply(settings);
+    social.listen(instanceId, OVERLAY_TYPE, apply);
+  });
+})();
+</script>
+</body>
+</html>

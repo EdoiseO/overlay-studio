@@ -44,13 +44,44 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "goal-bar": ROOT_DIR / "overlays" / "goal-bar.html",
             "goal-pill": ROOT_DIR / "overlays" / "goal-pill.html",
             "win-loss": ROOT_DIR / "overlays" / "win-loss.html",
+            "social": ROOT_DIR / "overlays" / "social.html",
+            "social-rotator": ROOT_DIR / "overlays" / "social-rotator.html",
         }
+        shared_social = (
+            ROOT_DIR / "assets" / "social-platforms.js"
+        ).read_text(encoding="utf-8")
 
         for overlay_type, path in overlay_sources.items():
             with self.subTest(overlay_type=overlay_type):
                 source = path.read_text(encoding="utf-8")
+                if overlay_type in {"social", "social-rotator"}:
+                    source += shared_social
                 self.assertIn("overlay-studio-draft", source)
                 self.assertIn(overlay_type, source)
+
+    def test_social_overlays_share_bounded_platform_runtime(self) -> None:
+        shared = (
+            ROOT_DIR / "assets" / "social-platforms.js"
+        ).read_text(encoding="utf-8")
+        bar = (
+            ROOT_DIR / "overlays" / "social.html"
+        ).read_text(encoding="utf-8")
+        rotator = (
+            ROOT_DIR / "overlays" / "social-rotator.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('"threads"', shared)
+        self.assertIn('"bluesky"', shared)
+        self.assertIn("enabled >= 8", shared)
+        self.assertIn('get("customizer") === "1"', shared)
+        self.assertIn("event.source !== window.parent", shared)
+        self.assertNotIn("event.origin !== location.origin", shared)
+        self.assertIn("social.createGlyph", bar)
+        self.assertIn("social.createGlyph", rotator)
+        self.assertIn("content.hidden = accounts.length === 0", bar)
+        self.assertIn("content.hidden = accounts.length === 0", rotator)
+        self.assertIn('studioView": "socialView"', bar)
+        self.assertIn('studioView": "socialView"', rotator)
 
 
 if __name__ == "__main__":

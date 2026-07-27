@@ -605,6 +605,152 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="socialView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span id="socialTypeLabel">SOCIAL OVERLAY</span>
+            <h1 id="socialDetailName">Social Bar</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <div class="social-panel-heading">
+            <div>
+              <h2>Platforms</h2>
+              <span id="socialSelectionCount">4 selected</span>
+            </div>
+            <span id="socialSelectionLimit">Choose up to 8 for the bar</span>
+          </div>
+          <div class="social-platform-grid" id="socialPlatformGrid" aria-label="Social platforms"></div>
+        </div>
+        <div class="panel">
+          <h2>Layout</h2>
+          <div class="form-grid">
+            <label for="socialIconShape">Icon shape</label>
+            <select id="socialIconShape">
+              <option value="rounded">Rounded tile</option>
+              <option value="circle">Circle</option>
+              <option value="square">Soft square</option>
+              <option value="diamond">Diamond</option>
+              <option value="hex">Hexagon</option>
+            </select>
+            <label for="socialSize">Size</label>
+            <select id="socialSize">
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+            <label for="socialScale">Scale</label>
+            <div class="range-control">
+              <input id="socialScale" type="range" min="0.5" max="2" step="0.05">
+              <output id="socialScaleOutput">1.00</output>
+            </div>
+
+            <label for="socialLayout" data-social-bar-only>Bar layout</label>
+            <select id="socialLayout" data-social-bar-only>
+              <option value="sticker">Sticker pairs</option>
+              <option value="flat">Flat row</option>
+              <option value="compact">Compact row</option>
+              <option value="stacked">Heading and row</option>
+              <option value="fused">Fused capsule</option>
+            </select>
+            <label for="socialMode" data-social-bar-only>Handle mode</label>
+            <select id="socialMode" data-social-bar-only>
+              <option value="individual">Individual handles</option>
+              <option value="shared">One shared handle</option>
+            </select>
+            <label for="socialSharedName" data-social-bar-only>Shared handle</label>
+            <input id="socialSharedName" data-social-bar-only type="text" maxlength="64" autocomplete="off" placeholder="yourname">
+            <label for="socialHeading" data-social-bar-only>Heading</label>
+            <input id="socialHeading" data-social-bar-only type="text" maxlength="32" autocomplete="off" placeholder="Stay connected">
+            <label for="socialAlign" data-social-bar-only>Alignment</label>
+            <select id="socialAlign" data-social-bar-only>
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+            <label for="socialOutline" data-social-bar-only>Outline</label>
+            <div class="range-control" data-social-bar-only>
+              <input id="socialOutline" type="range" min="0" max="8" step="1">
+              <output id="socialOutlineOutput">3</output>
+            </div>
+
+            <label for="socialRotatorShape" data-social-rotator-only>Shell shape</label>
+            <select id="socialRotatorShape" data-social-rotator-only>
+              <option value="capsule">Capsule</option>
+              <option value="rounded">Rounded rectangle</option>
+              <option value="square">Compact square</option>
+              <option value="cut">Cut corner</option>
+            </select>
+            <label for="socialTransition" data-social-rotator-only>Transition</label>
+            <select id="socialTransition" data-social-rotator-only>
+              <option value="slide">Slide</option>
+              <option value="fade">Fade</option>
+              <option value="flip">Flip</option>
+            </select>
+            <label for="socialCycle" data-social-rotator-only>Seconds per platform</label>
+            <div class="range-control" data-social-rotator-only>
+              <input id="socialCycle" type="range" min="1.5" max="30" step="0.5">
+              <output id="socialCycleOutput">4.0</output>
+            </div>
+            <label for="socialPrefix" data-social-rotator-only>Handle prefix</label>
+            <input id="socialPrefix" data-social-rotator-only type="text" maxlength="4" autocomplete="off" placeholder="@">
+            <span data-social-rotator-only>Details</span>
+            <div class="goal-toggle-row" data-social-rotator-only>
+              <label><input id="socialShowPlatform" type="checkbox"> Platform label</label>
+              <label><input id="socialTimer" type="checkbox"> Timer line</label>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Appearance</h2>
+          <div class="form-grid">
+            <span>Color behavior</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialBrand" type="checkbox"> Use platform brand colors</label>
+            </div>
+            <span>Palette</span>
+            <div class="palette-control goal-bar-palette">
+              <label title="Accent color"><input id="socialColor" type="color"><span id="socialColorLabel">#F6F7FB</span></label>
+              <label title="Shell color"><input id="socialShellColor" type="color"><span id="socialShellColorLabel">#141418</span></label>
+              <label title="Text color"><input id="socialTextColor" type="color"><span id="socialTextColorLabel">#FFFFFF</span></label>
+            </div>
+            <label for="socialFont">Font</label>
+            <select id="socialFont">
+              <option value="sans">Sans serif</option>
+              <option value="display">Display</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="serif">Serif</option>
+            </select>
+            <label for="socialWeight">Font weight</label>
+            <select id="socialWeight">
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="socialSourceLabel" for="socialUrl">Social Bar</label>
+            <input id="socialUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetSocialButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveSocialButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

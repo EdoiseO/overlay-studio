@@ -67,6 +67,24 @@ const CURRENCY_OPTIONS = [
   ["Swedish Krona (SEK)", "SEK"],
   ["Swiss Franc (CHF)", "CHF"],
 ];
+const SOCIAL_PLATFORMS = [
+  { id: "twitch", name: "Twitch", mark: "T", color: "#9146FF" },
+  { id: "youtube", name: "YouTube", mark: "YT", color: "#FF0000" },
+  { id: "instagram", name: "Instagram", mark: "IG", color: "#E1306C" },
+  { id: "x", name: "X", mark: "X", color: "#101014" },
+  { id: "twitter", name: "Twitter", mark: "TW", color: "#1D9BF0" },
+  { id: "tiktok", name: "TikTok", mark: "TT", color: "#101014" },
+  { id: "discord", name: "Discord", mark: "D", color: "#5865F2" },
+  { id: "kick", name: "Kick", mark: "K", color: "#53FC18", ink: "#101014" },
+  { id: "facebook", name: "Facebook", mark: "F", color: "#1877F2" },
+  { id: "snapchat", name: "Snapchat", mark: "S", color: "#FFFC00", ink: "#101014" },
+  { id: "telegram", name: "Telegram", mark: "TG", color: "#2AABEE" },
+  { id: "whatsapp", name: "WhatsApp", mark: "WA", color: "#25D366" },
+  { id: "linkedin", name: "LinkedIn", mark: "IN", color: "#0A66C2" },
+  { id: "threads", name: "Threads", mark: "@", color: "#101014" },
+  { id: "bluesky", name: "Bluesky", mark: "BS", color: "#0085FF" },
+  { id: "reddit", name: "Reddit", mark: "R", color: "#FF4500" },
+];
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
@@ -74,6 +92,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "goalView",
   "goalBarView",
   "goalPillView",
+  "socialView",
   "counterView",
 ]);
 
@@ -224,6 +243,8 @@ async function saveActiveCustomizer() {
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
     || instance.type === "now-playing-flow"
+    || instance.type === "social"
+    || instance.type === "social-rotator"
   ) {
     return saveOverlaySettings();
   }
@@ -375,7 +396,7 @@ function catalogPreviewUrl(manifest) {
 function materializeInstanceConfig(instance) {
   const root = app.state?.config || {};
   const materialized = {};
-  ["dance", "spotify", "flow", "audio", "nowPlaying"].forEach((key) => {
+  ["dance", "spotify", "flow", "audio", "nowPlaying", "social"].forEach((key) => {
     materialized[key] = structuredClone(root[key] || {});
   });
   Object.entries(instance?.config || {}).forEach(([key, value]) => {
@@ -415,6 +436,9 @@ function customizerDraft(instance) {
     || instance.type === "now-playing-flow"
   ) {
     return { config: gatherConfig() };
+  }
+  if (instance.type === "social" || instance.type === "social-rotator") {
+    return { config: { social: gatherSocialSettings() } };
   }
   if (instance.type === "goal") {
     return { state: gatherGoalSettings() };
@@ -794,6 +818,15 @@ function renderActiveIdentity(instance) {
     byId("goalPillDetailName").textContent = instance.name;
     byId("goalPillSourceLabel").textContent = instance.name;
     byId("goalPillUrl").value = source;
+  } else if (
+    instance.type === "social"
+    || instance.type === "social-rotator"
+  ) {
+    byId("socialTypeLabel").textContent =
+      instance.type === "social" ? "SOCIAL BAR" : "SOCIAL ROTATOR";
+    byId("socialDetailName").textContent = instance.name;
+    byId("socialSourceLabel").textContent = instance.name;
+    byId("socialUrl").value = source;
   }
 }
 
@@ -1449,6 +1482,140 @@ function renderGoalPill(goal, force = false) {
   syncGoalPillFormat();
 }
 
+function renderSocialAccounts(accounts, overlayType) {
+  const byPlatform = new Map(
+    (Array.isArray(accounts) ? accounts : []).map((account) => [
+      account.platform,
+      account,
+    ]),
+  );
+  const grid = byId("socialPlatformGrid");
+  grid.replaceChildren();
+  SOCIAL_PLATFORMS.forEach((platform) => {
+    const account = byPlatform.get(platform.id) || {
+      platform: platform.id,
+      enabled: false,
+      handle: "yourname",
+    };
+    const row = document.createElement("div");
+    row.className = "social-platform-row";
+    row.dataset.socialPlatform = platform.id;
+
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = Boolean(account.enabled);
+    enabled.dataset.socialEnabled = platform.id;
+    enabled.setAttribute("aria-label", `Show ${platform.name}`);
+
+    const mark = document.createElement("span");
+    mark.className = "social-platform-mark";
+    mark.textContent = platform.mark;
+    mark.style.setProperty("--platform-color", platform.color);
+    if (platform.ink) mark.style.setProperty("--platform-ink", platform.ink);
+
+    const name = document.createElement("span");
+    name.className = "social-platform-name";
+    name.textContent = platform.name;
+
+    const handle = document.createElement("input");
+    handle.type = "text";
+    handle.value = account.handle || "";
+    handle.maxLength = 64;
+    handle.autocomplete = "off";
+    handle.placeholder = "yourname";
+    handle.dataset.socialHandle = platform.id;
+    handle.setAttribute("aria-label", `${platform.name} handle`);
+    row.append(enabled, mark, name, handle);
+    grid.append(row);
+  });
+  updateSocialSelectionState(overlayType);
+}
+
+function updateSocialSelectionState(overlayType = activeInstance()?.type) {
+  const count = document.querySelectorAll(
+    "#socialPlatformGrid [data-social-enabled]:checked",
+  ).length;
+  byId("socialSelectionCount").textContent =
+    `${count} platform${count === 1 ? "" : "s"} selected`;
+  byId("socialSelectionLimit").textContent =
+    overlayType === "social"
+      ? "Choose up to 8 for the bar"
+      : "Selected platforms rotate in order";
+}
+
+function renderSocial(social, overlayType = activeInstance()?.type) {
+  const config = social || app.state?.defaults?.social || {};
+  const rotator = overlayType === "social-rotator";
+  document.querySelectorAll("[data-social-bar-only]").forEach((element) => {
+    element.hidden = rotator;
+  });
+  document.querySelectorAll("[data-social-rotator-only]").forEach((element) => {
+    element.hidden = !rotator;
+  });
+  renderSocialAccounts(config.accounts, overlayType);
+  byId("socialIconShape").value = config.iconShape || "rounded";
+  byId("socialSize").value = config.size || "medium";
+  byId("socialScale").value = Number(config.scale) || 1;
+  byId("socialScaleOutput").value = Number(config.scale || 1).toFixed(2);
+  byId("socialLayout").value = config.layout || "sticker";
+  byId("socialMode").value = config.mode || "individual";
+  byId("socialSharedName").value = config.sharedName || "";
+  byId("socialHeading").value = config.heading || "Stay connected";
+  byId("socialAlign").value = config.align || "center";
+  byId("socialOutline").value = Number(config.outline) || 0;
+  byId("socialOutlineOutput").value = String(Number(config.outline) || 0);
+  byId("socialRotatorShape").value = config.rotatorShape || "capsule";
+  byId("socialTransition").value = config.transition || "slide";
+  byId("socialCycle").value = Number(config.cycle) || 4;
+  byId("socialCycleOutput").value = Number(config.cycle || 4).toFixed(1);
+  byId("socialPrefix").value = config.prefix ?? "@";
+  byId("socialShowPlatform").checked = config.showPlatform !== false;
+  byId("socialTimer").checked = config.timer !== false;
+  byId("socialBrand").checked = config.brand !== false;
+  setColor("socialColor", config.color || "f6f7fb");
+  setColor("socialShellColor", config.shellColor || "141418");
+  setColor("socialTextColor", config.textColor || "ffffff");
+  byId("socialFont").value = config.font || "display";
+  byId("socialWeight").value = String(config.weight || 800);
+}
+
+function gatherSocialSettings() {
+  const accounts = SOCIAL_PLATFORMS.map((platform) => {
+    const row = document.querySelector(
+      `[data-social-platform="${platform.id}"]`,
+    );
+    return {
+      platform: platform.id,
+      enabled: Boolean(row?.querySelector("[data-social-enabled]")?.checked),
+      handle: row?.querySelector("[data-social-handle]")?.value || "",
+    };
+  });
+  return {
+    accounts,
+    layout: byId("socialLayout").value,
+    mode: byId("socialMode").value,
+    sharedName: byId("socialSharedName").value,
+    heading: byId("socialHeading").value,
+    align: byId("socialAlign").value,
+    iconShape: byId("socialIconShape").value,
+    size: byId("socialSize").value,
+    brand: byId("socialBrand").checked,
+    color: byId("socialColor").value.slice(1),
+    shellColor: byId("socialShellColor").value.slice(1),
+    textColor: byId("socialTextColor").value.slice(1),
+    font: byId("socialFont").value,
+    weight: Number(byId("socialWeight").value),
+    outline: Number(byId("socialOutline").value),
+    scale: Number(byId("socialScale").value),
+    cycle: Number(byId("socialCycle").value),
+    rotatorShape: byId("socialRotatorShape").value,
+    transition: byId("socialTransition").value,
+    prefix: byId("socialPrefix").value,
+    timer: byId("socialTimer").checked,
+    showPlatform: byId("socialShowPlatform").checked,
+  };
+}
+
 function setColor(id, value) {
   const normalized = `#${String(value || "").replace("#", "").padEnd(6, "0").slice(0, 6)}`;
   const input = byId(id);
@@ -1484,6 +1651,12 @@ function fillConfig(config) {
   byId("flowScale").value = config.flow.scale;
   byId("flowGlow").value = config.flow.glow;
   byId("flowGlowOutput").value = Number(config.flow.glow).toFixed(2);
+  if (
+    activeInstance()?.type === "social"
+    || activeInstance()?.type === "social-rotator"
+  ) {
+    renderSocial(config.social, activeInstance().type);
+  }
   renderMediaLibraries();
 }
 
@@ -1754,9 +1927,13 @@ async function saveOverlaySettings(options = {}) {
   app.busy = true;
   renderDanceProfileControls();
   try {
+    const submitted =
+      instance.type === "social" || instance.type === "social-rotator"
+        ? { social: gatherSocialSettings() }
+        : gatherConfig();
     const result = await callApi(
       "save_overlay_settings",
-      gatherConfig(),
+      submitted,
       instance.id,
     );
     if (!result.ok) {
@@ -1971,6 +2148,14 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     renderGoalPill(
       app.state?.goals?.[instance.id] || app.state?.goalPillDefaults,
       true,
+    );
+  } else if (
+    instance.type === "social"
+    || instance.type === "social-rotator"
+  ) {
+    renderSocial(
+      materializeInstanceConfig(instance).social,
+      instance.type,
     );
   }
   showView(manifest.studioView);
@@ -2197,6 +2382,32 @@ function bindEvents() {
     byId("goalPillGlowOutput").value =
       Number(byId("goalPillGlow").value).toFixed(2);
   });
+  byId("socialScale").addEventListener("input", () => {
+    byId("socialScaleOutput").value =
+      Number(byId("socialScale").value).toFixed(2);
+  });
+  byId("socialOutline").addEventListener("input", () => {
+    byId("socialOutlineOutput").value = byId("socialOutline").value;
+  });
+  byId("socialCycle").addEventListener("input", () => {
+    byId("socialCycleOutput").value =
+      Number(byId("socialCycle").value).toFixed(1);
+  });
+  byId("socialPlatformGrid").addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-social-enabled]");
+    const instance = activeInstance();
+    if (
+      checkbox
+      && instance?.type === "social"
+      && document.querySelectorAll(
+        "#socialPlatformGrid [data-social-enabled]:checked",
+      ).length > 8
+    ) {
+      checkbox.checked = false;
+      showToast("Social Bar supports up to 8 platforms");
+    }
+    updateSocialSelectionState(instance?.type);
+  });
   byId("goalFormat").addEventListener("change", syncGoalFormat);
   byId("goalBarFormat").addEventListener("change", syncGoalBarFormat);
   byId("goalBarLayout").addEventListener("change", syncGoalBarLayout);
@@ -2221,6 +2432,9 @@ function bindEvents() {
     "goalPillShellColor",
     "goalPillTrack",
     "goalPillLabelColor",
+    "socialColor",
+    "socialShellColor",
+    "socialTextColor",
   ].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
@@ -2233,6 +2447,7 @@ function bindEvents() {
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveSocialButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveGoalSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalSettings(), "Goal saved and applied");
   });
@@ -2273,6 +2488,10 @@ function bindEvents() {
     byId("flowGlow").value = defaults.glow;
     byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
     logActivity("Now Playing Flow fields reset; save to apply");
+  });
+  byId("resetSocialButton").addEventListener("click", () => {
+    renderSocial(app.state.defaults.social, activeInstance()?.type);
+    logActivity("Social fields reset; save to apply");
   });
   byId("resetGoalFieldsButton").addEventListener("click", () => {
     const instance = activeInstance();

@@ -134,5 +134,168 @@ class DanceProfileConfigTests(unittest.TestCase):
         self.assertEqual(instance["nowPlaying"]["fallbackBpm"], 150)
 
 
+class SocialOverlayConfigTests(unittest.TestCase):
+    def test_social_bar_limits_platforms_and_normalizes_fields(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "social",
+            "social-main",
+            "Main Socials",
+        )
+        accounts = [
+            {
+                "platform": platform,
+                "enabled": True,
+                "handle": f"@{'x' * 80}{index}",
+            }
+            for index, platform in enumerate(
+                [
+                    "twitch",
+                    "youtube",
+                    "instagram",
+                    "x",
+                    "twitter",
+                    "tiktok",
+                    "discord",
+                    "kick",
+                    "facebook",
+                    "reddit",
+                ]
+            )
+        ]
+        accounts.append(
+            {"platform": "not-a-platform", "enabled": True, "handle": "bad"}
+        )
+
+        updated = update_instance_config(
+            config,
+            "social-main",
+            {
+                "social": {
+                    "accounts": accounts,
+                    "layout": "fused",
+                    "iconShape": "hex",
+                    "outline": 99,
+                    "scale": 0.1,
+                }
+            },
+        )
+        social = materialize_instance_config(updated, "social-main")["social"]
+        enabled = [item for item in social["accounts"] if item["enabled"]]
+
+        self.assertEqual(len(social["accounts"]), 16)
+        self.assertEqual(len(enabled), 8)
+        self.assertEqual([item["platform"] for item in enabled][-1], "kick")
+        self.assertNotIn("not-a-platform", [item["platform"] for item in social["accounts"]])
+        self.assertEqual(len(social["accounts"][0]["handle"]), 64)
+        self.assertFalse(social["accounts"][0]["handle"].startswith("@"))
+        self.assertEqual(social["layout"], "fused")
+        self.assertEqual(social["iconShape"], "hex")
+        self.assertEqual(social["outline"], 8)
+        self.assertEqual(social["scale"], 0.5)
+
+    def test_social_rotator_allows_all_platforms_and_bounded_timing(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "social-rotator",
+            "rotating-socials",
+            "Rotating Socials",
+        )
+        accounts = [
+            {"platform": platform, "enabled": True, "handle": platform}
+            for platform in (
+                "twitch",
+                "youtube",
+                "instagram",
+                "x",
+                "twitter",
+                "tiktok",
+                "discord",
+                "kick",
+                "facebook",
+                "snapchat",
+                "telegram",
+                "whatsapp",
+                "linkedin",
+                "threads",
+                "bluesky",
+                "reddit",
+            )
+        ]
+
+        updated = update_instance_config(
+            config,
+            "rotating-socials",
+            {
+                "social": {
+                    "accounts": accounts,
+                    "cycle": 100,
+                    "weight": 1200,
+                    "scale": 4,
+                    "prefix": "",
+                    "rotatorShape": "cut",
+                    "transition": "flip",
+                }
+            },
+        )
+        social = materialize_instance_config(
+            updated,
+            "rotating-socials",
+        )["social"]
+
+        self.assertEqual(
+            len([item for item in social["accounts"] if item["enabled"]]),
+            16,
+        )
+        self.assertEqual(social["cycle"], 30.0)
+        self.assertEqual(social["weight"], 900)
+        self.assertEqual(social["scale"], 2.0)
+        self.assertEqual(social["prefix"], "")
+        self.assertEqual(social["rotatorShape"], "cut")
+        self.assertEqual(social["transition"], "flip")
+
+    def test_social_instances_keep_independent_accounts(self) -> None:
+        config = normalize_overlay_config({})
+        config = add_overlay_instance(
+            config,
+            "social",
+            "social-one",
+            "Social One",
+        )
+        config = add_overlay_instance(
+            config,
+            "social",
+            "social-two",
+            "Social Two",
+        )
+        config = update_instance_config(
+            config,
+            "social-one",
+            {
+                "social": {
+                    "accounts": [
+                        {
+                            "platform": "reddit",
+                            "enabled": True,
+                            "handle": "first",
+                        }
+                    ]
+                }
+            },
+        )
+
+        first = materialize_instance_config(config, "social-one")["social"]
+        second = materialize_instance_config(config, "social-two")["social"]
+
+        self.assertEqual(
+            [item["platform"] for item in first["accounts"] if item["enabled"]],
+            ["reddit"],
+        )
+        self.assertEqual(
+            [item["platform"] for item in second["accounts"] if item["enabled"]],
+            ["twitch", "youtube", "instagram", "tiktok"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
