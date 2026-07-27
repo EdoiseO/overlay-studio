@@ -330,6 +330,147 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="goalBarView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>GOAL BAR</span>
+            <h1 id="goalBarDetailName">Goal Bar</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Goal progress</h2>
+          <div class="form-grid">
+            <label for="goalBarLabel">Label</label>
+            <input id="goalBarLabel" type="text" maxlength="64" autocomplete="off" placeholder="Followers">
+            <label for="goalBarCurrent">Current</label>
+            <input id="goalBarCurrent" type="number" min="0" max="1000000000" step="0.01">
+            <label for="goalBarTarget">Target</label>
+            <input id="goalBarTarget" type="number" min="0.01" max="1000000000" step="0.01">
+            <label for="goalBarFormat">Number format</label>
+            <select id="goalBarFormat">
+              <option value="number">Number</option>
+              <option value="currency">Currency</option>
+            </select>
+            <label for="goalBarSymbol">Currency symbol</label>
+            <input id="goalBarSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+          </div>
+          <div class="goal-progress-actions">
+            <label for="goalBarStep">
+              <span>Change amount</span>
+              <input id="goalBarStep" type="number" min="0.01" max="1000000000" step="0.01" value="1">
+            </label>
+            <button class="secondary-button score-button" type="button" data-goal-bar-action="subtract" aria-label="Subtract progress" title="Subtract progress">-</button>
+            <button class="primary-button score-button" type="button" data-goal-bar-action="add" aria-label="Add progress" title="Add progress">+</button>
+            <button class="secondary-button compact" type="button" data-goal-bar-action="complete">Complete</button>
+            <button class="danger-button compact" type="button" data-goal-bar-action="reset">Reset</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Layout</h2>
+          <div class="form-grid">
+            <label for="goalBarLayout">Orientation</label>
+            <select id="goalBarLayout">
+              <option value="horizontal">Horizontal</option>
+              <option value="vertical">Vertical</option>
+            </select>
+            <label for="goalBarSize">Bar size</label>
+            <select id="goalBarSize">
+              <option value="full">Full</option>
+              <option value="compact">Compact</option>
+              <option value="thin">Thin</option>
+            </select>
+            <label for="goalBarShell">Shell</label>
+            <select id="goalBarShell">
+              <option value="on">Visible</option>
+              <option value="off">Hidden</option>
+            </select>
+            <label for="goalBarIcon">Icon</label>
+            <select id="goalBarIcon">
+              <option value="followers">Followers</option>
+              <option value="tips">Tips</option>
+              <option value="subs">Subscriptions</option>
+              <option value="bits">Bits</option>
+              <option value="none">None</option>
+            </select>
+            <label for="goalBarCorners">Corners</label>
+            <select id="goalBarCorners">
+              <option value="round">Round</option>
+              <option value="square">Square</option>
+            </select>
+            <label for="goalBarWidth">Horizontal width</label>
+            <div class="range-control">
+              <input id="goalBarWidth" type="range" min="240" max="640" step="10">
+              <output id="goalBarWidthOutput">640</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Appearance</h2>
+          <div class="form-grid">
+            <span>Palette</span>
+            <div class="palette-control goal-palette goal-bar-palette">
+              <label title="Fill color"><input id="goalBarColor" type="color"><span id="goalBarColorLabel">#C8F57A</span></label>
+              <label title="Shell color"><input id="goalBarShellColor" type="color"><span id="goalBarShellColorLabel">#18181B</span></label>
+              <label title="Track color"><input id="goalBarTrack" type="color"><span id="goalBarTrackLabel">#0A0A0C</span></label>
+              <label title="Text color"><input id="goalBarLabelColor" type="color"><span id="goalBarLabelColorLabel">#F4F6F2</span></label>
+            </div>
+            <label for="goalBarFont">Font</label>
+            <select id="goalBarFont">
+              <option value="sans">Sans serif</option>
+              <option value="display">Display</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="serif">Serif</option>
+            </select>
+            <label for="goalBarWeight">Font weight</label>
+            <select id="goalBarWeight">
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+            <label for="goalBarScale">Scale</label>
+            <div class="range-control">
+              <input id="goalBarScale" type="range" min="0.5" max="1.2" step="0.05">
+              <output id="goalBarScaleOutput">1.00</output>
+            </div>
+            <label for="goalBarGlow">Glow strength</label>
+            <div class="range-control">
+              <input id="goalBarGlow" type="range" min="0" max="2.5" step="0.05">
+              <output id="goalBarGlowOutput">1.00</output>
+            </div>
+            <label for="goalBarTiltX">Vertical tilt</label>
+            <div class="range-control">
+              <input id="goalBarTiltX" type="range" min="-20" max="20" step="1">
+              <output id="goalBarTiltXOutput">0</output>
+            </div>
+            <label for="goalBarTiltY">Horizontal tilt</label>
+            <div class="range-control">
+              <input id="goalBarTiltY" type="range" min="-20" max="20" step="1">
+              <output id="goalBarTiltYOutput">0</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="goalBarSourceLabel" for="goalBarUrl">Goal Bar</label>
+            <input id="goalBarUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetGoalBarFieldsButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveGoalBarSettingsButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

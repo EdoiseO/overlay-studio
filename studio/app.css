@@ -922,6 +922,14 @@ output {
   min-width: 105px;
 }
 
+.goal-bar-palette {
+  flex-wrap: wrap;
+}
+
+.goal-bar-palette label {
+  min-width: 96px;
+}
+
 .goal-toggle-row {
   display: flex;
   align-items: center;

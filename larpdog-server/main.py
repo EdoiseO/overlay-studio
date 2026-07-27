@@ -17,7 +17,13 @@ from typing import Any
 from aiohttp import web
 
 from counter_store import apply_counter_update, load_counter_state, save_counter_state
-from goal_store import apply_goal_update, load_goal_state, save_goal_state
+from goal_store import (
+    GOAL_OVERLAY_TYPES,
+    apply_goal_update,
+    goal_defaults_for_type,
+    load_goal_state,
+    save_goal_state,
+)
 from overlay_config import (
     LEGACY_INSTANCE_IDS,
     is_valid_instance_id,
@@ -828,9 +834,20 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         return web.json_response(saved_state)
 
     async def get_goal(request: web.Request) -> web.Response:
-        instance_id, _saved_config = request_instance(request, "goal")
+        instance_id, saved_config = request_instance(request)
+        overlay_type = (
+            saved_config["instances"][instance_id]["type"]
+            if instance_id
+            else "goal"
+        )
+        if overlay_type not in GOAL_OVERLAY_TYPES:
+            raise web.HTTPNotFound(text="Overlay instance type does not match")
         return web.json_response(
-            load_goal_state(goal_state_path, instance_id),
+            load_goal_state(
+                goal_state_path,
+                instance_id,
+                goal_defaults_for_type(overlay_type),
+            ),
             headers={"Cache-Control": "no-store"},
         )
 
@@ -846,8 +863,19 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             raise web.HTTPBadRequest(text="Expected a JSON object") from None
         if not isinstance(submitted, dict):
             raise web.HTTPBadRequest(text="Expected a JSON object")
-        instance_id, _saved_config = request_instance(request, "goal")
-        previous = load_goal_state(goal_state_path, instance_id)
+        instance_id, saved_config = request_instance(request)
+        overlay_type = (
+            saved_config["instances"][instance_id]["type"]
+            if instance_id
+            else "goal"
+        )
+        if overlay_type not in GOAL_OVERLAY_TYPES:
+            raise web.HTTPNotFound(text="Overlay instance type does not match")
+        previous = load_goal_state(
+            goal_state_path,
+            instance_id,
+            goal_defaults_for_type(overlay_type),
+        )
         try:
             state = apply_goal_update(previous, submitted)
         except ValueError as exc:

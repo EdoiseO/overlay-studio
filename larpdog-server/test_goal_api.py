@@ -35,6 +35,10 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
             ROOT_DIR / "overlays" / "goal.html",
             overlays_dir / "goal.html",
         )
+        shutil.copyfile(
+            ROOT_DIR / "overlays" / "goal-bar.html",
+            overlays_dir / "goal-bar.html",
+        )
         (root / "overlay-studio.html").write_text(
             "<!doctype html><title>Test</title>",
             encoding="utf-8",
@@ -45,6 +49,12 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
             "goal",
             "tip-goal",
             "Tip Goal",
+        )
+        overlay_config = add_overlay_instance(
+            overlay_config,
+            "goal-bar",
+            "follower-goal",
+            "Follower Goal",
         )
         save_overlay_config(server_dir / "overlay-config.json", overlay_config)
 
@@ -93,6 +103,52 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
 
         persisted = await self.client.get("/api/goal?i=tip-goal")
         self.assertEqual((await persisted.json())["current"], 7.5)
+
+    async def test_goal_bar_uses_independent_defaults_and_appearance(self) -> None:
+        initial = await self.client.get("/api/goal?i=follower-goal")
+        self.assertEqual(initial.status, 200)
+        initial_state = await initial.json()
+        self.assertEqual(initial_state["label"], "Followers")
+        self.assertEqual(initial_state["target"], 100)
+        self.assertEqual(initial_state["format"], "number")
+        self.assertEqual(initial_state["icon"], "followers")
+
+        overlay = await self.client.get(
+            "/overlays/goal-bar?i=follower-goal"
+        )
+        self.assertEqual(overlay.status, 200)
+        await overlay.read()
+
+        websocket = await self.client.ws_connect("/ws")
+        updated = await self.client.post(
+            "/api/goal?i=follower-goal",
+            json={
+                "action": "add",
+                "amount": 25,
+                "layout": "vertical",
+                "size": "thin",
+                "width": 999,
+                "tiltX": -50,
+                "tiltY": 50,
+            },
+        )
+        self.assertEqual(updated.status, 200)
+        state = await updated.json()
+        self.assertEqual(state["current"], 25)
+        self.assertEqual(state["layout"], "vertical")
+        self.assertEqual(state["size"], "thin")
+        self.assertEqual(state["width"], 640)
+        self.assertEqual(state["tiltX"], -20)
+        self.assertEqual(state["tiltY"], 20)
+
+        message = await websocket.receive_json(timeout=2)
+        self.assertEqual(message["type"], "goal")
+        self.assertEqual(message["instanceId"], "follower-goal")
+        self.assertEqual(message["state"]["layout"], "vertical")
+        await websocket.close()
+
+        tip_goal = await self.client.get("/api/goal?i=tip-goal")
+        self.assertEqual((await tip_goal.json())["current"], 0)
 
     async def test_goal_route_and_write_guards(self) -> None:
         overlay = await self.client.get("/overlays/goal?i=tip-goal")

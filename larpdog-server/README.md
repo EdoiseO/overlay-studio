@@ -52,6 +52,7 @@ http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/goal
+http://127.0.0.1:8473/overlays/goal-bar
 ```
 
 Dedicated overlay pages center their content on a transparent canvas. Use OBS to

@@ -9,8 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from goal_store import (  # noqa: E402
+    DEFAULT_GOAL_BAR_STATE,
     DEFAULT_GOAL_STATE,
     apply_goal_update,
+    goal_defaults_for_type,
     load_goal_state,
     normalize_goal_state,
     remove_goal_instance,
@@ -51,6 +53,39 @@ class GoalStoreTests(unittest.TestCase):
         self.assertTrue(state["percent"])
         self.assertEqual(state["scale"], 1.2)
         self.assertEqual(state["glow"], 0)
+        self.assertEqual(state["layout"], "horizontal")
+        self.assertEqual(state["width"], 640)
+
+    def test_normalizes_goal_bar_appearance_and_defaults(self) -> None:
+        defaults = goal_defaults_for_type("goal-bar")
+        self.assertEqual(defaults, DEFAULT_GOAL_BAR_STATE)
+        self.assertEqual(defaults["label"], "Followers")
+        self.assertEqual(defaults["format"], "number")
+
+        state = normalize_goal_state(
+            {
+                **defaults,
+                "layout": "vertical",
+                "size": "thin",
+                "shell": "off",
+                "icon": "bits",
+                "shellColor": "#223344",
+                "corners": "square",
+                "width": 900,
+                "tiltX": -90,
+                "tiltY": 90,
+            }
+        )
+
+        self.assertEqual(state["layout"], "vertical")
+        self.assertEqual(state["size"], "thin")
+        self.assertEqual(state["shell"], "off")
+        self.assertEqual(state["icon"], "bits")
+        self.assertEqual(state["shellColor"], "223344")
+        self.assertEqual(state["corners"], "square")
+        self.assertEqual(state["width"], 640)
+        self.assertEqual(state["tiltX"], -20)
+        self.assertEqual(state["tiltY"], 20)
 
     def test_applies_goal_actions_with_bounds(self) -> None:
         state = normalize_goal_state({"current": 10, "target": 50})

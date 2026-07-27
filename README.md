@@ -16,6 +16,7 @@ local OBS browser-source overlays.
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
 | **Now Playing Flow** | Presents the current media-session artwork with audio-reactive progress bars. |
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
+| **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 
 ## Requirements
 
@@ -83,6 +84,14 @@ currency or plain-number formatting, colors, font, particles, percentage, scale,
 glow. Progress is stored independently for every Goal Widget instance and is restored
 when Overlay Studio restarts.
 
+## Goal Bar
+
+Add **Goal Bar** for a compact follower, tip, subscription, bits, or custom progress
+display. Its Studio page controls horizontal or vertical orientation, three bar sizes,
+shell visibility, icon, corners, width, palette, type, glow, scale, and bounded
+perspective tilt. Each Goal Bar keeps progress and appearance independently from Goal
+Widgets and other Goal Bar instances.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -136,6 +145,7 @@ http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
+http://127.0.0.1:8473/overlays/goal-bar
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -155,6 +165,7 @@ Spotify Overlay  620 x 360
 Match Record     900 x 320
 Now Playing Flow 760 x 420
 Goal Widget      460 x 520
+Goal Bar         860 x 560
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined
@@ -191,8 +202,8 @@ values.
 
 ## Goal automation
 
-Chat tools can update a Goal Widget by sending JSON to `POST /api/goal` with the
-instance's `i` query parameter. Supported actions are:
+Chat tools can update a Goal Widget or Goal Bar by sending JSON to `POST /api/goal`
+with the instance's `i` query parameter. Supported actions are:
 
 ```text
 add
@@ -211,9 +222,11 @@ Invoke-RestMethod `
   -Uri "http://127.0.0.1:8473/api/goal?i=goal"
 ```
 
-The endpoint also accepts direct Goal Widget settings such as `label`, `current`,
-`target`, `format`, `symbol`, `color`, `font`, `particles`, `scale`, and `glow`.
-Values are normalized and bounded before being saved.
+The endpoint also accepts direct settings such as `label`, `current`, `target`,
+`format`, `symbol`, `color`, `font`, `scale`, and `glow`. Goal Bar instances also
+accept `layout`, `size`, `shell`, `icon`, `corners`, `width`, `shellColor`, `track`,
+`labelColor`, `tiltX`, and `tiltY`. Values are normalized and bounded before being
+saved.
 
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools

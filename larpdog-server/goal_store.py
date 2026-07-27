@@ -22,12 +22,43 @@ DEFAULT_GOAL_STATE: dict[str, Any] = {
     "percent": True,
     "scale": 1.0,
     "glow": 1.0,
+    "layout": "horizontal",
+    "size": "full",
+    "shell": "on",
+    "icon": "none",
+    "shellColor": "18181b",
+    "corners": "round",
+    "width": 640,
+    "tiltX": 0.0,
+    "tiltY": 0.0,
+}
+
+DEFAULT_GOAL_BAR_STATE: dict[str, Any] = {
+    **DEFAULT_GOAL_STATE,
+    "label": "Followers",
+    "current": 0.0,
+    "target": 100.0,
+    "format": "number",
+    "color": "c8f57a",
+    "track": "0a0a0c",
+    "labelColor": "f4f6f2",
+    "font": "sans",
+    "weight": 700,
+    "particles": False,
+    "percent": False,
+    "icon": "followers",
 }
 
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 FORMAT_CHOICES = {"currency", "number"}
 FONT_CHOICES = {"serif", "sans", "round", "mono", "display"}
+LAYOUT_CHOICES = {"horizontal", "vertical"}
+SIZE_CHOICES = {"full", "compact", "thin"}
+SHELL_CHOICES = {"on", "off"}
+ICON_CHOICES = {"followers", "tips", "subs", "bits", "none"}
+CORNER_CHOICES = {"round", "square"}
+GOAL_OVERLAY_TYPES = {"goal", "goal-bar"}
 ACTIONS = {"add", "subtract", "reset", "complete"}
 MAX_GOAL_VALUE = 1_000_000_000.0
 
@@ -139,7 +170,56 @@ def normalize_goal_state(raw: Any) -> dict[str, Any]:
             _number(source.get("glow"), defaults["glow"], 0, 2.5),
             2,
         ),
+        "layout": _choice(
+            source.get("layout"),
+            LAYOUT_CHOICES,
+            defaults["layout"],
+        ),
+        "size": _choice(
+            source.get("size"),
+            SIZE_CHOICES,
+            defaults["size"],
+        ),
+        "shell": _choice(
+            source.get("shell"),
+            SHELL_CHOICES,
+            defaults["shell"],
+        ),
+        "icon": _choice(
+            source.get("icon"),
+            ICON_CHOICES,
+            defaults["icon"],
+        ),
+        "shellColor": _color(
+            source.get("shellColor"),
+            defaults["shellColor"],
+        ),
+        "corners": _choice(
+            source.get("corners"),
+            CORNER_CHOICES,
+            defaults["corners"],
+        ),
+        "width": int(
+            round(_number(source.get("width"), defaults["width"], 240, 640))
+        ),
+        "tiltX": round(
+            _number(source.get("tiltX"), defaults["tiltX"], -20, 20),
+            1,
+        ),
+        "tiltY": round(
+            _number(source.get("tiltY"), defaults["tiltY"], -20, 20),
+            1,
+        ),
     }
+
+
+def goal_defaults_for_type(overlay_type: str | None) -> dict[str, Any]:
+    defaults = (
+        DEFAULT_GOAL_BAR_STATE
+        if overlay_type == "goal-bar"
+        else DEFAULT_GOAL_STATE
+    )
+    return dict(defaults)
 
 
 def apply_goal_update(current: dict[str, Any], raw: Any) -> dict[str, Any]:
@@ -200,21 +280,30 @@ def load_goal_document(path: Path) -> dict[str, Any]:
 def load_goal_state(
     path: Path,
     instance_id: str | None = None,
+    default_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     document = load_goal_document(path)
     if not instance_id:
         return dict(document["legacy"])
     return dict(
-        document["instances"].get(instance_id, DEFAULT_GOAL_STATE)
+        document["instances"].get(
+            instance_id,
+            normalize_goal_state(default_state or DEFAULT_GOAL_STATE),
+        )
     )
 
 
 def load_goal_states(
     path: Path,
     instance_ids: Iterable[str],
+    default_states: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     return {
-        instance_id: load_goal_state(path, instance_id)
+        instance_id: load_goal_state(
+            path,
+            instance_id,
+            (default_states or {}).get(instance_id),
+        )
         for instance_id in instance_ids
         if INSTANCE_ID.fullmatch(str(instance_id or ""))
     }

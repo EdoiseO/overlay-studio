@@ -56,7 +56,10 @@ from counter_store import (  # noqa: E402
     remove_counter_instance,
 )
 from goal_store import (  # noqa: E402
+    DEFAULT_GOAL_BAR_STATE,
     DEFAULT_GOAL_STATE,
+    GOAL_OVERLAY_TYPES,
+    goal_defaults_for_type,
     load_goal_state,
     load_goal_states,
     remove_goal_instance,
@@ -860,6 +863,11 @@ class DesktopApi:
                 legacy_asset.unlink(missing_ok=True)
         except OSError:
             config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        goal_instances = {
+            instance_id: instance
+            for instance_id, instance in config["instances"].items()
+            if instance["type"] in GOAL_OVERLAY_TYPES
+        }
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
@@ -878,13 +886,14 @@ class DesktopApi:
             ),
             "goal": load_goal_state(GOAL_STATE_PATH),
             "goalDefaults": DEFAULT_GOAL_STATE,
+            "goalBarDefaults": DEFAULT_GOAL_BAR_STATE,
             "goals": load_goal_states(
                 GOAL_STATE_PATH,
-                (
-                    instance_id
-                    for instance_id, instance in config["instances"].items()
-                    if instance["type"] == "goal"
-                ),
+                goal_instances,
+                {
+                    instance_id: goal_defaults_for_type(instance["type"])
+                    for instance_id, instance in goal_instances.items()
+                },
             ),
             "theme": (
                 str(settings.get("theme") or "dark")
