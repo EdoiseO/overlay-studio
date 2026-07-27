@@ -631,18 +631,8 @@ async def api_write_guard_middleware(
     return await handler(request)
 
 
-@web.middleware
-async def static_cors_middleware(request: web.Request, handler: Any) -> web.StreamResponse:
-    response = await handler(request)
-    if request.path.startswith(("/assets/", "/user-assets/")):
-        response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
-
-
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
-    app = web.Application(
-        middlewares=[api_write_guard_middleware, static_cors_middleware]
-    )
+    app = web.Application(middlewares=[api_write_guard_middleware])
     hub = ClientHub()
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
