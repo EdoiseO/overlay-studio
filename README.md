@@ -178,6 +178,10 @@ Invoke-RestMethod `
 The same endpoint accepts direct `wins`, `losses`, `title`, and six-digit `accent`
 values.
 
+All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
+automation must run from the same local Overlay Studio origin; desktop and chat tools
+without browser `Origin` headers continue to work through the loopback address.
+
 ## Install from source
 
 Run the dependency installer once:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
+import threading
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,16 @@ from typing import Any
 OVERLAY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 MAX_MANIFEST_BYTES = 32 * 1024
+MAX_OVERLAY_FILE_BYTES = 2 * 1024 * 1024
+
+_manifest_cache: dict[
+    Path,
+    tuple[
+        tuple[tuple[str, int, int], ...],
+        list[dict[str, Any]],
+    ],
+] = {}
+_manifest_cache_lock = threading.Lock()
 
 
 class ManifestParser(HTMLParser):
@@ -58,7 +70,13 @@ def read_overlay_manifest(path: Path) -> dict[str, Any] | None:
     if not OVERLAY_NAME.fullmatch(overlay_type):
         return None
     try:
-        content = path.read_text(encoding="utf-8-sig")
+        if path.stat().st_size > MAX_OVERLAY_FILE_BYTES:
+            return None
+        with path.open("rb") as stream:
+            raw_content = stream.read(MAX_OVERLAY_FILE_BYTES + 1)
+        if len(raw_content) > MAX_OVERLAY_FILE_BYTES:
+            return None
+        content = raw_content.decode("utf-8-sig")
     except (OSError, UnicodeError):
         return None
     parser = ManifestParser()
@@ -111,14 +129,45 @@ def read_overlay_manifest(path: Path) -> dict[str, Any] | None:
     }
 
 
+def clear_overlay_manifest_cache() -> None:
+    with _manifest_cache_lock:
+        _manifest_cache.clear()
+
+
 def scan_overlay_manifests(overlays_dir: Path) -> list[dict[str, Any]]:
-    manifests: list[dict[str, Any]] = []
     try:
         paths = sorted(overlays_dir.glob("*.html"))
     except OSError:
-        return manifests
+        return []
+
+    readable_paths: list[Path] = []
+    snapshot_entries: list[tuple[str, int, int]] = []
     for path in paths:
+        try:
+            metadata = path.stat()
+        except OSError:
+            continue
+        readable_paths.append(path)
+        snapshot_entries.append(
+            (path.name, metadata.st_mtime_ns, metadata.st_size)
+        )
+
+    try:
+        cache_key = overlays_dir.resolve()
+    except OSError:
+        cache_key = overlays_dir.absolute()
+    snapshot = tuple(snapshot_entries)
+    with _manifest_cache_lock:
+        cached = _manifest_cache.get(cache_key)
+        if cached is not None and cached[0] == snapshot:
+            return copy.deepcopy(cached[1])
+
+    manifests: list[dict[str, Any]] = []
+    for path in readable_paths:
         manifest = read_overlay_manifest(path)
         if manifest is not None:
             manifests.append(manifest)
-    return manifests
+
+    with _manifest_cache_lock:
+        _manifest_cache[cache_key] = (snapshot, copy.deepcopy(manifests))
+    return copy.deepcopy(manifests)

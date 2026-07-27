@@ -5,11 +5,12 @@ import asyncio
 import base64
 import contextlib
 import datetime as dt
+import ipaddress
 import json
-import re
 import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -24,10 +25,13 @@ from overlay_config import (
     save_overlay_config,
     update_instance_config,
 )
-from overlay_manifest import scan_overlay_manifests
+from overlay_manifest import OVERLAY_NAME, scan_overlay_manifests
 
 
 APP_NAME = "overlay-studio-server"
+OVERLAY_ROUTE_PATTERN = (
+    OVERLAY_NAME.pattern.removeprefix("^").removesuffix("$")
+)
 DEFAULT_CONFIG: dict[str, Any] = {
     "server": {
         "host": "127.0.0.1",
@@ -50,6 +54,87 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "thumbnail_max_bytes": 524288,
     },
 }
+
+
+def _normalize_loopback_hostname(value: str | None) -> str | None:
+    hostname = str(value or "").strip().rstrip(".").lower()
+    if hostname == "localhost":
+        return hostname
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return None
+    return address.compressed if address.is_loopback else None
+
+
+def _parse_loopback_host(value: str) -> tuple[str, int] | None:
+    if not value or value != value.strip() or any(char in value for char in "/?#"):
+        return None
+    try:
+        parsed = urllib.parse.urlsplit(f"//{value}")
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    hostname = _normalize_loopback_hostname(parsed.hostname)
+    if hostname is None:
+        return None
+    return hostname, port if port is not None else 80
+
+
+def _parse_loopback_source(
+    value: str,
+    *,
+    allow_path: bool,
+) -> tuple[str, int] | None:
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme.lower() != "http"
+        or parsed.username is not None
+        or parsed.password is not None
+        or (not allow_path and parsed.path not in {"", "/"})
+        or (not allow_path and (parsed.query or parsed.fragment))
+    ):
+        return None
+    hostname = _normalize_loopback_hostname(parsed.hostname)
+    if hostname is None:
+        return None
+    return hostname, port if port is not None else 80
+
+
+def require_local_json_write(request: web.Request) -> None:
+    if request.content_type.lower() != "application/json":
+        raise web.HTTPUnsupportedMediaType(
+            text="API writes require Content-Type: application/json"
+        )
+
+    host = _parse_loopback_host(request.headers.get("Host", ""))
+    if host is None:
+        raise web.HTTPForbidden(text="API writes require a loopback Host")
+
+    origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer")
+    if origin is not None:
+        source = _parse_loopback_source(origin, allow_path=False)
+    elif referer is not None:
+        source = _parse_loopback_source(referer, allow_path=True)
+    else:
+        source = None
+    if (origin is not None or referer is not None) and source != host:
+        raise web.HTTPForbidden(
+            text="Browser API writes must use the same loopback origin"
+        )
 
 
 def log(message: str) -> None:
@@ -534,6 +619,19 @@ class MediaSessionWorker:
 
 
 @web.middleware
+async def api_write_guard_middleware(
+    request: web.Request,
+    handler: Any,
+) -> web.StreamResponse:
+    if (
+        request.path.startswith("/api/")
+        and request.method not in {"GET", "HEAD", "OPTIONS"}
+    ):
+        require_local_json_write(request)
+    return await handler(request)
+
+
+@web.middleware
 async def static_cors_middleware(request: web.Request, handler: Any) -> web.StreamResponse:
     response = await handler(request)
     if request.path.startswith(("/assets/", "/user-assets/")):
@@ -542,7 +640,9 @@ async def static_cors_middleware(request: web.Request, handler: Any) -> web.Stre
 
 
 def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
-    app = web.Application(middlewares=[static_cors_middleware])
+    app = web.Application(
+        middlewares=[api_write_guard_middleware, static_cors_middleware]
+    )
     hub = ClientHub()
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
@@ -675,7 +775,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
     async def serve_overlay_page(request: web.Request) -> web.StreamResponse:
         overlay_name = request.match_info.get("overlay_name", "")
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", overlay_name):
+        if not OVERLAY_NAME.fullmatch(overlay_name):
             raise web.HTTPNotFound(text="Overlay not found")
         overlay_path = overlays_dir / f"{overlay_name}.html"
         if not overlay_path.is_file():
@@ -773,11 +873,11 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/overlays/win-loss", serve_win_loss)
     app.router.add_get("/overlays/win-loss.html", serve_win_loss)
     app.router.add_get(
-        r"/overlays/{overlay_name:[A-Za-z0-9][A-Za-z0-9_-]*}",
+        f"/overlays/{{overlay_name:{OVERLAY_ROUTE_PATTERN}}}",
         serve_overlay_page,
     )
     app.router.add_get(
-        r"/overlays/{overlay_name:[A-Za-z0-9][A-Za-z0-9_-]*}.html",
+        f"/overlays/{{overlay_name:{OVERLAY_ROUTE_PATTERN}}}.html",
         serve_overlay_page,
     )
     app.router.add_get("/api/win-loss", get_win_loss)
