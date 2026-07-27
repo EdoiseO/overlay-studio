@@ -17,6 +17,7 @@ from typing import Any
 from aiohttp import web
 
 from counter_store import apply_counter_update, load_counter_state, save_counter_state
+from goal_store import apply_goal_update, load_goal_state, save_goal_state
 from overlay_config import (
     LEGACY_INSTANCE_IDS,
     is_valid_instance_id,
@@ -199,12 +200,15 @@ class ClientHub:
         self._clients: set[web.WebSocketResponse] = set()
         self._last_track: dict[str, Any] | None = None
         self._last_win_loss: dict[str, dict[str, Any]] = {}
+        self._last_goals: dict[str, dict[str, Any]] = {}
 
     async def add(self, ws: web.WebSocketResponse) -> None:
         self._clients.add(ws)
         if self._last_track is not None:
             await ws.send_str(json.dumps(self._last_track, separators=(",", ":")))
         for message in self._last_win_loss.values():
+            await ws.send_str(json.dumps(message, separators=(",", ":")))
+        for message in self._last_goals.values():
             await ws.send_str(json.dumps(message, separators=(",", ":")))
 
     async def remove(self, ws: web.WebSocketResponse) -> None:
@@ -231,6 +235,11 @@ class ClientHub:
         elif message.get("type") == "win-loss":
             key = str(message.get("instanceId") or "")
             self._last_win_loss[key] = message
+        elif message.get("type") == "goal":
+            key = str(message.get("instanceId") or "")
+            cached = dict(message)
+            cached.pop("event", None)
+            self._last_goals[key] = cached
         if not self._clients:
             return
 
@@ -636,12 +645,14 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     hub = ClientHub()
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
+    goal_state_path = base_dir / "goal.json"
     overlays_dir = base_dir.parent / "overlays"
     app["hub"] = hub
     app["config"] = config
     app["base_dir"] = base_dir
     app["overlay_config_path"] = overlay_config_path
     app["counter_state_path"] = counter_state_path
+    app["goal_state_path"] = goal_state_path
 
     def request_instance(
         request: web.Request,
@@ -816,6 +827,47 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             await hub.broadcast({"type": "win-loss", "state": saved_state})
         return web.json_response(saved_state)
 
+    async def get_goal(request: web.Request) -> web.Response:
+        instance_id, _saved_config = request_instance(request, "goal")
+        return web.json_response(
+            load_goal_state(goal_state_path, instance_id),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def update_goal(request: web.Request) -> web.Response:
+        if request.content_length is not None and request.content_length > 16 * 1024:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=16 * 1024,
+                actual_size=request.content_length,
+            )
+        try:
+            submitted = await request.json()
+        except (json.JSONDecodeError, TypeError):
+            raise web.HTTPBadRequest(text="Expected a JSON object") from None
+        if not isinstance(submitted, dict):
+            raise web.HTTPBadRequest(text="Expected a JSON object")
+        instance_id, _saved_config = request_instance(request, "goal")
+        previous = load_goal_state(goal_state_path, instance_id)
+        try:
+            state = apply_goal_update(previous, submitted)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from None
+        saved_state = save_goal_state(goal_state_path, state, instance_id)
+        message: dict[str, Any] = {
+            "type": "goal",
+            "state": saved_state,
+        }
+        if instance_id:
+            message["instanceId"] = instance_id
+        action = str(submitted.get("action") or "").strip().lower()
+        delta = round(saved_state["current"] - previous["current"], 2)
+        if action in {"add", "subtract"} and delta:
+            message["event"] = {"amount": delta}
+        elif action == "complete" and previous["current"] < previous["target"]:
+            message["event"] = {"text": "Goal complete"}
+        await hub.broadcast(message)
+        return web.json_response(saved_state)
+
     async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
         await ws.prepare(request)
@@ -872,6 +924,8 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     )
     app.router.add_get("/api/win-loss", get_win_loss)
     app.router.add_post("/api/win-loss", update_win_loss)
+    app.router.add_get("/api/goal", get_goal)
+    app.router.add_post("/api/goal", update_goal)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)

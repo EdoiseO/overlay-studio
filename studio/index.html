@@ -234,6 +234,102 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="goalView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>GOAL WIDGET</span>
+            <h1 id="goalDetailName">Goal Widget</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Goal progress</h2>
+          <div class="form-grid">
+            <label for="goalLabel">Label</label>
+            <input id="goalLabel" type="text" maxlength="64" autocomplete="off" placeholder="Tip goal">
+            <label for="goalCurrent">Current</label>
+            <input id="goalCurrent" type="number" min="0" max="1000000000" step="0.01">
+            <label for="goalTarget">Target</label>
+            <input id="goalTarget" type="number" min="0.01" max="1000000000" step="0.01">
+            <label for="goalFormat">Number format</label>
+            <select id="goalFormat">
+              <option value="currency">Currency</option>
+              <option value="number">Number</option>
+            </select>
+            <label for="goalSymbol">Currency symbol</label>
+            <input id="goalSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+          </div>
+          <div class="goal-progress-actions">
+            <label for="goalStep">
+              <span>Change amount</span>
+              <input id="goalStep" type="number" min="0.01" max="1000000000" step="0.01" value="1">
+            </label>
+            <button class="secondary-button score-button" type="button" data-goal-action="subtract" aria-label="Subtract progress" title="Subtract progress">-</button>
+            <button class="primary-button score-button" type="button" data-goal-action="add" aria-label="Add progress" title="Add progress">+</button>
+            <button class="secondary-button compact" type="button" data-goal-action="complete">Complete</button>
+            <button class="danger-button compact" type="button" data-goal-action="reset">Reset</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Appearance</h2>
+          <div class="form-grid">
+            <span>Palette</span>
+            <div class="palette-control goal-palette">
+              <label title="Ring color"><input id="goalColor" type="color"><span id="goalColorLabel">#FFE2A0</span></label>
+              <label title="Track color"><input id="goalTrack" type="color"><span id="goalTrackLabel">#3C3028</span></label>
+              <label title="Label color"><input id="goalLabelColor" type="color"><span id="goalLabelColorLabel">#F5E3BE</span></label>
+            </div>
+            <label for="goalFont">Font</label>
+            <select id="goalFont">
+              <option value="serif">Serif</option>
+              <option value="sans">Sans serif</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="display">Display</option>
+            </select>
+            <label for="goalWeight">Font weight</label>
+            <select id="goalWeight">
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+            <label for="goalScale">Scale</label>
+            <div class="range-control">
+              <input id="goalScale" type="range" min="0.5" max="1.2" step="0.05">
+              <output id="goalScaleOutput">1.00</output>
+            </div>
+            <label for="goalGlow">Glow strength</label>
+            <div class="range-control">
+              <input id="goalGlow" type="range" min="0" max="2.5" step="0.05">
+              <output id="goalGlowOutput">1.00</output>
+            </div>
+            <span>Effects</span>
+            <div class="goal-toggle-row">
+              <label><input id="goalParticles" type="checkbox"> Particles</label>
+              <label><input id="goalPercent" type="checkbox"> Percentage</label>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="goalSourceLabel" for="goalUrl">Goal Widget</label>
+            <input id="goalUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetGoalFieldsButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveGoalSettingsButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

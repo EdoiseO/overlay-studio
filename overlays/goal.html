@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Goal Widget</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Goal Widget",
+  "description": "A glowing progress ring for tip, subscriber, or follower goals.",
+  "category": "goals",
+  "canvas": { "w": 460, "h": 520 },
+  "settings": ["label", "current", "target", "format", "color", "font", "weight", "particles", "scale"],
+  "studioView": "goalView"
+}
+</script>
+<link rel="stylesheet" href="/assets/overlay-surface.css" />
+<style>
+  :root {
+    --ring: 255, 226, 160;      /* glow / fill colour  */
+    --track: 60, 48, 40;        /* unfilled arc        */
+    --ink: #fdf6e8;
+    --label: 245, 227, 190;
+    --scale: 1;
+    --weight: 500;
+    --glow: 1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* fallback copy of overlay-surface.css so this centers when opened from disk */
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    font-family: var(--font-stack, Georgia, "Times New Roman", serif);
+  }
+  body > .overlay-content { grid-area: 1 / 1; }
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #1c2429);
+  }
+
+  .overlay-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px;
+    transform: scale(var(--scale));
+  }
+
+  /* ---------- ring ---------- */
+  .ring-wrap {
+    position: relative;
+    width: 300px; height: 300px;
+    display: grid; place-items: center;
+  }
+
+  svg.ring { width: 100%; height: 100%; overflow: visible; display: block; }
+
+  .track {
+    fill: none;
+    stroke: rgba(var(--track), 0.62);
+    stroke-width: 22;
+    stroke-linecap: round;
+  }
+
+  .fill {
+    fill: none;
+    stroke: rgb(var(--ring));
+    stroke-width: 22;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 calc(10px * var(--glow)) rgba(var(--ring), 0.85))
+            drop-shadow(0 0 calc(26px * var(--glow)) rgba(var(--ring), 0.45));
+    transition: stroke-dashoffset .9s cubic-bezier(.22,.9,.28,1), stroke .5s ease;
+  }
+
+  /* centre percentage */
+  .pct {
+    position: absolute;
+    font-size: 34px;
+    font-weight: var(--weight);
+    letter-spacing: .02em;
+    color: rgba(var(--ring), 0.96);
+    text-shadow: 0 0 18px rgba(var(--ring), 0.55);
+    font-variant-numeric: tabular-nums;
+  }
+  .overlay-content.no-pct .pct { display: none; }
+
+  /* ---------- text ---------- */
+  .label {
+    width: 330px;
+    overflow: hidden;
+    font-size: 40px;
+    font-weight: var(--weight);
+    line-height: 1.1;
+    color: rgb(var(--label));
+    text-shadow: 0 3px 14px rgba(0,0,0,.55);
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .value {
+    width: 340px;
+    overflow: hidden;
+    font-size: 34px;
+    font-weight: var(--weight);
+    color: var(--ink);
+    text-shadow: 0 3px 14px rgba(0,0,0,.55);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- event bump + completion ---------- */
+  @keyframes bump {
+    0% { transform: scale(1); }
+    38% { transform: scale(1.075); }
+    100% { transform: scale(1); }
+  }
+  .ring-wrap.bumped { animation: bump .62s cubic-bezier(.22,.9,.28,1); }
+
+  @keyframes complete-pulse {
+    0%, 100% { --glow: 1.15; opacity: 1; }
+    50% { --glow: 2.1; opacity: .92; }
+  }
+  .overlay-content.complete .fill {
+    animation: complete-pulse 2.1s ease-in-out infinite;
+  }
+
+  /* floating toast when an event lands */
+  .toast {
+    position: absolute;
+    top: 46%;
+    font-size: 26px;
+    font-weight: var(--weight);
+    color: rgb(var(--ring));
+    text-shadow: 0 0 16px rgba(var(--ring), .7);
+    opacity: 0;
+    pointer-events: none;
+  }
+  @keyframes toast-rise {
+    0%   { opacity: 0; transform: translateY(6px) scale(.9); }
+    18%  { opacity: 1; transform: translateY(-10px) scale(1); }
+    100% { opacity: 0; transform: translateY(-52px) scale(1); }
+  }
+  .toast.show { animation: toast-rise 1.5s ease-out; }
+
+  /* ---------- particles ---------- */
+  .particles {
+    position: absolute; inset: -14px;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .particles i {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgb(var(--ring));
+    box-shadow: 0 0 8px rgba(var(--ring), .9);
+    opacity: 0;
+    animation: drift var(--dur, 5s) ease-in-out var(--delay, 0s) infinite;
+  }
+  @keyframes drift {
+    0%   { opacity: 0; transform: translate(0, 0) scale(.6); }
+    16%  { opacity: .95; }
+    70%  { opacity: .5; }
+    100% { opacity: 0; transform: translate(var(--dx, 0px), var(--dy, -46px)) scale(.35); }
+  }
+  .overlay-content.no-particles .particles { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fill { transition: none; }
+    .ring-wrap.bumped, .toast.show, .particles i,
+    .overlay-content.complete .fill { animation: none; }
+  }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content" id="stage">
+    <div class="ring-wrap" id="ringWrap">
+      <div class="particles" id="particles"></div>
+      <svg class="ring" viewBox="0 0 300 300" aria-hidden="true">
+        <g transform="rotate(120 150 150)">
+          <circle class="track" cx="150" cy="150" r="120" id="track" />
+          <circle class="fill"  cx="150" cy="150" r="120" id="fill" />
+        </g>
+      </svg>
+      <div class="pct" id="pct">0%</div>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="label" id="label">Tip goal</div>
+    <div class="value" id="value">$0 / $50</div>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
+  if (query.get("preview") === "studio" || location.protocol === "file:") {
+    document.documentElement.classList.add("overlay-studio-preview");
+  }
+
+  const stage = document.getElementById("stage");
+  const ringWrap = document.getElementById("ringWrap");
+  const fill = document.getElementById("fill");
+  const pctEl = document.getElementById("pct");
+  const labelEl = document.getElementById("label");
+  const valueEl = document.getElementById("value");
+  const toastEl = document.getElementById("toast");
+  const particlesEl = document.getElementById("particles");
+
+  /* ---- ring geometry: 300deg arc, 60deg gap at the bottom ---- */
+  const R = 120;
+  const CIRC = 2 * Math.PI * R;
+  const ARC = CIRC * (300 / 360);
+  [document.getElementById("track"), fill].forEach(el => {
+    el.setAttribute("stroke-dasharray", `${ARC} ${CIRC - ARC}`);
+  });
+  fill.style.strokeDashoffset = ARC;
+
+  /* ---- helpers ---- */
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+  const num = (key, dflt) => {
+    const raw = parseFloat(query.get(key));
+    return Number.isFinite(raw) ? raw : dflt;
+  };
+  const hexToRgb = value => {
+    const hex = String(value || "").trim().replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const hex = (value, dflt) => {
+    const candidate = String(value || "").trim().replace(/^#/, "");
+    return /^[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : dflt;
+  };
+  const enabled = (key, dflt = true) => {
+    const value = query.get(key);
+    if (value === null) return dflt;
+    return !["0", "false", "no", "off"].includes(value.toLowerCase());
+  };
+
+  const FONTS = {
+    serif:   'Georgia, "Times New Roman", serif',
+    sans:    '"Segoe UI", system-ui, sans-serif',
+    round:   '"Fredoka", "Segoe UI", system-ui, sans-serif',
+    mono:    '"Cascadia Mono", Consolas, monospace',
+    display: '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
+  };
+
+  /* ---- state ---- */
+  const state = {
+    label: (query.get("label") || "Tip goal").slice(0, 64),
+    current: clamp(num("current", 0), 0, 1_000_000_000),
+    target: clamp(num("target", 50), 0.01, 1_000_000_000),
+    format: query.get("format") === "number" ? "number" : "currency",
+    symbol: (query.get("symbol") || "$").slice(0, 4),
+    color: hex(query.get("color") || query.get("a"), "ffe2a0"),
+    track: hex(query.get("track"), "3c3028"),
+    labelColor: hex(query.get("labelColor"), "f5e3be"),
+    font: FONTS[query.get("font")] ? query.get("font") : "serif",
+    weight: clamp(num("weight", 500), 100, 900),
+    particles: enabled("particles"),
+    percent: enabled("percent"),
+    scale: clamp(num("scale", 1), 0.5, 1.2),
+    glow: clamp(num("glow", 1), 0, 2.5),
+  };
+
+  /* ---- appearance (colour / font / size / particles) ---- */
+  function applyAppearance() {
+    const root = document.documentElement;
+
+    root.style.setProperty("--ring", hexToRgb(state.color).join(","));
+    root.style.setProperty("--track", hexToRgb(state.track).join(","));
+    root.style.setProperty("--label", hexToRgb(state.labelColor).join(","));
+    root.style.setProperty("--font-stack", FONTS[state.font] || FONTS.serif);
+    root.style.setProperty("--weight", String(state.weight));
+    root.style.setProperty("--scale", String(state.scale));
+    root.style.setProperty("--glow", String(state.glow));
+    stage.classList.toggle("no-particles", !state.particles);
+    stage.classList.toggle("no-pct", !state.percent);
+  }
+
+  function buildParticles(count = 14) {
+    particlesEl.replaceChildren();
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("i");
+      const angle = (i / count) * Math.PI * 2;
+      // scatter around the ring edge
+      p.style.left = `${50 + Math.cos(angle) * 46}%`;
+      p.style.top = `${50 + Math.sin(angle) * 46}%`;
+      p.style.setProperty("--dx", `${(Math.random() * 26 - 13).toFixed(1)}px`);
+      p.style.setProperty("--dy", `${(-30 - Math.random() * 34).toFixed(1)}px`);
+      p.style.setProperty("--dur", `${(3.6 + Math.random() * 3).toFixed(2)}s`);
+      p.style.setProperty("--delay", `${(Math.random() * 4).toFixed(2)}s`);
+      particlesEl.append(p);
+    }
+  }
+
+  /* ---- rendering ---- */
+  function formatAmount(n) {
+    if (state.format === "currency") {
+      const rounded = Math.round(n * 100) / 100;
+      const text = Number.isInteger(rounded) ? rounded : rounded.toFixed(2);
+      return `${state.symbol}${text}`;
+    }
+    return String(Math.round(n));
+  }
+
+  function render() {
+    const ratio = clamp(state.current / state.target, 0, 1);
+    fill.style.strokeDashoffset = ARC * (1 - ratio);
+    pctEl.textContent = `${Math.round(ratio * 100)}%`;
+    labelEl.textContent = state.label;
+    valueEl.textContent = `${formatAmount(state.current)} / ${formatAmount(state.target)}`;
+    valueEl.style.fontSize =
+      valueEl.textContent.length > 22
+        ? "22px"
+        : valueEl.textContent.length > 16
+          ? "28px"
+          : "34px";
+    stage.classList.toggle("complete", ratio >= 1);
+  }
+
+  /* ---- events ---- */
+  function celebrate(text) {
+    ringWrap.classList.remove("bumped");
+    void ringWrap.offsetWidth;           // restart the animation
+    ringWrap.classList.add("bumped");
+    if (!text) return;
+    toastEl.textContent = text;
+    toastEl.classList.remove("show");
+    void toastEl.offsetWidth;
+    toastEl.classList.add("show");
+  }
+
+  function addProgress(amount, text) {
+    const delta = Number(amount);
+    if (!Number.isFinite(delta) || delta === 0) return;
+    state.current = clamp(state.current + delta, 0, state.target * 4);
+    render();
+    celebrate(text || `+${formatAmount(delta)}`);
+  }
+
+  function setGoal(patch = {}) {
+    if (typeof patch.label === "string") state.label = patch.label.slice(0, 64);
+    if (Number.isFinite(Number(patch.current))) {
+      state.current = clamp(Number(patch.current), 0, 1_000_000_000);
+    }
+    if (Number.isFinite(Number(patch.target))) {
+      state.target = clamp(Number(patch.target), 0.01, 1_000_000_000);
+    }
+    if (patch.format === "currency" || patch.format === "number") {
+      state.format = patch.format;
+    }
+    if (typeof patch.symbol === "string") state.symbol = patch.symbol.slice(0, 4);
+    state.color = hex(patch.color, state.color);
+    state.track = hex(patch.track, state.track);
+    state.labelColor = hex(patch.labelColor, state.labelColor);
+    if (FONTS[patch.font]) state.font = patch.font;
+    if (Number.isFinite(Number(patch.weight))) {
+      state.weight = clamp(Number(patch.weight), 100, 900);
+    }
+    if (typeof patch.particles === "boolean") state.particles = patch.particles;
+    if (typeof patch.percent === "boolean") state.percent = patch.percent;
+    if (Number.isFinite(Number(patch.scale))) {
+      state.scale = clamp(Number(patch.scale), 0.5, 1.2);
+    }
+    if (Number.isFinite(Number(patch.glow))) {
+      state.glow = clamp(Number(patch.glow), 0, 2.5);
+    }
+    applyAppearance();
+    render();
+  }
+
+  /* public hook: window.goalWidget.add(5) / .set({current: 30}) */
+  window.goalWidget = { add: addProgress, set: setGoal, state };
+
+  async function loadState() {
+    if (!instanceId || location.protocol === "file:") return;
+    try {
+      const endpoint = new URL("/api/goal", location.origin);
+      endpoint.searchParams.set("i", instanceId);
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (response.ok) setGoal(await response.json());
+    } catch {}
+  }
+
+  /* ---- optional live wiring (ignores messages for other instances) ---- */
+  function connect() {
+    if (location.protocol === "file:" || !("WebSocket" in window)) return;
+    let socket;
+    try {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    } catch { return; }
+    socket.onmessage = event => {
+      if (typeof event.data !== "string" || event.data.length > 64 * 1024) return;
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      const addressed = String(message?.instanceId || "");
+      if (addressed !== instanceId) return;
+      if (message.type !== "goal") return;
+      setGoal(message.state || {});
+      if (!message.event) return;
+      const amount = Number(message.event.amount);
+      let text = String(message.event.text || "").slice(0, 64);
+      if (!text && Number.isFinite(amount) && amount !== 0) {
+        const sign = amount > 0 ? "+" : "-";
+        text = `${sign}${formatAmount(Math.abs(amount))}`;
+      }
+      celebrate(text);
+    };
+    socket.onclose = () => setTimeout(connect, 2000);
+  }
+
+  /* ---- demo driver: fake events so the widget is alive standalone ---- */
+  function startDemo() {
+    const tick = () => {
+      if (state.current >= state.target) {
+        setTimeout(() => { state.current = 0; render(); }, 3200);
+      } else {
+        const step = state.format === "currency"
+          ? Math.round((state.target * (0.06 + Math.random() * 0.12)) * 2) / 2
+          : Math.max(1, Math.round(state.target * 0.1));
+        addProgress(step);
+      }
+      setTimeout(tick, 2600 + Math.random() * 1400);
+    };
+    setTimeout(tick, 900);
+  }
+
+  applyAppearance();
+  buildParticles();
+  render();
+  loadState();
+  connect();
+  if (query.get("demo")?.toLowerCase() === "on" && !instanceId) startDemo();
+})();
+</script>
+</body>
+</html>

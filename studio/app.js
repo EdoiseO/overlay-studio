@@ -15,6 +15,7 @@ const app = {
   danceProfileDialogMode: null,
   mediaLibraryKey: "",
   libraryKey: "",
+  goalKey: "",
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
@@ -337,6 +338,10 @@ function renderActiveIdentity(instance) {
     byId("flowDetailName").textContent = instance.name;
     byId("flowSourceLabel").textContent = instance.name;
     byId("flowUrl").value = source;
+  } else if (instance.type === "goal") {
+    byId("goalDetailName").textContent = instance.name;
+    byId("goalSourceLabel").textContent = instance.name;
+    byId("goalUrl").value = source;
   }
 }
 
@@ -853,6 +858,34 @@ function renderCounter(counter) {
   setColor("counterAccent", counter.accent || "d7ff45");
 }
 
+function syncGoalFormat() {
+  byId("goalSymbol").disabled = byId("goalFormat").value !== "currency";
+}
+
+function renderGoal(goal, force = false) {
+  if (!goal) return;
+  const key = JSON.stringify(goal);
+  if (!force && key === app.goalKey) return;
+  app.goalKey = key;
+  byId("goalLabel").value = goal.label || "Tip goal";
+  byId("goalCurrent").value = Number(goal.current) || 0;
+  byId("goalTarget").value = Math.max(0.01, Number(goal.target) || 50);
+  byId("goalFormat").value = goal.format === "number" ? "number" : "currency";
+  byId("goalSymbol").value = goal.symbol || "$";
+  setColor("goalColor", goal.color || "ffe2a0");
+  setColor("goalTrack", goal.track || "3c3028");
+  setColor("goalLabelColor", goal.labelColor || "f5e3be");
+  byId("goalFont").value = goal.font || "serif";
+  byId("goalWeight").value = String(goal.weight || 500);
+  byId("goalParticles").checked = goal.particles !== false;
+  byId("goalPercent").checked = goal.percent !== false;
+  byId("goalScale").value = Number(goal.scale) || 1;
+  byId("goalScaleOutput").value = Number(goal.scale || 1).toFixed(2);
+  byId("goalGlow").value = Number(goal.glow) || 0;
+  byId("goalGlowOutput").value = Number(goal.glow || 0).toFixed(2);
+  syncGoalFormat();
+}
+
 function setColor(id, value) {
   const normalized = `#${String(value || "").replace("#", "").padEnd(6, "0").slice(0, 6)}`;
   const input = byId(id);
@@ -960,6 +993,11 @@ function renderState(state, hydrate = false) {
     selected?.type === "win-loss"
       ? state.counters?.[selected.id]
       : state.counter,
+  );
+  renderGoal(
+    selected?.type === "goal"
+      ? state.goals?.[selected.id]
+      : state.goal,
   );
   if (hydrate) {
     fillConfig(
@@ -1199,6 +1237,50 @@ async function sendCounter(payload) {
   logActivity(`Match record updated: ${result.counter.wins} wins, ${result.counter.losses} losses`);
 }
 
+function gatherGoalSettings() {
+  return {
+    label: byId("goalLabel").value,
+    current: Number(byId("goalCurrent").value),
+    target: Number(byId("goalTarget").value),
+    format: byId("goalFormat").value,
+    symbol: byId("goalSymbol").value,
+    color: byId("goalColor").value.slice(1),
+    track: byId("goalTrack").value.slice(1),
+    labelColor: byId("goalLabelColor").value.slice(1),
+    font: byId("goalFont").value,
+    weight: Number(byId("goalWeight").value),
+    particles: byId("goalParticles").checked,
+    percent: byId("goalPercent").checked,
+    scale: Number(byId("goalScale").value),
+    glow: Number(byId("goalGlow").value),
+  };
+}
+
+async function sendGoal(payload, message = "Goal updated") {
+  const instance = activeInstance();
+  if (!instance || instance.type !== "goal" || app.busy) return;
+  app.busy = true;
+  try {
+    const result = await callApi("update_goal", payload, instance.id);
+    if (!result.ok) {
+      showToast(result.detail || "Goal update failed");
+      return;
+    }
+    app.state.goals = app.state.goals || {};
+    app.state.goals[instance.id] = result.goal;
+    app.goalKey = "";
+    renderGoal(result.goal);
+    logActivity(
+      `${message}: ${result.goal.current} of ${result.goal.target}`,
+    );
+    showToast(message);
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+  }
+}
+
 async function copySource(instanceId) {
   const instance = instanceById(instanceId);
   if (!instance) return;
@@ -1221,6 +1303,9 @@ function openInstanceSettings(instanceId) {
   renderActiveIdentity(instance);
   if (instance.type === "win-loss") {
     renderCounter(app.state?.counters?.[instance.id] || app.state?.counter);
+  } else if (instance.type === "goal") {
+    app.goalKey = "";
+    renderGoal(app.state?.goals?.[instance.id] || app.state?.goal, true);
   }
   showView(manifest.studioView);
 }
@@ -1382,13 +1467,31 @@ function bindEvents() {
   byId("flowGlow").addEventListener("input", () => {
     byId("flowGlowOutput").value = Number(byId("flowGlow").value).toFixed(2);
   });
-  ["colorA", "colorB", "colorC", "counterAccent"].forEach((id) => {
+  byId("goalScale").addEventListener("input", () => {
+    byId("goalScaleOutput").value = Number(byId("goalScale").value).toFixed(2);
+  });
+  byId("goalGlow").addEventListener("input", () => {
+    byId("goalGlowOutput").value = Number(byId("goalGlow").value).toFixed(2);
+  });
+  byId("goalFormat").addEventListener("change", syncGoalFormat);
+  [
+    "colorA",
+    "colorB",
+    "colorC",
+    "counterAccent",
+    "goalColor",
+    "goalTrack",
+    "goalLabelColor",
+  ].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
 
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveGoalSettingsButton").addEventListener("click", () => {
+    sendGoal(gatherGoalSettings(), "Goal saved and applied");
+  });
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
     byId("danceName").value = defaults.dance.name;
@@ -1421,6 +1524,16 @@ function bindEvents() {
     byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
     logActivity("Now Playing Flow fields reset; save to apply");
   });
+  byId("resetGoalFieldsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    const current =
+      app.state?.goals?.[instance?.id]
+      || app.state?.goal
+      || app.state?.goalDefaults;
+    renderGoal(app.state?.goalDefaults, true);
+    app.goalKey = JSON.stringify(current || {});
+    logActivity("Goal fields reset; save to apply");
+  });
 
   document.querySelectorAll("[data-counter-action]").forEach((button) => {
     button.addEventListener("click", () => sendCounter({ action: button.dataset.counterAction }));
@@ -1432,6 +1545,22 @@ function bindEvents() {
     sendCounter({
       title: byId("counterTitle").value,
       accent: byId("counterAccent").value.slice(1),
+    });
+  });
+  document.querySelectorAll("[data-goal-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.goalAction;
+      const payload = { action };
+      if (action === "add" || action === "subtract") {
+        payload.amount = Number(byId("goalStep").value);
+      }
+      const labels = {
+        add: "Progress added",
+        subtract: "Progress subtracted",
+        complete: "Goal completed",
+        reset: "Goal reset",
+      };
+      sendGoal(payload, labels[action] || "Goal updated");
     });
   });
 

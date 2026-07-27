@@ -39,6 +39,7 @@ SERVER_CONFIG_EXAMPLE_PATH = SERVER_DIR / "config.example.json"
 OVERLAY_CONFIG_PATH = SERVER_DIR / "overlay-config.json"
 APP_SETTINGS_PATH = SERVER_DIR / "app-settings.json"
 COUNTER_STATE_PATH = SERVER_DIR / "win-loss.json"
+GOAL_STATE_PATH = SERVER_DIR / "goal.json"
 USER_ASSETS_DIR = ROOT_DIR / "user-assets"
 PID_PATH = SERVER_DIR / "server.pid"
 LOG_PATH = SERVER_DIR / "server.log"
@@ -53,6 +54,12 @@ from counter_store import (  # noqa: E402
     load_counter_state,
     load_counter_states,
     remove_counter_instance,
+)
+from goal_store import (  # noqa: E402
+    DEFAULT_GOAL_STATE,
+    load_goal_state,
+    load_goal_states,
+    remove_goal_instance,
 )
 from overlay_config import (  # noqa: E402
     DEFAULT_OVERLAY_CONFIG,
@@ -869,6 +876,16 @@ class DesktopApi:
                     if instance["type"] == "win-loss"
                 ),
             ),
+            "goal": load_goal_state(GOAL_STATE_PATH),
+            "goalDefaults": DEFAULT_GOAL_STATE,
+            "goals": load_goal_states(
+                GOAL_STATE_PATH,
+                (
+                    instance_id
+                    for instance_id, instance in config["instances"].items()
+                    if instance["type"] == "goal"
+                ),
+            ),
             "theme": (
                 str(settings.get("theme") or "dark")
                 if str(settings.get("theme") or "dark") in {"dark", "light"}
@@ -1214,6 +1231,7 @@ class DesktopApi:
             updated = remove_overlay_instance_config(config, instance_id)
             save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
             remove_counter_instance(COUNTER_STATE_PATH, instance_id)
+            remove_goal_instance(GOAL_STATE_PATH, instance_id)
         except (OSError, ValueError) as error:
             return {"ok": False, "detail": str(error)}
         return {"ok": True, "state": self.get_state()}
@@ -1308,6 +1326,32 @@ class DesktopApi:
         except (OSError, ValueError, urllib.error.URLError) as exc:
             return {"ok": False, "detail": str(exc)}
         return {"ok": True, "counter": state}
+
+    def update_goal(
+        self,
+        submitted: dict[str, Any],
+        instance_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(submitted, dict):
+            return {"ok": False, "detail": "Expected goal values"}
+        if instance_id and not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        if not is_healthy():
+            success, detail = self._start_server_blocking()
+            if not success:
+                return {"ok": False, "detail": detail}
+        try:
+            state = request_json(
+                (
+                    f"/api/goal?i={urllib.parse.quote(instance_id)}"
+                    if instance_id
+                    else "/api/goal"
+                ),
+                submitted,
+            )
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            return {"ok": False, "detail": str(exc)}
+        return {"ok": True, "goal": state}
 
     def set_theme(self, theme: str) -> dict[str, Any]:
         selected = theme if theme in {"dark", "light"} else "dark"

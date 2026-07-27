@@ -15,6 +15,7 @@ local OBS browser-source overlays.
 | **Spotify Overlay** | Shows live Windows now-playing metadata, album artwork, and playback progress. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
 | **Now Playing Flow** | Presents the current media-session artwork with audio-reactive progress bars. |
+| **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 
 ## Requirements
 
@@ -74,6 +75,14 @@ after account authorization is introduced through the Connections area in Settin
 Saving applies the new appearance to connected Studio previews and OBS browser sources
 without changing their URL.
 
+## Goal Widget
+
+Add **Goal Widget** from Browse overlays to track a tip, subscriber, follower, or
+custom numeric goal. Its Studio page controls the label, current and target values,
+currency or plain-number formatting, colors, font, particles, percentage, scale, and
+glow. Progress is stored independently for every Goal Widget instance and is restored
+when Overlay Studio restarts.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -126,6 +135,7 @@ http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
+http://127.0.0.1:8473/overlays/goal
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -144,6 +154,7 @@ Dancing GIF      520 x 420
 Spotify Overlay  620 x 360
 Match Record     900 x 320
 Now Playing Flow 760 x 420
+Goal Widget      460 x 520
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined
@@ -177,6 +188,32 @@ Invoke-RestMethod `
 
 The same endpoint accepts direct `wins`, `losses`, `title`, and six-digit `accent`
 values.
+
+## Goal automation
+
+Chat tools can update a Goal Widget by sending JSON to `POST /api/goal` with the
+instance's `i` query parameter. Supported actions are:
+
+```text
+add
+subtract
+reset
+complete
+```
+
+PowerShell example:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"action":"add","amount":5}' `
+  -Uri "http://127.0.0.1:8473/api/goal?i=goal"
+```
+
+The endpoint also accepts direct Goal Widget settings such as `label`, `current`,
+`target`, `format`, `symbol`, `color`, `font`, `particles`, `scale`, and `glow`.
+Values are normalized and bounded before being saved.
 
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools
