@@ -20,6 +20,7 @@ const app = {
   goalPillKey: "",
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
+  customizerPreviewExpanded: false,
   customizerResizeObserver: null,
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
@@ -40,6 +41,26 @@ const GOAL_PILL_PRESETS = new Set([
   "a8d66e",
   "82b7e8",
 ]);
+const CURRENCY_OPTIONS = [
+  ["US Dollar ($)", "$"],
+  ["Australian Dollar (A$)", "A$"],
+  ["Bitcoin (BTC)", "\u20bf"],
+  ["Brazilian Real (R$)", "R$"],
+  ["Canadian Dollar (C$)", "C$"],
+  ["Chinese Yuan (CN\u00a5)", "CN\u00a5"],
+  ["Danish Krone (kr)", "kr"],
+  ["Euro (EUR)", "\u20ac"],
+  ["Indian Rupee (INR)", "\u20b9"],
+  ["Japanese Yen (JPY)", "\u00a5"],
+  ["Mexican Peso (MX$)", "MX$"],
+  ["New Zealand Dollar (NZ$)", "NZ$"],
+  ["Norwegian Krone (NOK)", "NOK"],
+  ["Pound Sterling (GBP)", "\u00a3"],
+  ["South African Rand (R)", "R"],
+  ["South Korean Won (KRW)", "\u20a9"],
+  ["Swedish Krona (SEK)", "SEK"],
+  ["Swiss Franc (CHF)", "CHF"],
+];
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
@@ -272,11 +293,30 @@ function scheduleCustomizerDraft(delay = 70) {
   app.customizerPreviewTimer = setTimeout(postCustomizerDraft, delay);
 }
 
+function setCustomizerPreviewExpanded(expanded) {
+  const dock = byId("customizerPreviewDock");
+  const button = byId("customizerPreviewExpandButton");
+  const next = Boolean(expanded && !dock.hidden);
+  app.customizerPreviewExpanded = next;
+  dock.classList.toggle("expanded", next);
+  button.setAttribute("aria-expanded", String(next));
+  button.setAttribute(
+    "aria-label",
+    next ? "Collapse live draft" : "Expand live draft",
+  );
+  button.title = next ? "Collapse live draft" : "Expand live draft";
+  button.firstElementChild.textContent = next ? "\u00d7" : "\u26f6";
+  byId("customizerPreviewStage").title =
+    next ? "" : "Click to expand live draft";
+  requestAnimationFrame(fitCustomizerPreview);
+}
+
 function hideCustomizerPreview() {
   const dock = byId("customizerPreviewDock");
   const frame = byId("customizerPreviewFrame");
   clearTimeout(app.customizerPreviewTimer);
   app.customizerPreviewReady = false;
+  setCustomizerPreviewExpanded(false);
   dock.hidden = true;
   updatePreview(frame, "", false);
 }
@@ -1094,6 +1134,32 @@ function syncGoalFormat() {
   byId("goalSymbol").disabled = byId("goalFormat").value !== "currency";
 }
 
+function initializeCurrencySelects() {
+  document.querySelectorAll("[data-currency-select]").forEach((select) => {
+    select.replaceChildren();
+    CURRENCY_OPTIONS.forEach(([label, symbol]) => {
+      const option = document.createElement("option");
+      option.value = symbol;
+      option.textContent = label;
+      select.append(option);
+    });
+  });
+}
+
+function setCurrencySymbol(id, symbol) {
+  const select = byId(id);
+  const selected = String(symbol || "$").slice(0, 4) || "$";
+  select.querySelector("[data-saved-currency]")?.remove();
+  if (![...select.options].some((option) => option.value === selected)) {
+    const option = document.createElement("option");
+    option.value = selected;
+    option.textContent = `Saved currency (${selected})`;
+    option.dataset.savedCurrency = "true";
+    select.append(option);
+  }
+  select.value = selected;
+}
+
 function renderGoal(goal, force = false) {
   if (!goal) return;
   const key = JSON.stringify(goal);
@@ -1103,7 +1169,7 @@ function renderGoal(goal, force = false) {
   byId("goalCurrent").value = Number(goal.current) || 0;
   byId("goalTarget").value = Math.max(0.01, Number(goal.target) || 50);
   byId("goalFormat").value = goal.format === "number" ? "number" : "currency";
-  byId("goalSymbol").value = goal.symbol || "$";
+  setCurrencySymbol("goalSymbol", goal.symbol);
   setColor("goalColor", goal.color || "ffe2a0");
   setColor("goalTrack", goal.track || "3c3028");
   setColor("goalLabelColor", goal.labelColor || "f5e3be");
@@ -1137,7 +1203,7 @@ function renderGoalBar(goal, force = false) {
   byId("goalBarCurrent").value = Number(goal.current) || 0;
   byId("goalBarTarget").value = Math.max(0.01, Number(goal.target) || 100);
   byId("goalBarFormat").value = goal.format === "currency" ? "currency" : "number";
-  byId("goalBarSymbol").value = goal.symbol || "$";
+  setCurrencySymbol("goalBarSymbol", goal.symbol);
   byId("goalBarLayout").value = goal.layout || "horizontal";
   byId("goalBarSize").value = goal.size || "full";
   byId("goalBarShell").value = goal.shell || "on";
@@ -1178,7 +1244,7 @@ function renderGoalPill(goal, force = false) {
   byId("goalPillTarget").value = Math.max(0.01, Number(goal.target) || 100);
   byId("goalPillFormat").value =
     goal.format === "number" ? "number" : "currency";
-  byId("goalPillSymbol").value = goal.symbol || "$";
+  setCurrencySymbol("goalPillSymbol", goal.symbol);
   byId("goalPillSize").value = goal.size || "full";
   byId("goalPillIcon").value = goal.icon || "tips";
   byId("goalPillCorners").value = goal.corners || "round";
@@ -1799,6 +1865,7 @@ function handleInstanceAction(action, instanceId) {
 }
 
 function bindEvents() {
+  initializeCurrencySelects();
   bindDanceDropZone();
   const customizerFrame = byId("customizerPreviewFrame");
   customizerFrame.addEventListener("load", () => {
@@ -1810,6 +1877,17 @@ function bindEvents() {
   });
   app.customizerResizeObserver = new ResizeObserver(fitCustomizerPreview);
   app.customizerResizeObserver.observe(byId("customizerPreviewStage"));
+  byId("customizerPreviewExpandButton").addEventListener("click", () => {
+    setCustomizerPreviewExpanded(!app.customizerPreviewExpanded);
+  });
+  byId("customizerPreviewStage").addEventListener("click", () => {
+    if (!app.customizerPreviewExpanded) setCustomizerPreviewExpanded(true);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && app.customizerPreviewExpanded) {
+      setCustomizerPreviewExpanded(false);
+    }
+  });
   const scheduleFromCustomizerEvent = (event) => {
     if (event.target.closest(".detail-view.active.has-customizer-preview")) {
       scheduleCustomizerDraft();

@@ -258,7 +258,7 @@
               <option value="number">Number</option>
             </select>
             <label for="goalSymbol">Currency symbol</label>
-            <input id="goalSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+            <select id="goalSymbol" data-currency-select></select>
           </div>
           <div class="goal-progress-actions">
             <label for="goalStep">
@@ -354,7 +354,7 @@
               <option value="currency">Currency</option>
             </select>
             <label for="goalBarSymbol">Currency symbol</label>
-            <input id="goalBarSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+            <select id="goalBarSymbol" data-currency-select></select>
           </div>
           <div class="goal-progress-actions">
             <label for="goalBarStep">
@@ -495,7 +495,7 @@
               <option value="number">Number</option>
             </select>
             <label for="goalPillSymbol">Currency symbol</label>
-            <input id="goalPillSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+            <select id="goalPillSymbol" data-currency-select></select>
           </div>
           <div class="goal-progress-actions">
             <label for="goalPillStep">
@@ -661,12 +661,28 @@
           <span>LIVE DRAFT</span>
           <strong id="customizerPreviewName">Overlay preview</strong>
         </div>
-        <div class="customizer-preview-status">
-          <i class="status-dot"></i>
-          <span id="customizerPreviewStatus">Checking</span>
+        <div class="customizer-preview-actions">
+          <div class="customizer-preview-status">
+            <i class="status-dot"></i>
+            <span id="customizerPreviewStatus">Checking</span>
+          </div>
+          <button
+            class="icon-button customizer-preview-expand"
+            id="customizerPreviewExpandButton"
+            type="button"
+            aria-label="Expand live draft"
+            aria-expanded="false"
+            title="Expand live draft"
+          >
+            <span aria-hidden="true">&#x26F6;</span>
+          </button>
         </div>
       </div>
-      <div class="customizer-preview-stage" id="customizerPreviewStage">
+      <div
+        class="customizer-preview-stage"
+        id="customizerPreviewStage"
+        title="Click to expand live draft"
+      >
         <iframe id="customizerPreviewFrame" title="Live customization preview" tabindex="-1"></iframe>
         <div class="customizer-preview-offline">
           <strong>Preview offline</strong>

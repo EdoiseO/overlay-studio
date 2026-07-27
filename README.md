@@ -71,7 +71,8 @@ Every customization page also keeps a compact live draft preview beside its cont
 Text, number, color, layout, media, and slider changes appear there immediately without
 writing to the server. OBS and the installed library preview continue using the saved
 settings until **Save** is selected. Leaving the customization page unloads the draft
-preview to release its browser resources.
+preview to release its browser resources. The form scrolls independently from the
+preview; click the live draft to expand it and press `Esc` to return to the editor.
 
 Each card can copy its OBS URL, be renamed without changing that URL, or be removed
 from My overlays. Removing an instance does not delete its local overlay type, which
@@ -92,7 +93,8 @@ custom numeric goal. Its Studio page controls the label, current and target valu
 currency or plain-number formatting, colors, font, particles, percentage, scale, and
 glow. The circular fill tracks `current / target` proportionally and caps visually at
 100 percent. Progress is stored independently for every Goal Widget instance and is
-restored when Overlay Studio restarts.
+restored when Overlay Studio restarts. Every goal editor uses the same currency menu;
+typing while it is focused jumps to currencies by name, such as `C` for Canadian Dollar.
 
 ## Goal Bar
 

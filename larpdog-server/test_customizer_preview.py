@@ -11,8 +11,29 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
 
         self.assertEqual(markup.count('id="customizerPreviewFrame"'), 1)
+        self.assertEqual(
+            markup.count('id="customizerPreviewExpandButton"'),
+            1,
+        )
         self.assertIn('type: "overlay-studio-draft"', script)
         self.assertIn('url.searchParams.set("customizer", "1")', script)
+        self.assertIn("setCustomizerPreviewExpanded", script)
+
+    def test_customizer_scroll_and_expansion_have_separate_layouts(self) -> None:
+        styles = (ROOT_DIR / "studio" / "app.css").read_text(encoding="utf-8")
+
+        self.assertIn("width: calc(100% - 324px)", styles)
+        self.assertIn("scrollbar-gutter: stable", styles)
+        self.assertIn(".customizer-preview-dock.expanded", styles)
+
+    def test_goal_currency_fields_use_shared_typeahead_selects(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+
+        self.assertEqual(markup.count("data-currency-select"), 3)
+        self.assertIn('["Canadian Dollar (C$)", "C$"]', script)
+        self.assertIn("initializeCurrencySelects", script)
+        self.assertIn("setCurrencySymbol", script)
 
     def test_each_customizable_overlay_accepts_drafts(self) -> None:
         overlay_sources = {
