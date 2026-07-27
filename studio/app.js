@@ -1497,15 +1497,10 @@ function renderSocialAccounts(accounts, overlayType) {
       enabled: false,
       handle: "yourname",
     };
+    if (!account.enabled) return;
     const row = document.createElement("div");
     row.className = "social-platform-row";
     row.dataset.socialPlatform = platform.id;
-
-    const enabled = document.createElement("input");
-    enabled.type = "checkbox";
-    enabled.checked = Boolean(account.enabled);
-    enabled.dataset.socialEnabled = platform.id;
-    enabled.setAttribute("aria-label", `Show ${platform.name}`);
 
     const mark = document.createElement("span");
     mark.className = "social-platform-mark";
@@ -1525,22 +1520,130 @@ function renderSocialAccounts(accounts, overlayType) {
     handle.placeholder = "yourname";
     handle.dataset.socialHandle = platform.id;
     handle.setAttribute("aria-label", `${platform.name} handle`);
-    row.append(enabled, mark, name, handle);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "social-remove-button";
+    remove.dataset.socialRemove = platform.id;
+    remove.setAttribute("aria-label", `Remove ${platform.name}`);
+    remove.title = `Remove ${platform.name}`;
+    remove.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6h18"></path>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+        <path d="M10 11v6"></path>
+        <path d="M14 11v6"></path>
+      </svg>
+    `;
+    row.append(mark, name, handle, remove);
     grid.append(row);
   });
   updateSocialSelectionState(overlayType);
 }
 
+function socialRows() {
+  return [...byId("socialPlatformGrid").querySelectorAll(
+    "[data-social-platform]",
+  )];
+}
+
+function socialHandleFromInput(value) {
+  const original = String(value || "").trim();
+  if (!original) return "";
+  let candidate = original;
+  const looksLikeLink =
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(original)
+    || /^(?:www\.)?[^/\s]+\.[a-z]{2,}(?:\/|$)/i.test(original);
+  if (looksLikeLink) {
+    try {
+      const url = new URL(
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(original)
+          ? original
+          : `https://${original}`,
+      );
+      const parts = decodeURIComponent(url.pathname)
+        .split("/")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      candidate = parts.at(-1) || "";
+    } catch {
+      candidate = original;
+    }
+  }
+  return candidate.replace(/^@+/, "").trim().slice(0, 64);
+}
+
+function refreshSocialPlatformOptions(overlayType = activeInstance()?.type) {
+  const select = byId("socialPlatformSelect");
+  const previous = select.value;
+  const selected = new Set(
+    socialRows().map((row) => row.dataset.socialPlatform),
+  );
+  const available = SOCIAL_PLATFORMS.filter(
+    (platform) => !selected.has(platform.id),
+  );
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose a platform";
+  select.append(placeholder);
+  available.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform.id;
+    option.textContent = platform.name;
+    select.append(option);
+  });
+  if (available.some((platform) => platform.id === previous)) {
+    select.value = previous;
+  }
+  const atBarLimit = overlayType === "social" && selected.size >= 8;
+  const unavailable = available.length === 0 || atBarLimit;
+  select.disabled = unavailable;
+  byId("socialHandleInput").disabled = unavailable;
+  byId("socialAddButton").disabled = unavailable || !select.value;
+  byId("socialEmptyState").hidden = selected.size !== 0;
+}
+
 function updateSocialSelectionState(overlayType = activeInstance()?.type) {
-  const count = document.querySelectorAll(
-    "#socialPlatformGrid [data-social-enabled]:checked",
-  ).length;
+  const count = socialRows().length;
   byId("socialSelectionCount").textContent =
-    `${count} platform${count === 1 ? "" : "s"} selected`;
+    `${count} account${count === 1 ? "" : "s"}`;
   byId("socialSelectionLimit").textContent =
     overlayType === "social"
-      ? "Choose up to 8 for the bar"
-      : "Selected platforms rotate in order";
+      ? "Up to 8 accounts"
+      : "Each platform can be added once";
+  refreshSocialPlatformOptions(overlayType);
+}
+
+function addSocialAccount() {
+  const instance = activeInstance();
+  const platformId = byId("socialPlatformSelect").value;
+  const platform = SOCIAL_PLATFORMS.find((item) => item.id === platformId);
+  if (!platform) {
+    showToast("Choose a platform first");
+    return;
+  }
+  if (instance?.type === "social" && socialRows().length >= 8) {
+    showToast("Social Bar supports up to 8 accounts");
+    return;
+  }
+  const handle = socialHandleFromInput(byId("socialHandleInput").value);
+  if (!handle) {
+    showToast("Enter a handle or profile link");
+    byId("socialHandleInput").focus();
+    return;
+  }
+  const accounts = socialRows().map((row) => ({
+    platform: row.dataset.socialPlatform,
+    enabled: true,
+    handle: row.querySelector("[data-social-handle]")?.value || "",
+  }));
+  accounts.push({ platform: platform.id, enabled: true, handle });
+  renderSocialAccounts(accounts, instance?.type);
+  byId("socialHandleInput").value = "";
+  byId("socialPlatformSelect").focus();
+  scheduleCustomizerChange(0);
 }
 
 function renderSocial(social, overlayType = activeInstance()?.type) {
@@ -1580,14 +1683,17 @@ function renderSocial(social, overlayType = activeInstance()?.type) {
 }
 
 function gatherSocialSettings() {
+  const selected = new Map(
+    socialRows().map((row) => [
+      row.dataset.socialPlatform,
+      row.querySelector("[data-social-handle]")?.value || "",
+    ]),
+  );
   const accounts = SOCIAL_PLATFORMS.map((platform) => {
-    const row = document.querySelector(
-      `[data-social-platform="${platform.id}"]`,
-    );
     return {
       platform: platform.id,
-      enabled: Boolean(row?.querySelector("[data-social-enabled]")?.checked),
-      handle: row?.querySelector("[data-social-handle]")?.value || "",
+      enabled: selected.has(platform.id),
+      handle: socialHandleFromInput(selected.get(platform.id) || ""),
     };
   });
   return {
@@ -2393,20 +2499,26 @@ function bindEvents() {
     byId("socialCycleOutput").value =
       Number(byId("socialCycle").value).toFixed(1);
   });
-  byId("socialPlatformGrid").addEventListener("change", (event) => {
-    const checkbox = event.target.closest("[data-social-enabled]");
-    const instance = activeInstance();
-    if (
-      checkbox
-      && instance?.type === "social"
-      && document.querySelectorAll(
-        "#socialPlatformGrid [data-social-enabled]:checked",
-      ).length > 8
-    ) {
-      checkbox.checked = false;
-      showToast("Social Bar supports up to 8 platforms");
+  byId("socialPlatformSelect").addEventListener("change", () => {
+    byId("socialAddButton").disabled = !byId("socialPlatformSelect").value;
+  });
+  byId("socialAddButton").addEventListener("click", addSocialAccount);
+  byId("socialHandleInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addSocialAccount();
     }
-    updateSocialSelectionState(instance?.type);
+  });
+  byId("socialPlatformGrid").addEventListener("click", (event) => {
+    const remove = event.target.closest("[data-social-remove]");
+    if (!remove) return;
+    const platform = SOCIAL_PLATFORMS.find(
+      (item) => item.id === remove.dataset.socialRemove,
+    );
+    remove.closest("[data-social-platform]")?.remove();
+    updateSocialSelectionState(activeInstance()?.type);
+    scheduleCustomizerChange(0);
+    showToast(`${platform?.name || "Social account"} removed`);
   });
   byId("goalFormat").addEventListener("change", syncGoalFormat);
   byId("goalBarFormat").addEventListener("change", syncGoalBarFormat);

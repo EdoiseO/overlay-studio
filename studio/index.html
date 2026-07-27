@@ -617,12 +617,28 @@
         <div class="panel">
           <div class="social-panel-heading">
             <div>
-              <h2>Platforms</h2>
-              <span id="socialSelectionCount">4 selected</span>
+              <h2>Social accounts</h2>
+              <span id="socialSelectionCount">4 accounts</span>
             </div>
-            <span id="socialSelectionLimit">Choose up to 8 for the bar</span>
+            <span id="socialSelectionLimit">Up to 8 accounts</span>
           </div>
-          <div class="social-platform-grid" id="socialPlatformGrid" aria-label="Social platforms"></div>
+          <div class="social-add-form">
+            <label class="sr-only" for="socialPlatformSelect">Platform</label>
+            <select id="socialPlatformSelect" aria-label="Platform">
+              <option value="">Choose a platform</option>
+            </select>
+            <label class="sr-only" for="socialHandleInput">Handle or profile link</label>
+            <input
+              id="socialHandleInput"
+              type="text"
+              maxlength="256"
+              autocomplete="off"
+              placeholder="@yourname or profile link"
+            >
+            <button class="primary-button compact" id="socialAddButton" type="button">Add</button>
+          </div>
+          <div class="social-platform-list" id="socialPlatformGrid" aria-label="Added social accounts"></div>
+          <p class="social-empty-state" id="socialEmptyState" hidden>No social accounts added.</p>
         </div>
         <div class="panel">
           <h2>Layout</h2>

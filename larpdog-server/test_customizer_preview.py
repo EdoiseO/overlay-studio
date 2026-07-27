@@ -83,6 +83,20 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('studioView": "socialView"', bar)
         self.assertIn('studioView": "socialView"', rotator)
 
+    def test_social_customizer_uses_compact_account_picker(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="socialPlatformSelect"', markup)
+        self.assertIn('id="socialHandleInput"', markup)
+        self.assertIn('id="socialAddButton"', markup)
+        self.assertIn('id="socialEmptyState"', markup)
+        self.assertNotIn('data-social-enabled', markup)
+        self.assertIn("function addSocialAccount()", script)
+        self.assertIn("function socialHandleFromInput(value)", script)
+        self.assertIn("remove.dataset.socialRemove = platform.id", script)
+        self.assertIn("if (!account.enabled) return", script)
+
 
 if __name__ == "__main__":
     unittest.main()

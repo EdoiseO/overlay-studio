@@ -121,10 +121,12 @@ and appearance.
 ## Social overlays
 
 Add **Social Bar** or **Social Rotator** from Browse overlays, then choose exactly which
-platforms should appear and enter a handle for each one. Social Bar supports up to
-eight visible accounts to keep a single OBS source readable; Social Rotator can cycle
-through all available platforms. If none are selected, the source stays transparent
-instead of showing placeholder content.
+platforms should appear and enter a handle or profile link for each one. The compact
+account picker only shows socials after they are added, while keeping the full platform
+library available from its dropdown. Social Bar supports up to eight visible accounts
+to keep a single OBS source readable; Social Rotator can cycle through all available
+platforms. If none are selected, the source stays transparent instead of showing
+placeholder content.
 
 Both overlays support platform brand colors, a fixed accent palette, five icon shapes,
 three sizes, five fonts, and bounded scaling. Social Bar also offers sticker, flat,
