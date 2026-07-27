@@ -304,6 +304,7 @@
     format: (query.get("format") || "currency").toLowerCase(),
     symbol: query.get("symbol") || "$",
     color: query.get("color") || query.get("a") || "f0b04a",
+    // The manifest names are canonical; the longer names preserve old URLs.
     track: query.get("track") || query.get("trackColor") || "0f131c",
     labelColor: query.get("labelColor") || query.get("textColor") || "f0f4fa",
     shellColor: query.get("shellColor") || "1a1f2c",

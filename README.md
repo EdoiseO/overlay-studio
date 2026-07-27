@@ -255,6 +255,10 @@ The endpoint also accepts direct settings such as `label`, `current`, `target`,
 `shellColor`, `track`, and `labelColor`. Values are normalized and bounded before
 being saved.
 
+For compatibility with the original Goal Widget, omitting `?i=` reads or updates a
+separate legacy ring state. It does not modify any installed overlay instance. New
+automation should always include the intended instance ID.
+
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools
 without browser `Origin` headers continue to work through the loopback address.

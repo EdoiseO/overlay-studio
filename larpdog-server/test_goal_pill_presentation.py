@@ -1,3 +1,5 @@
+import json
+import re
 import unittest
 from pathlib import Path
 
@@ -23,6 +25,29 @@ class GoalPillPresentationTests(unittest.TestCase):
     def test_manifest_opens_the_goal_pill_customizer(self) -> None:
         self.assertIn('"studioView": "goalPillView"', self.source)
         self.assertIn('message.overlayType !== "goal-pill"', self.source)
+
+    def test_manifest_color_names_match_the_canonical_query_contract(self) -> None:
+        match = re.search(
+            r'<script type="application/json" id="overlay-manifest">\s*'
+            r"(?P<manifest>\{.*?\})\s*</script>",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        settings = json.loads(match.group("manifest"))["settings"]
+
+        self.assertIn("track", settings)
+        self.assertIn("labelColor", settings)
+        self.assertNotIn("trackColor", settings)
+        self.assertNotIn("textColor", settings)
+        self.assertIn(
+            'query.get("track") || query.get("trackColor")',
+            self.source,
+        )
+        self.assertIn(
+            'query.get("labelColor") || query.get("textColor")',
+            self.source,
+        )
 
 
 if __name__ == "__main__":

@@ -114,6 +114,28 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
         persisted = await self.client.get("/api/goal?i=tip-goal")
         self.assertEqual((await persisted.json())["current"], 7.5)
 
+    async def test_unaddressed_goal_api_preserves_legacy_ring_state(self) -> None:
+        initial = await self.client.get("/api/goal")
+        self.assertEqual(initial.status, 200)
+        self.assertEqual((await initial.json())["target"], 50)
+
+        websocket = await self.client.ws_connect("/ws")
+        updated = await self.client.post(
+            "/api/goal",
+            json={"action": "add", "amount": 4},
+        )
+        self.assertEqual(updated.status, 200)
+        self.assertEqual((await updated.json())["current"], 4)
+        message = await websocket.receive_json(timeout=2)
+        self.assertEqual(message["type"], "goal")
+        self.assertNotIn("instanceId", message)
+        await websocket.close()
+
+        legacy = await self.client.get("/api/goal")
+        self.assertEqual((await legacy.json())["current"], 4)
+        installed = await self.client.get("/api/goal?i=tip-goal")
+        self.assertEqual((await installed.json())["current"], 0)
+
     async def test_goal_bar_uses_independent_defaults_and_appearance(self) -> None:
         initial = await self.client.get("/api/goal?i=follower-goal")
         self.assertEqual(initial.status, 200)

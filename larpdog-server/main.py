@@ -36,6 +36,7 @@ from overlay_manifest import OVERLAY_NAME, scan_overlay_manifests
 
 
 APP_NAME = "overlay-studio-server"
+LEGACY_GOAL_OVERLAY_TYPE = "goal"
 OVERLAY_ROUTE_PATTERN = (
     OVERLAY_NAME.pattern.removeprefix("^").removesuffix("$")
 )
@@ -797,6 +798,13 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             headers={"Cache-Control": "no-store"},
         )
 
+    def request_goal_context(request: web.Request) -> tuple[str | None, str]:
+        instance_id, saved_config = request_instance(request)
+        if not instance_id:
+            # Unaddressed requests intentionally retain the original ring endpoint.
+            return None, LEGACY_GOAL_OVERLAY_TYPE
+        return instance_id, saved_config["instances"][instance_id]["type"]
+
     async def update_win_loss(request: web.Request) -> web.Response:
         if request.content_length is not None and request.content_length > 16 * 1024:
             raise web.HTTPRequestEntityTooLarge(
@@ -834,12 +842,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         return web.json_response(saved_state)
 
     async def get_goal(request: web.Request) -> web.Response:
-        instance_id, saved_config = request_instance(request)
-        overlay_type = (
-            saved_config["instances"][instance_id]["type"]
-            if instance_id
-            else "goal"
-        )
+        instance_id, overlay_type = request_goal_context(request)
         if overlay_type not in GOAL_OVERLAY_TYPES:
             raise web.HTTPNotFound(text="Overlay instance type does not match")
         return web.json_response(
@@ -863,12 +866,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             raise web.HTTPBadRequest(text="Expected a JSON object") from None
         if not isinstance(submitted, dict):
             raise web.HTTPBadRequest(text="Expected a JSON object")
-        instance_id, saved_config = request_instance(request)
-        overlay_type = (
-            saved_config["instances"][instance_id]["type"]
-            if instance_id
-            else "goal"
-        )
+        instance_id, overlay_type = request_goal_context(request)
         if overlay_type not in GOAL_OVERLAY_TYPES:
             raise web.HTTPNotFound(text="Overlay instance type does not match")
         previous = load_goal_state(
