@@ -298,6 +298,7 @@ if (SAVED_SPOTIFY.colorMode || LEGACY_APPEARANCE.colorMode) {
 /* ---- URL param overrides ---- */
 const Q = new URLSearchParams(location.search);
 const INSTANCE_ID = Q.get("i") || "";
+const CUSTOMIZER_MODE = Q.get("customizer") === "1";
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
 if (Q.get("preview") === "studio") {
   document.documentElement.classList.add("overlay-studio-preview");
@@ -702,7 +703,7 @@ function connectOverlayStudioServer() {
         else showIdle();
       } else if (msg.type === "config") {
         const messageInstance = String(msg.instanceId || "");
-        if (messageInstance === INSTANCE_ID) location.reload();
+        if (!CUSTOMIZER_MODE && messageInstance === INSTANCE_ID) location.reload();
       }
     };
     ws.onerror = () => { if (!connected) fail(); };
@@ -721,6 +722,7 @@ function connectOverlayStudioServer() {
    dog itself) and repaints the card accents / glow to match.
    ===================================================================== */
 let dogPalette = null;   // sampled from the gif, used whenever nothing's playing
+let customizerPalette = null;
 
 function colorDist(a, b) {
   return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]);
@@ -796,8 +798,10 @@ function applyPalette(pal) {
 }
 
 function fallbackPalette() {
-  if (CONFIG.ui.colorMode === "art") return USER_PALETTE || DEFAULT_PALETTE;
-  return USER_PALETTE || dogPalette || DEFAULT_PALETTE;
+  if (CONFIG.ui.colorMode === "art") {
+    return customizerPalette || USER_PALETTE || DEFAULT_PALETTE;
+  }
+  return customizerPalette || USER_PALETTE || dogPalette || DEFAULT_PALETTE;
 }
 
 function applyArtwork(url) {
@@ -999,6 +1003,102 @@ async function pollSpotify() {
       durationMs: d.item.duration_ms,
     });
   } catch (e) { showIdle("Spotify error"); }
+}
+
+function clampCustomizerNumber(value, minimum, maximum, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? Math.max(minimum, Math.min(maximum, number))
+    : fallback;
+}
+
+function applyCustomizerDraft(message) {
+  if (
+    !CUSTOMIZER_MODE
+    || message?.type !== "overlay-studio-draft"
+    || String(message.instanceId || "") !== INSTANCE_ID
+  ) return;
+
+  const expectedType =
+    ROUTE_ASSET === "dog"
+      ? "larpdog-dance"
+      : ROUTE_ASSET === "player"
+        ? "spotify"
+        : "";
+  if (!expectedType || message.overlayType !== expectedType) return;
+
+  const config = message.config && typeof message.config === "object"
+    ? message.config
+    : {};
+  if (expectedType === "larpdog-dance") {
+    const dance = config.dance && typeof config.dance === "object"
+      ? config.dance
+      : {};
+    CONFIG.audio.sensitivity = clampCustomizerNumber(
+      config.audio?.sensitivity,
+      0.3,
+      3,
+      CONFIG.audio.sensitivity,
+    );
+    CONFIG.fallbackBpm = clampCustomizerNumber(
+      config.nowPlaying?.fallbackBpm,
+      40,
+      240,
+      CONFIG.fallbackBpm,
+    );
+    root.style.setProperty(
+      "--scale",
+      String(clampCustomizerNumber(dance.scale, 0.5, 2, 1)),
+    );
+    const draftSource = String(
+      dance.gif || (Array.isArray(dance.pool) ? dance.pool[0] : "") || "",
+    ).trim();
+    if (draftSource) {
+      currentDanceSource = draftSource;
+      dogResting = false;
+      dogWrap.classList.remove("resting");
+      setDogMedia(currentDanceSource, handleDanceMediaError);
+    }
+    return;
+  }
+
+  const spotify = config.spotify && typeof config.spotify === "object"
+    ? config.spotify
+    : {};
+  root.style.setProperty(
+    "--scale",
+    String(clampCustomizerNumber(spotify.scale, 0.5, 2, 1)),
+  );
+  CONFIG.ui.cardWidth = clampCustomizerNumber(
+    spotify.cardWidth,
+    240,
+    600,
+    CONFIG.ui.cardWidth,
+  );
+  root.style.setProperty("--card-width", `${CONFIG.ui.cardWidth}px`);
+  if (["auto", "fixed", "art"].includes(spotify.colorMode)) {
+    CONFIG.ui.colorMode = spotify.colorMode;
+  }
+  const colors = spotify.colors && typeof spotify.colors === "object"
+    ? spotify.colors
+    : {};
+  const a = hexToRgb(colors.a);
+  const b = hexToRgb(colors.b);
+  const c = hexToRgb(colors.c);
+  customizerPalette = a || b || c
+    ? [
+        a || DEFAULT_PALETTE[0],
+        b || a || DEFAULT_PALETTE[1],
+        c || a || DEFAULT_PALETTE[2],
+      ]
+    : null;
+  applyPalette(fallbackPalette());
+}
+
+if (CUSTOMIZER_MODE) {
+  window.addEventListener("message", event => {
+    if (event.source === window.parent) applyCustomizerDraft(event.data);
+  });
 }
 
 (async () => {

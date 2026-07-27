@@ -66,6 +66,12 @@ Clicking an instance preview opens a larger live preview with actions to:
 These previews render the same live pages used by OBS. The dark preview background is
 only added inside Overlay Studio; the OBS sources remain transparent.
 
+Every customization page also keeps a compact live draft preview beside its controls.
+Text, number, color, layout, media, and slider changes appear there immediately without
+writing to the server. OBS and the installed library preview continue using the saved
+settings until **Save** is selected. Leaving the customization page unloads the draft
+preview to release its browser resources.
+
 Each card can copy its OBS URL, be renamed without changing that URL, or be removed
 from My overlays. Removing an instance does not delete its local overlay type, which
 remains available in Browse overlays.

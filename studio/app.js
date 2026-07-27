@@ -17,6 +17,9 @@ const app = {
   libraryKey: "",
   goalKey: "",
   goalBarKey: "",
+  customizerPreviewTimer: null,
+  customizerPreviewReady: false,
+  customizerResizeObserver: null,
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
@@ -24,6 +27,14 @@ const app = {
 
 const byId = (id) => document.getElementById(id);
 const isGoalOverlayType = (type) => type === "goal" || type === "goal-bar";
+const CUSTOMIZER_VIEW_IDS = new Set([
+  "danceView",
+  "spotifyView",
+  "flowView",
+  "goalView",
+  "goalBarView",
+  "counterView",
+]);
 
 function logActivity(message) {
   const log = byId("activityLog");
@@ -57,7 +68,16 @@ async function callApi(method, ...args) {
 function showView(viewId) {
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === viewId);
+    view.classList.toggle(
+      "has-customizer-preview",
+      view.id === viewId && CUSTOMIZER_VIEW_IDS.has(viewId),
+    );
   });
+  if (CUSTOMIZER_VIEW_IDS.has(viewId)) {
+    requestAnimationFrame(() => renderCustomizerPreview());
+  } else {
+    hideCustomizerPreview();
+  }
 }
 
 function setDrawer(open) {
@@ -112,6 +132,14 @@ function studioPreviewUrl(instance) {
   return url.toString();
 }
 
+function customizerPreviewUrl(instance) {
+  const source = studioPreviewUrl(instance);
+  if (!source) return "";
+  const url = new URL(source);
+  url.searchParams.set("customizer", "1");
+  return url.toString();
+}
+
 function catalogPreviewUrl(manifest) {
   if (!manifest || !app.state?.baseUrl) return "";
   const url = new URL(manifest.route.replace(/^\//, ""), app.state.baseUrl);
@@ -152,6 +180,119 @@ function fitCardPreview(frame, manifest) {
   frame.style.height = `${height}px`;
   frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
   return true;
+}
+
+function fitCustomizerPreview() {
+  const frame = byId("customizerPreviewFrame");
+  const manifest = manifestFor(activeInstance()?.type);
+  return fitCardPreview(frame, manifest);
+}
+
+function customizerDraft(instance) {
+  if (!instance) return null;
+  if (
+    instance.type === "larpdog-dance"
+    || instance.type === "spotify"
+    || instance.type === "now-playing-flow"
+  ) {
+    return { config: gatherConfig() };
+  }
+  if (instance.type === "goal") {
+    return { state: gatherGoalSettings() };
+  }
+  if (instance.type === "goal-bar") {
+    return { state: gatherGoalBarSettings() };
+  }
+  if (instance.type === "win-loss") {
+    const saved =
+      app.state?.counters?.[instance.id]
+      || app.state?.counter
+      || {};
+    return {
+      state: {
+        wins: Math.max(0, Number(saved.wins) || 0),
+        losses: Math.max(0, Number(saved.losses) || 0),
+        title: byId("counterTitle").value,
+        accent: byId("counterAccent").value.slice(1),
+      },
+    };
+  }
+  return null;
+}
+
+function postCustomizerDraft() {
+  const dock = byId("customizerPreviewDock");
+  const frame = byId("customizerPreviewFrame");
+  const instance = activeInstance();
+  if (
+    dock.hidden
+    || !app.customizerPreviewReady
+    || !frame.contentWindow
+    || !instance
+  ) return;
+  const payload = customizerDraft(instance);
+  if (!payload) return;
+  let targetOrigin;
+  try {
+    targetOrigin = new URL(app.state?.baseUrl || "").origin;
+  } catch {
+    return;
+  }
+  frame.contentWindow.postMessage(
+    {
+      type: "overlay-studio-draft",
+      overlayType: instance.type,
+      instanceId: instance.id,
+      ...payload,
+    },
+    targetOrigin,
+  );
+}
+
+function scheduleCustomizerDraft(delay = 70) {
+  if (byId("customizerPreviewDock").hidden) return;
+  clearTimeout(app.customizerPreviewTimer);
+  app.customizerPreviewTimer = setTimeout(postCustomizerDraft, delay);
+}
+
+function hideCustomizerPreview() {
+  const dock = byId("customizerPreviewDock");
+  const frame = byId("customizerPreviewFrame");
+  clearTimeout(app.customizerPreviewTimer);
+  app.customizerPreviewReady = false;
+  dock.hidden = true;
+  updatePreview(frame, "", false);
+}
+
+function renderCustomizerPreview(state = app.state) {
+  const activeView = document.querySelector(".detail-view.active");
+  const instance = activeInstance();
+  const manifest = manifestFor(instance?.type);
+  if (
+    !activeView
+    || !CUSTOMIZER_VIEW_IDS.has(activeView.id)
+    || !instance
+    || !manifest
+  ) {
+    hideCustomizerPreview();
+    return;
+  }
+  const dock = byId("customizerPreviewDock");
+  const frame = byId("customizerPreviewFrame");
+  const source = customizerPreviewUrl(instance);
+  dock.hidden = false;
+  byId("customizerPreviewName").textContent = instance.name;
+  byId("customizerPreviewStatus").textContent = state?.running
+    ? "UNSAVED"
+    : "OFFLINE";
+  frame.title = `Live ${instance.name} customization preview`;
+  const desired = state?.running ? source : "";
+  if (frame.dataset.source !== desired) {
+    app.customizerPreviewReady = false;
+  }
+  updatePreview(frame, source, Boolean(state?.running));
+  requestAnimationFrame(fitCustomizerPreview);
+  scheduleCustomizerDraft();
 }
 
 function fitCardPreviewHost(host) {
@@ -835,6 +976,7 @@ async function deletePendingAsset() {
         ? materializeInstanceConfig(selectedInstance)
         : result.config,
     );
+    scheduleCustomizerDraft();
     byId("deleteMediaDialog").close();
     logActivity(`Media deleted: ${result.name}`);
     showToast(`${result.name} deleted`);
@@ -916,6 +1058,7 @@ function renderServerState(state) {
   renderServerUrls();
   renderActiveIdentity(activeInstance());
   renderLargePreview(state);
+  renderCustomizerPreview(state);
 }
 
 function renderCounter(counter) {
@@ -1170,6 +1313,7 @@ async function chooseAsset(kind) {
     byId("danceRest").value = result.path;
   }
   renderMediaLibraries();
+  scheduleCustomizerDraft();
   logActivity(`${kind === "gif" ? "Dance GIF" : "Resting image"} selected: ${result.name}`);
 }
 
@@ -1235,6 +1379,7 @@ async function importDroppedDanceFiles(fileList) {
     }
     byId("danceGif").value = [...app.danceSelection][0];
     renderMediaLibraries();
+    scheduleCustomizerDraft();
     imported.forEach((result) => logActivity(`Dancing media imported: ${result.name}`));
     showToast(`${imported.length} dancing ${imported.length === 1 ? "file" : "files"} imported`);
   } else {
@@ -1559,6 +1704,25 @@ function handleInstanceAction(action, instanceId) {
 
 function bindEvents() {
   bindDanceDropZone();
+  const customizerFrame = byId("customizerPreviewFrame");
+  customizerFrame.addEventListener("load", () => {
+    app.customizerPreviewReady =
+      Boolean(customizerFrame.dataset.source)
+      && customizerFrame.src !== "about:blank";
+    fitCustomizerPreview();
+    if (app.customizerPreviewReady) scheduleCustomizerDraft(0);
+  });
+  app.customizerResizeObserver = new ResizeObserver(fitCustomizerPreview);
+  app.customizerResizeObserver.observe(byId("customizerPreviewStage"));
+  const scheduleFromCustomizerEvent = (event) => {
+    if (event.target.closest(".detail-view.active.has-customizer-preview")) {
+      scheduleCustomizerDraft();
+    }
+  };
+  document.addEventListener("input", scheduleFromCustomizerEvent);
+  document.addEventListener("change", scheduleFromCustomizerEvent);
+  document.addEventListener("click", scheduleFromCustomizerEvent);
+
   byId("menuButton").addEventListener("click", () => setDrawer(true));
   byId("closeDrawerButton").addEventListener("click", () => setDrawer(false));
   byId("drawerScrim").addEventListener("click", () => setDrawer(false));

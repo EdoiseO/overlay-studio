@@ -47,7 +47,7 @@ ERROR_LOG_PATH = SERVER_DIR / "server.err"
 STUDIO_UI_PATH = RESOURCE_DIR / "studio" / "index.html"
 WINDOW_SIZE = (1000, 700)
 WINDOW_MIN_SIZE = (900, 620)
-WINDOW_MAX_SIZE = (1000, 700)
+WINDOW_MAX_SIZE = (1280, 820)
 
 sys.path.insert(0, str(SERVER_DIR))
 from counter_store import (  # noqa: E402

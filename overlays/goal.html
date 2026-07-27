@@ -208,6 +208,7 @@
 
   const query = new URLSearchParams(location.search);
   const instanceId = query.get("i") || "";
+  const customizerMode = query.get("customizer") === "1";
   if (query.get("preview") === "studio" || location.protocol === "file:") {
     document.documentElement.classList.add("overlay-studio-preview");
   }
@@ -388,6 +389,19 @@
   /* public hook: window.goalWidget.add(5) / .set({current: 30}) */
   window.goalWidget = { add: addProgress, set: setGoal, state };
 
+  if (customizerMode) {
+    window.addEventListener("message", event => {
+      const message = event.data;
+      if (
+        event.source !== window.parent
+        || message?.type !== "overlay-studio-draft"
+        || message.overlayType !== "goal"
+        || String(message.instanceId || "") !== instanceId
+      ) return;
+      setGoal(message.state || {});
+    });
+  }
+
   async function loadState() {
     if (!instanceId || location.protocol === "file:") return;
     try {
@@ -445,8 +459,10 @@
   applyAppearance();
   buildParticles();
   render();
-  loadState();
-  connect();
+  if (!customizerMode) {
+    loadState();
+    connect();
+  }
   if (query.get("demo")?.toLowerCase() === "on" && !instanceId) startDemo();
 })();
 </script>

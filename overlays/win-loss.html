@@ -182,6 +182,7 @@ const record = document.querySelector(".record");
 const titleMeasure = title.cloneNode(false);
 const query = new URLSearchParams(location.search);
 const instanceId = query.get("i") || "";
+const customizerMode = query.get("customizer") === "1";
 const MIN_IDENTITY_WIDTH = 188;
 const MAX_IDENTITY_WIDTH = 480;
 const MIN_RESPONSIVE_IDENTITY_WIDTH = 140;
@@ -233,6 +234,19 @@ function render(state) {
   requestAnimationFrame(syncRecordWidth);
 }
 
+if (customizerMode) {
+  window.addEventListener("message", event => {
+    const message = event.data;
+    if (
+      event.source !== window.parent
+      || message?.type !== "overlay-studio-draft"
+      || message.overlayType !== "win-loss"
+      || String(message.instanceId || "") !== instanceId
+    ) return;
+    render(message.state);
+  });
+}
+
 async function loadState() {
   try {
     const endpoint = new URL("/api/win-loss", location.origin);
@@ -258,8 +272,10 @@ function connect() {
   socket.onclose = () => setTimeout(connect, 1500);
 }
 
-loadState();
-connect();
+if (!customizerMode) {
+  loadState();
+  connect();
+}
 window.addEventListener("resize", syncRecordWidth);
 document.fonts?.ready.then(syncRecordWidth);
 </script>

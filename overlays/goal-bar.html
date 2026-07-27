@@ -252,6 +252,7 @@
 
   const query = new URLSearchParams(location.search);
   const instanceId = query.get("i") || "";
+  const customizerMode = query.get("customizer") === "1";
   if (query.get("preview") === "studio" || location.protocol === "file:") {
     document.documentElement.classList.add("overlay-studio-preview");
   }
@@ -423,6 +424,19 @@
 
   window.goalBar = { add: addProgress, set: setGoal, state };
 
+  if (customizerMode) {
+    window.addEventListener("message", event => {
+      const message = event.data;
+      if (
+        event.source !== window.parent
+        || message?.type !== "overlay-studio-draft"
+        || message.overlayType !== "goal-bar"
+        || String(message.instanceId || "") !== instanceId
+      ) return;
+      setGoal(message.state || {});
+    });
+  }
+
   function connect() {
     if (location.protocol === "file:" || !("WebSocket" in window)) return;
     let socket;
@@ -479,8 +493,10 @@
   }
 
   setGoal(state);
-  loadInstalledState();
-  connect();
+  if (!customizerMode) {
+    loadInstalledState();
+    connect();
+  }
   if (!instanceId && (query.get("demo") || "off").toLowerCase() === "on") {
     startDemo();
   }
