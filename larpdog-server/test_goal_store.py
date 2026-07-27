@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from goal_store import (  # noqa: E402
     DEFAULT_GOAL_BAR_STATE,
+    DEFAULT_GOAL_PILL_STATE,
     DEFAULT_GOAL_STATE,
     apply_goal_update,
     goal_defaults_for_type,
@@ -86,6 +87,31 @@ class GoalStoreTests(unittest.TestCase):
         self.assertEqual(state["width"], 640)
         self.assertEqual(state["tiltX"], -20)
         self.assertEqual(state["tiltY"], 20)
+
+    def test_goal_pill_uses_independent_bounded_defaults(self) -> None:
+        defaults = goal_defaults_for_type("goal-pill")
+        self.assertEqual(defaults, DEFAULT_GOAL_PILL_STATE)
+        self.assertEqual(defaults["icon"], "tips")
+        self.assertEqual(defaults["width"], 560)
+
+        state = normalize_goal_state(
+            {
+                **defaults,
+                "icon": "gift",
+                "size": "thin",
+                "corners": "square",
+                "width": 900,
+                "scale": 3,
+                "glow": -4,
+            }
+        )
+
+        self.assertEqual(state["icon"], "gift")
+        self.assertEqual(state["size"], "thin")
+        self.assertEqual(state["corners"], "square")
+        self.assertEqual(state["width"], 640)
+        self.assertEqual(state["scale"], 1.2)
+        self.assertEqual(state["glow"], 0)
 
     def test_applies_goal_actions_with_bounds(self) -> None:
         state = normalize_goal_state({"current": 10, "target": 50})

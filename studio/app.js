@@ -17,6 +17,7 @@ const app = {
   libraryKey: "",
   goalKey: "",
   goalBarKey: "",
+  goalPillKey: "",
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
   customizerResizeObserver: null,
@@ -26,13 +27,26 @@ const app = {
 };
 
 const byId = (id) => document.getElementById(id);
-const isGoalOverlayType = (type) => type === "goal" || type === "goal-bar";
+const isGoalOverlayType = (type) => (
+  type === "goal"
+  || type === "goal-bar"
+  || type === "goal-pill"
+);
+const GOAL_PILL_PRESETS = new Set([
+  "f0b04a",
+  "4ecdc4",
+  "f07c6a",
+  "a08ef0",
+  "a8d66e",
+  "82b7e8",
+]);
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
   "flowView",
   "goalView",
   "goalBarView",
+  "goalPillView",
   "counterView",
 ]);
 
@@ -145,7 +159,7 @@ function catalogPreviewUrl(manifest) {
   const url = new URL(manifest.route.replace(/^\//, ""), app.state.baseUrl);
   url.searchParams.set("preview", "studio");
   url.searchParams.set("catalog", "1");
-  if (manifest.type === "goal" || manifest.type === "goal-bar") {
+  if (isGoalOverlayType(manifest.type)) {
     url.searchParams.set("current", "64");
     url.searchParams.set("target", "100");
     url.searchParams.set("demo", "off");
@@ -202,6 +216,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "goal-bar") {
     return { state: gatherGoalBarSettings() };
+  }
+  if (instance.type === "goal-pill") {
+    return { state: gatherGoalPillSettings() };
   }
   if (instance.type === "win-loss") {
     const saved =
@@ -551,6 +568,10 @@ function renderActiveIdentity(instance) {
     byId("goalBarDetailName").textContent = instance.name;
     byId("goalBarSourceLabel").textContent = instance.name;
     byId("goalBarUrl").value = source;
+  } else if (instance.type === "goal-pill") {
+    byId("goalPillDetailName").textContent = instance.name;
+    byId("goalPillSourceLabel").textContent = instance.name;
+    byId("goalPillUrl").value = source;
   }
 }
 
@@ -1142,6 +1163,43 @@ function renderGoalBar(goal, force = false) {
   syncGoalBarLayout();
 }
 
+function syncGoalPillFormat() {
+  byId("goalPillSymbol").disabled =
+    byId("goalPillFormat").value !== "currency";
+}
+
+function renderGoalPill(goal, force = false) {
+  if (!goal) return;
+  const key = JSON.stringify(goal);
+  if (!force && key === app.goalPillKey) return;
+  app.goalPillKey = key;
+  byId("goalPillLabel").value = goal.label || "Tip goal";
+  byId("goalPillCurrent").value = Number(goal.current) || 0;
+  byId("goalPillTarget").value = Math.max(0.01, Number(goal.target) || 100);
+  byId("goalPillFormat").value =
+    goal.format === "number" ? "number" : "currency";
+  byId("goalPillSymbol").value = goal.symbol || "$";
+  byId("goalPillSize").value = goal.size || "full";
+  byId("goalPillIcon").value = goal.icon || "tips";
+  byId("goalPillCorners").value = goal.corners || "round";
+  byId("goalPillWidth").value = Number(goal.width) || 560;
+  byId("goalPillWidthOutput").value = String(Number(goal.width) || 560);
+  setColor("goalPillColor", goal.color || "f0b04a");
+  setColor("goalPillShellColor", goal.shellColor || "1a1f2c");
+  setColor("goalPillTrack", goal.track || "0f131c");
+  setColor("goalPillLabelColor", goal.labelColor || "f0f4fa");
+  const accent = String(goal.color || "f0b04a").toLowerCase();
+  byId("goalPillPreset").value =
+    GOAL_PILL_PRESETS.has(accent) ? accent : "custom";
+  byId("goalPillFont").value = goal.font || "sans";
+  byId("goalPillWeight").value = String(goal.weight || 700);
+  byId("goalPillScale").value = Number(goal.scale) || 1;
+  byId("goalPillScaleOutput").value = Number(goal.scale || 1).toFixed(2);
+  byId("goalPillGlow").value = Number(goal.glow) || 0;
+  byId("goalPillGlowOutput").value = Number(goal.glow || 0).toFixed(2);
+  syncGoalPillFormat();
+}
+
 function setColor(id, value) {
   const normalized = `#${String(value || "").replace("#", "").padEnd(6, "0").slice(0, 6)}`;
   const input = byId(id);
@@ -1259,6 +1317,11 @@ function renderState(state, hydrate = false) {
     selected?.type === "goal-bar"
       ? state.goals?.[selected.id]
       : state.goalBarDefaults,
+  );
+  renderGoalPill(
+    selected?.type === "goal-pill"
+      ? state.goals?.[selected.id]
+      : state.goalPillDefaults,
   );
   if (hydrate) {
     fillConfig(
@@ -1545,6 +1608,28 @@ function gatherGoalBarSettings() {
   };
 }
 
+function gatherGoalPillSettings() {
+  return {
+    label: byId("goalPillLabel").value,
+    current: Number(byId("goalPillCurrent").value),
+    target: Number(byId("goalPillTarget").value),
+    format: byId("goalPillFormat").value,
+    symbol: byId("goalPillSymbol").value,
+    size: byId("goalPillSize").value,
+    icon: byId("goalPillIcon").value,
+    corners: byId("goalPillCorners").value,
+    width: Number(byId("goalPillWidth").value),
+    color: byId("goalPillColor").value.slice(1),
+    shellColor: byId("goalPillShellColor").value.slice(1),
+    track: byId("goalPillTrack").value.slice(1),
+    labelColor: byId("goalPillLabelColor").value.slice(1),
+    font: byId("goalPillFont").value,
+    weight: Number(byId("goalPillWeight").value),
+    scale: Number(byId("goalPillScale").value),
+    glow: Number(byId("goalPillGlow").value),
+  };
+}
+
 async function sendGoal(payload, message = "Goal updated") {
   const instance = activeInstance();
   if (!instance || !isGoalOverlayType(instance.type) || app.busy) return;
@@ -1560,6 +1645,9 @@ async function sendGoal(payload, message = "Goal updated") {
     if (instance.type === "goal-bar") {
       app.goalBarKey = "";
       renderGoalBar(result.goal);
+    } else if (instance.type === "goal-pill") {
+      app.goalPillKey = "";
+      renderGoalPill(result.goal);
     } else {
       app.goalKey = "";
       renderGoal(result.goal);
@@ -1604,6 +1692,12 @@ function openInstanceSettings(instanceId) {
     app.goalBarKey = "";
     renderGoalBar(
       app.state?.goals?.[instance.id] || app.state?.goalBarDefaults,
+      true,
+    );
+  } else if (instance.type === "goal-pill") {
+    app.goalPillKey = "";
+    renderGoalPill(
+      app.state?.goals?.[instance.id] || app.state?.goalPillDefaults,
       true,
     );
   }
@@ -1807,9 +1901,25 @@ function bindEvents() {
   byId("goalBarTiltY").addEventListener("input", () => {
     byId("goalBarTiltYOutput").value = byId("goalBarTiltY").value;
   });
+  byId("goalPillWidth").addEventListener("input", () => {
+    byId("goalPillWidthOutput").value = byId("goalPillWidth").value;
+  });
+  byId("goalPillScale").addEventListener("input", () => {
+    byId("goalPillScaleOutput").value =
+      Number(byId("goalPillScale").value).toFixed(2);
+  });
+  byId("goalPillGlow").addEventListener("input", () => {
+    byId("goalPillGlowOutput").value =
+      Number(byId("goalPillGlow").value).toFixed(2);
+  });
   byId("goalFormat").addEventListener("change", syncGoalFormat);
   byId("goalBarFormat").addEventListener("change", syncGoalBarFormat);
   byId("goalBarLayout").addEventListener("change", syncGoalBarLayout);
+  byId("goalPillFormat").addEventListener("change", syncGoalPillFormat);
+  byId("goalPillPreset").addEventListener("change", () => {
+    const preset = byId("goalPillPreset").value;
+    if (preset !== "custom") setColor("goalPillColor", preset);
+  });
   [
     "colorA",
     "colorB",
@@ -1822,8 +1932,17 @@ function bindEvents() {
     "goalBarShellColor",
     "goalBarTrack",
     "goalBarLabelColor",
+    "goalPillColor",
+    "goalPillShellColor",
+    "goalPillTrack",
+    "goalPillLabelColor",
   ].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
+  });
+  byId("goalPillColor").addEventListener("input", () => {
+    const accent = byId("goalPillColor").value.slice(1).toLowerCase();
+    byId("goalPillPreset").value =
+      GOAL_PILL_PRESETS.has(accent) ? accent : "custom";
   });
 
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
@@ -1834,6 +1953,9 @@ function bindEvents() {
   });
   byId("saveGoalBarSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalBarSettings(), "Goal Bar saved and applied");
+  });
+  byId("saveGoalPillSettingsButton").addEventListener("click", () => {
+    sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
   });
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
@@ -1886,6 +2008,15 @@ function bindEvents() {
     app.goalBarKey = JSON.stringify(current || {});
     logActivity("Goal Bar fields reset; save to apply");
   });
+  byId("resetGoalPillFieldsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    const current =
+      app.state?.goals?.[instance?.id]
+      || app.state?.goalPillDefaults;
+    renderGoalPill(app.state?.goalPillDefaults, true);
+    app.goalPillKey = JSON.stringify(current || {});
+    logActivity("Goal Pill fields reset; save to apply");
+  });
 
   document.querySelectorAll("[data-counter-action]").forEach((button) => {
     button.addEventListener("click", () => sendCounter({ action: button.dataset.counterAction }));
@@ -1921,6 +2052,22 @@ function bindEvents() {
       const payload = { action };
       if (action === "add" || action === "subtract") {
         payload.amount = Number(byId("goalBarStep").value);
+      }
+      const labels = {
+        add: "Progress added",
+        subtract: "Progress subtracted",
+        complete: "Goal completed",
+        reset: "Goal reset",
+      };
+      sendGoal(payload, labels[action] || "Goal updated");
+    });
+  });
+  document.querySelectorAll("[data-goal-pill-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.goalPillAction;
+      const payload = { action };
+      if (action === "add" || action === "subtract") {
+        payload.amount = Number(byId("goalPillStep").value);
       }
       const labels = {
         add: "Progress added",

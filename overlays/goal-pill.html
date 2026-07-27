@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Goal Pill</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Goal Pill",
+  "description": "Compact rounded goal progress pill with an icon badge, live value, animated fill, and customizable stream-safe colors.",
+  "category": "goals",
+  "canvas": { "w": 720, "h": 220 },
+  "settings": ["label", "current", "target", "format", "symbol", "color", "shellColor", "track", "labelColor", "icon", "font", "weight", "size", "width", "corners", "scale", "glow"],
+  "studioView": "goalPillView"
+}
+</script>
+<link rel="stylesheet" href="/assets/overlay-surface.css" />
+<style>
+  :root {
+    --accent: 240, 176, 74;        /* amber highlight       */
+    --shell: 26, 31, 44;           /* pill body (deep slate)*/
+    --shell-deep: 15, 19, 28;      /* inset track           */
+    --ink: 240, 244, 250;          /* primary text          */
+    --scale: 1;
+    --glow: .75;
+    --weight: 700;
+    --radius: 999px;
+    --pill-h: 108px;
+    --pill-w: 560px;
+    --badge: 62px;
+    --value-size: 32px;
+    --chip-size: 14px;
+    --bar-h: 14px;
+    --pad: 22px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    color: rgb(var(--ink));
+    font-family: var(--font-stack, "Segoe UI", system-ui, sans-serif);
+  }
+  body > .overlay-content { grid-area: 1 / 1; }
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #1c2429);
+  }
+
+  .overlay-content {
+    padding: 20px;
+    transform: scale(var(--scale));
+  }
+
+  /* ---------- pill ---------- */
+  .goal {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: var(--pill-w);
+    height: var(--pill-h);
+    padding: 0 var(--pad);
+    border-radius: var(--radius);
+    background: rgb(var(--shell));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 16px 34px rgba(0,0,0,calc(0.22 + var(--glow) * 0.16)),
+      0 0 calc(var(--glow) * 14px) rgba(var(--accent), calc(var(--glow) * 0.12));
+  }
+
+  /* ---------- icon badge ---------- */
+  .badge {
+    flex: 0 0 auto;
+    width: var(--badge); height: var(--badge);
+    border-radius: 50%;
+    background: rgba(var(--accent), 0.14);
+    box-shadow: inset 0 0 0 2px rgba(var(--accent), 0.55);
+    display: grid; place-items: center;
+  }
+  .badge svg { width: 48%; height: 48%; }
+
+  /* ---------- body column ---------- */
+  .body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  /* label chip, now inside the pill */
+  .chip {
+    flex: 0 0 auto;
+    padding: 5px 13px;
+    border-radius: 999px;
+    background: rgba(var(--accent), 0.16);
+    color: rgb(var(--accent));
+    font-size: var(--chip-size);
+    font-weight: var(--weight);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .value {
+    margin-left: auto;
+    font-size: var(--value-size);
+    font-weight: var(--weight);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .value .target { color: rgba(var(--ink), 0.45); }
+
+  /* ---------- bar ---------- */
+  .track {
+    position: relative;
+    height: var(--bar-h);
+    border-radius: 999px;
+    background: rgb(var(--shell-deep));
+    overflow: hidden;
+  }
+  .fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: calc(var(--pct, 0) * 100%);
+    border-radius: 999px;
+    background: rgb(var(--accent));
+    transition: width .85s cubic-bezier(.22,.9,.28,1);
+  }
+  /* travelling sheen */
+  .fill::after {
+    content: "";
+    position: absolute; inset: 0;
+    width: 45%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent);
+    animation: sheen 2.9s ease-in-out infinite;
+  }
+  @keyframes sheen {
+    0% { transform: translateX(-130%); }
+    100% { transform: translateX(300%); }
+  }
+
+  /* ---------- sizes ---------- */
+  .goal.compact {
+    --pill-h: 88px; --pill-w: 470px; --badge: 50px;
+    --value-size: 26px; --chip-size: 13px; --bar-h: 11px; --pad: 18px;
+  }
+  .goal.thin {
+    --pill-h: 72px; --pill-w: 420px; --badge: 40px;
+    --value-size: 21px; --chip-size: 11px; --bar-h: 9px; --pad: 14px;
+  }
+
+  /* ---------- event feedback ---------- */
+  @keyframes bump {
+    0% { scale: 1; } 42% { scale: 1.025; } 100% { scale: 1; }
+  }
+  .goal.bumped { animation: bump .55s cubic-bezier(.22,.9,.28,1); }
+
+  @keyframes pop {
+    0% { scale: 1; } 45% { scale: 1.13; } 100% { scale: 1; }
+  }
+  .badge.popped { animation: pop .5s cubic-bezier(.22,.9,.28,1); }
+
+  .toast {
+    position: absolute;
+    right: var(--pad); top: 6px;
+    font-size: 15px; font-weight: var(--weight);
+    color: rgb(var(--accent));
+    opacity: 0; pointer-events: none;
+  }
+  @keyframes rise {
+    0% { opacity: 0; transform: translateY(4px); }
+    22% { opacity: 1; transform: translateY(-4px); }
+    100% { opacity: 0; transform: translateY(-26px); }
+  }
+  .toast.show { animation: rise 1.4s ease-out; }
+
+  @keyframes done-glow {
+    0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 16px 34px rgba(0,0,0,.38); }
+    50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 16px 34px rgba(0,0,0,.38), 0 0 26px rgba(var(--accent), .5); }
+  }
+  .goal.complete { animation: done-glow 2.1s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fill { transition: none; }
+    .goal.bumped, .badge.popped, .toast.show, .goal.complete, .fill::after { animation: none; }
+  }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content">
+    <div class="goal" id="goal">
+      <span class="badge" id="badge"></span>
+      <div class="body">
+        <div class="top">
+          <span class="chip" id="chip">Tip goal</span>
+          <span class="value" id="value"></span>
+        </div>
+        <div class="track"><span class="fill" id="fill"></span></div>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
+  const customizerMode = query.get("customizer") === "1";
+  if (query.get("preview") === "studio" || location.protocol === "file:") {
+    document.documentElement.classList.add("overlay-studio-preview");
+  }
+
+  const goal = document.getElementById("goal");
+  const badge = document.getElementById("badge");
+  const chip = document.getElementById("chip");
+  const valueEl = document.getElementById("value");
+  const fill = document.getElementById("fill");
+  const toastEl = document.getElementById("toast");
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+  const num = (key, dflt) => {
+    const raw = parseFloat(query.get(key));
+    return Number.isFinite(raw) ? raw : dflt;
+  };
+  const hexToRgb = value => {
+    const hex = String(value || "").trim().replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const color = (value, fallback) => {
+    const candidate = String(value || "").trim().replace(/^#/, "");
+    return /^[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : fallback;
+  };
+  const pick = (value, choices, fallback) => {
+    const candidate = String(value || "").trim().toLowerCase();
+    return choices.includes(candidate) ? candidate : fallback;
+  };
+  const FONTS = {
+    sans:    '"Segoe UI", system-ui, sans-serif',
+    round:   '"Fredoka", "Segoe UI", system-ui, sans-serif',
+    display: '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
+    mono:    '"Cascadia Mono", Consolas, monospace',
+    serif:   'Georgia, "Times New Roman", serif',
+  };
+
+  const ICONS = {
+    plane:   'M2 16l20-8-8 20-2-8-8-4z',
+    sprout:  'M12 22v-7m0 0c0-4 3-7 7-7 0 4-3 7-7 7zm0 0c0-3-2-6-6-6 0 3 2 6 6 6z',
+    wallet:  'M4 6h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12v2zm12 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+    heart:   'M12 21S3 14.5 3 8.8A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 9 2.8C21 14.5 12 21 12 21z',
+    star:    'm12 2 3 6.6 7 .9-5.1 4.7 1.3 7L12 17.8 5.8 21.2l1.3-7L2 9.5l7-.9z',
+    coffee:  'M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8zm13 1h2a2 2 0 0 1 0 4h-2M4 21h14',
+    gift:    'M3 11h18v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9zm-1-5h20v4H2V6zm10 0V3m0 3c-3 0-4-3-2-3s2 3 2 3zm0 0c3 0 4-3 2-3s-2 3-2 3zM12 10v11',
+    trophy:  'M7 4h10v5a5 5 0 0 1-10 0V4zM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M9 21h6m-3-4v4',
+    camera:  'M4 7h4l1.5-2h5L16 7h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm8 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+    music:   'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm11-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+    crown:   'M3 8l3.5 3L12 5l5.5 6L21 8l-2 10H5L3 8z',
+    rocket:  'M12 2c4 3 6 7 6 11l-3 3-3 2-3-2-3-3c0-4 2-8 6-11zm0 7a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+    cake:    'M4 12h16v8H4v-8zm2-1V8m6 3V8m6 3V8M3 20h18',
+    moon:    'M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z',
+    diamond: 'M12 2 3 9l9 13 9-13-9-7zm0 0L8 9h8l-4-7zM3 9h18',
+    bell:    'M12 3a6 6 0 0 1 6 6v4l2 3H4l2-3V9a6 6 0 0 1 6-6zm-2 16h4a2 2 0 0 1-4 0z',
+    chat:    'M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V5a1 1 0 0 1 1-1z',
+    coin:    'M12 3c4.4 0 8 1.6 8 3.5S16.4 10 12 10 4 8.4 4 6.5 7.6 3 12 3zM4 6.5v11C4 19.4 7.6 21 12 21s8-1.6 8-3.5v-11',
+    ticket:  'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z',
+    paw:     'M7 14a4 4 0 0 1 10 0 3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3zM6 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM9.5 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm5 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+    key:     'M14 4a6 6 0 1 1-4.9 9.5L3 20v-4h3v-3h3l.1-.1A6 6 0 0 1 14 4zm2 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+    clock:   'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 4v5l4 2',
+    game:    'M7 8h10a5 5 0 0 1 0 10c-2 0-2.5-1-5-1s-3 1-5 1a5 5 0 0 1 0-10zm1 3v4m-2-2h4m8 0h.01M16 11h.01',
+    book:    'M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4V4zm16 0h-7a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h7V4z',
+    twitch:  'M4 3h16v11l-4 4h-3l-3 3H8v-3H4V3zm4 3v6m4-6v6',
+  };
+  ICONS.followers = ICONS.sprout;
+  ICONS.tips = ICONS.wallet;
+  ICONS.subs = ICONS.star;
+  ICONS.bits = ICONS.diamond;
+
+  const state = {
+    label: query.get("label") || "Tip goal",
+    current: num("current", 0),
+    target: Math.max(1, num("target", 100)),
+    format: (query.get("format") || "currency").toLowerCase(),
+    symbol: query.get("symbol") || "$",
+    color: query.get("color") || query.get("a") || "f0b04a",
+    track: query.get("track") || query.get("trackColor") || "0f131c",
+    labelColor: query.get("labelColor") || query.get("textColor") || "f0f4fa",
+    shellColor: query.get("shellColor") || "1a1f2c",
+    font: query.get("font") || "sans",
+    weight: num("weight", 700),
+    scale: num("scale", 1),
+    glow: num("glow", .75),
+    size: query.get("size") || "full",
+    icon: query.get("icon") || "tips",
+    corners: query.get("corners") || "round",
+    width: num("width", 560),
+  };
+
+  function pickIcon() {
+    const requested = state.icon;
+    if (requested === "none") return null;
+    if (ICONS[requested]) return requested;
+    return "wallet";
+  }
+
+  function applyAppearance() {
+    const root = document.documentElement;
+    root.style.setProperty("--accent", hexToRgb(state.color).join(","));
+    root.style.setProperty("--shell", hexToRgb(state.shellColor).join(","));
+    root.style.setProperty("--shell-deep", hexToRgb(state.track).join(","));
+    root.style.setProperty("--ink", hexToRgb(state.labelColor).join(","));
+    root.style.setProperty("--font-stack", FONTS[state.font] || FONTS.sans);
+    root.style.setProperty("--weight", String(state.weight));
+    root.style.setProperty("--scale", String(state.scale));
+    root.style.setProperty("--glow", String(state.glow));
+    root.style.setProperty("--pill-w", `${state.width}px`);
+    root.style.setProperty(
+      "--radius",
+      state.corners === "square" ? "16px" : "999px",
+    );
+    goal.classList.toggle("compact", state.size === "compact");
+    goal.classList.toggle("thin", state.size === "thin");
+
+    const icon = pickIcon();
+    if (icon) {
+      badge.innerHTML =
+        `<svg viewBox="0 0 24 24" aria-hidden="true">` +
+        `<path d="${ICONS[icon]}" fill="none" stroke="rgb(var(--accent))" ` +
+        `stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      badge.style.display = "";
+    } else {
+      badge.replaceChildren();
+      badge.style.display = "none";
+    }
+  }
+
+  function formatAmount(n) {
+    if (state.format === "currency") {
+      const rounded = Math.round(n * 100) / 100;
+      return `${state.symbol}${rounded.toLocaleString("en-US", {
+        minimumFractionDigits: rounded % 1 ? 2 : 0,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    return Math.round(n).toLocaleString("en-US");
+  }
+
+  function render() {
+    const ratio = clamp(state.current / state.target, 0, 1);
+    fill.style.setProperty("--pct", ratio.toFixed(4));
+    chip.textContent = state.label;
+    valueEl.replaceChildren(document.createTextNode(`${formatAmount(state.current)} / `));
+    const target = document.createElement("span");
+    target.className = "target";
+    target.textContent = formatAmount(state.target);
+    valueEl.append(target);
+    goal.classList.toggle("complete", ratio >= 1);
+  }
+
+  function celebrate(text) {
+    for (const [el, cls] of [[goal, "bumped"], [badge, "popped"]]) {
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+    }
+    if (!text) return;
+    toastEl.textContent = text;
+    toastEl.classList.remove("show");
+    void toastEl.offsetWidth;
+    toastEl.classList.add("show");
+  }
+
+  function addProgress(amount, text) {
+    const delta = Number(amount);
+    if (!Number.isFinite(delta) || delta === 0) return;
+    state.current = clamp(state.current + delta, 0, 1_000_000_000);
+    render();
+    const signed = delta > 0
+      ? `+${formatAmount(delta)}`
+      : `-${formatAmount(Math.abs(delta))}`;
+    celebrate(text || signed);
+  }
+
+  function setGoal(patch = {}) {
+    const next = { ...state, ...(patch && typeof patch === "object" ? patch : {}) };
+    state.label = String(next.label || "Tip goal").trim().replace(/\s+/g, " ").slice(0, 64) || "Tip goal";
+    state.current = clamp(Number(next.current), 0, 1_000_000_000);
+    state.target = clamp(Number(next.target), 0.01, 1_000_000_000);
+    state.format = pick(next.format, ["currency", "number"], "currency");
+    state.symbol = String(next.symbol || "$").trim().slice(0, 4) || "$";
+    state.color = color(next.color, "f0b04a");
+    state.track = color(next.track, "0f131c");
+    state.labelColor = color(next.labelColor, "f0f4fa");
+    state.shellColor = color(next.shellColor, "1a1f2c");
+    state.font = pick(next.font, Object.keys(FONTS), "sans");
+    state.weight = Math.round(clamp(Number(next.weight), 100, 900) / 100) * 100;
+    state.scale = clamp(Number(next.scale), 0.5, 1.2);
+    state.glow = clamp(Number(next.glow), 0, 2.5);
+    state.size = pick(next.size, ["full", "compact", "thin"], "full");
+    state.icon = pick(
+      next.icon,
+      ["followers", "tips", "subs", "bits", "gift", "heart", "star", "none"],
+      "tips",
+    );
+    state.corners = pick(next.corners, ["round", "square"], "round");
+    state.width = Math.round(clamp(Number(next.width), 260, 640));
+    applyAppearance();
+    render();
+  }
+
+  window.goalPill = { add: addProgress, set: setGoal, state };
+
+  if (customizerMode) {
+    window.addEventListener("message", event => {
+      const message = event.data;
+      if (
+        event.source !== window.parent
+        || message?.type !== "overlay-studio-draft"
+        || message.overlayType !== "goal-pill"
+        || String(message.instanceId || "") !== instanceId
+      ) return;
+      setGoal(message.state || {});
+    });
+  }
+
+  function connect() {
+    if (location.protocol === "file:" || !("WebSocket" in window)) return;
+    let socket;
+    try {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    } catch { return; }
+    socket.onmessage = event => {
+      if (typeof event.data !== "string" || event.data.length > 64 * 1024) return;
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      if (String(message?.instanceId || "") !== instanceId) return;
+      if (message.type !== "goal") return;
+      setGoal(message.state || {});
+      const feedback = message.event;
+      if (feedback?.text) {
+        celebrate(String(feedback.text).slice(0, 64));
+      } else if (Number.isFinite(Number(feedback?.amount))) {
+        const delta = Number(feedback.amount);
+        celebrate(delta > 0
+          ? `+${formatAmount(delta)}`
+          : `-${formatAmount(Math.abs(delta))}`);
+      }
+    };
+    socket.onclose = () => setTimeout(connect, 2000);
+  }
+
+  async function loadInstalledState() {
+    if (!instanceId || location.protocol === "file:") return;
+    try {
+      const response = await fetch(`/api/goal?i=${encodeURIComponent(instanceId)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      setGoal(await response.json());
+    } catch {
+      // The query/default state remains usable while the server reconnects.
+    }
+  }
+
+  function startDemo() {
+    const tick = () => {
+      if (state.current >= state.target) {
+        setTimeout(() => { state.current = 0; render(); }, 3000);
+      } else {
+        const step = state.format === "currency"
+          ? Math.round(state.target * (0.05 + Math.random() * 0.1) * 2) / 2
+          : Math.max(1, Math.round(state.target * (0.05 + Math.random() * 0.08)));
+        addProgress(step);
+      }
+      setTimeout(tick, 2400 + Math.random() * 1500);
+    };
+    setTimeout(tick, 800);
+  }
+
+  setGoal(state);
+  if (!customizerMode) {
+    loadInstalledState();
+    connect();
+  }
+  if (!instanceId && (query.get("demo") || "off").toLowerCase() === "on") {
+    startDemo();
+  }
+})();
+</script>
+</body>
+</html>

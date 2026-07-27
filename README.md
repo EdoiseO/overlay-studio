@@ -17,6 +17,7 @@ local OBS browser-source overlays.
 | **Now Playing Flow** | Presents the current media-session artwork with audio-reactive progress bars. |
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
+| **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
 
 ## Requirements
 
@@ -102,6 +103,14 @@ perspective tilt. Horizontal bars omit the icon badge for a cleaner label row; v
 bars can use the follower, tip, subscription, or bits icon. Each Goal Bar keeps progress
 and appearance independently from Goal Widgets and other Goal Bar instances.
 
+## Goal Pill
+
+Add **Goal Pill** for a compact tip, follower, subscription, bits, or custom goal.
+Its Studio page includes live progress controls plus bounded size, width, scale, glow,
+corners, icon, font, and color settings. The fill is proportional to `current / target`,
+including a fully empty track at zero. Every Goal Pill instance stores its own progress
+and appearance.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -156,6 +165,7 @@ http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
 http://127.0.0.1:8473/overlays/goal-bar
+http://127.0.0.1:8473/overlays/goal-pill
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -176,6 +186,7 @@ Match Record     900 x 320
 Now Playing Flow 760 x 420
 Goal Widget      460 x 520
 Goal Bar         860 x 560
+Goal Pill        720 x 220
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined
@@ -212,7 +223,7 @@ values.
 
 ## Goal automation
 
-Chat tools can update a Goal Widget or Goal Bar by sending JSON to `POST /api/goal`
+Chat tools can update a Goal Widget, Goal Bar, or Goal Pill by sending JSON to `POST /api/goal`
 with the instance's `i` query parameter. Supported actions are:
 
 ```text
@@ -233,10 +244,11 @@ Invoke-RestMethod `
 ```
 
 The endpoint also accepts direct settings such as `label`, `current`, `target`,
-`format`, `symbol`, `color`, `font`, `scale`, and `glow`. Goal Bar instances also
-accept `layout`, `size`, `shell`, `icon`, `corners`, `width`, `shellColor`, `track`,
-`labelColor`, `tiltX`, and `tiltY`. Values are normalized and bounded before being
-saved.
+`format`, `symbol`, `color`, `font`, `scale`, and `glow`. Goal Bar adds `layout`,
+`size`, `shell`, `icon`, `corners`, `width`, `shellColor`, `track`, `labelColor`,
+`tiltX`, and `tiltY`. Goal Pill uses `size`, `icon`, `corners`, `width`,
+`shellColor`, `track`, and `labelColor`. Values are normalized and bounded before
+being saved.
 
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools

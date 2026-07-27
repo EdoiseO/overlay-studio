@@ -57,6 +57,7 @@ from counter_store import (  # noqa: E402
 )
 from goal_store import (  # noqa: E402
     DEFAULT_GOAL_BAR_STATE,
+    DEFAULT_GOAL_PILL_STATE,
     DEFAULT_GOAL_STATE,
     GOAL_OVERLAY_TYPES,
     goal_defaults_for_type,
@@ -887,6 +888,7 @@ class DesktopApi:
             "goal": load_goal_state(GOAL_STATE_PATH),
             "goalDefaults": DEFAULT_GOAL_STATE,
             "goalBarDefaults": DEFAULT_GOAL_BAR_STATE,
+            "goalPillDefaults": DEFAULT_GOAL_PILL_STATE,
             "goals": load_goal_states(
                 GOAL_STATE_PATH,
                 goal_instances,

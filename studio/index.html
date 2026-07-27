@@ -471,6 +471,140 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="goalPillView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>GOAL PILL</span>
+            <h1 id="goalPillDetailName">Goal Pill</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Goal progress</h2>
+          <div class="form-grid">
+            <label for="goalPillLabel">Label</label>
+            <input id="goalPillLabel" type="text" maxlength="64" autocomplete="off" placeholder="Tip goal">
+            <label for="goalPillCurrent">Current</label>
+            <input id="goalPillCurrent" type="number" min="0" max="1000000000" step="0.01">
+            <label for="goalPillTarget">Target</label>
+            <input id="goalPillTarget" type="number" min="0.01" max="1000000000" step="0.01">
+            <label for="goalPillFormat">Number format</label>
+            <select id="goalPillFormat">
+              <option value="currency">Currency</option>
+              <option value="number">Number</option>
+            </select>
+            <label for="goalPillSymbol">Currency symbol</label>
+            <input id="goalPillSymbol" type="text" maxlength="4" autocomplete="off" placeholder="$">
+          </div>
+          <div class="goal-progress-actions">
+            <label for="goalPillStep">
+              <span>Change amount</span>
+              <input id="goalPillStep" type="number" min="0.01" max="1000000000" step="0.01" value="1">
+            </label>
+            <button class="secondary-button score-button" type="button" data-goal-pill-action="subtract" aria-label="Subtract progress" title="Subtract progress">-</button>
+            <button class="primary-button score-button" type="button" data-goal-pill-action="add" aria-label="Add progress" title="Add progress">+</button>
+            <button class="secondary-button compact" type="button" data-goal-pill-action="complete">Complete</button>
+            <button class="danger-button compact" type="button" data-goal-pill-action="reset">Reset</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Layout</h2>
+          <div class="form-grid">
+            <label for="goalPillSize">Pill size</label>
+            <select id="goalPillSize">
+              <option value="full">Full</option>
+              <option value="compact">Compact</option>
+              <option value="thin">Thin</option>
+            </select>
+            <label for="goalPillIcon">Icon</label>
+            <select id="goalPillIcon">
+              <option value="tips">Tips</option>
+              <option value="followers">Followers</option>
+              <option value="subs">Subscriptions</option>
+              <option value="bits">Bits</option>
+              <option value="gift">Gift</option>
+              <option value="heart">Heart</option>
+              <option value="star">Star</option>
+              <option value="none">None</option>
+            </select>
+            <label for="goalPillCorners">Corners</label>
+            <select id="goalPillCorners">
+              <option value="round">Pill</option>
+              <option value="square">Soft square</option>
+            </select>
+            <label for="goalPillWidth">Width</label>
+            <div class="range-control">
+              <input id="goalPillWidth" type="range" min="260" max="640" step="10">
+              <output id="goalPillWidthOutput">560</output>
+            </div>
+            <label for="goalPillScale">Scale</label>
+            <div class="range-control">
+              <input id="goalPillScale" type="range" min="0.5" max="1.2" step="0.05">
+              <output id="goalPillScaleOutput">1.00</output>
+            </div>
+            <label for="goalPillGlow">Glow strength</label>
+            <div class="range-control">
+              <input id="goalPillGlow" type="range" min="0" max="2.5" step="0.05">
+              <output id="goalPillGlowOutput">0.75</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Appearance</h2>
+          <div class="form-grid">
+            <label for="goalPillPreset">Accent preset</label>
+            <select id="goalPillPreset">
+              <option value="f0b04a">Amber</option>
+              <option value="4ecdc4">Teal</option>
+              <option value="f07c6a">Coral</option>
+              <option value="a08ef0">Violet</option>
+              <option value="a8d66e">Lime</option>
+              <option value="82b7e8">Ice</option>
+              <option value="custom">Custom</option>
+            </select>
+            <span>Palette</span>
+            <div class="palette-control goal-palette goal-bar-palette">
+              <label title="Accent color"><input id="goalPillColor" type="color"><span id="goalPillColorLabel">#F0B04A</span></label>
+              <label title="Pill color"><input id="goalPillShellColor" type="color"><span id="goalPillShellColorLabel">#1A1F2C</span></label>
+              <label title="Track color"><input id="goalPillTrack" type="color"><span id="goalPillTrackLabel">#0F131C</span></label>
+              <label title="Text color"><input id="goalPillLabelColor" type="color"><span id="goalPillLabelColorLabel">#F0F4FA</span></label>
+            </div>
+            <label for="goalPillFont">Font</label>
+            <select id="goalPillFont">
+              <option value="sans">Sans serif</option>
+              <option value="display">Display</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="serif">Serif</option>
+            </select>
+            <label for="goalPillWeight">Font weight</label>
+            <select id="goalPillWeight">
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="goalPillSourceLabel" for="goalPillUrl">Goal Pill</label>
+            <input id="goalPillUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetGoalPillFieldsButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveGoalPillSettingsButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

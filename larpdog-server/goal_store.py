@@ -49,6 +49,28 @@ DEFAULT_GOAL_BAR_STATE: dict[str, Any] = {
     "icon": "followers",
 }
 
+DEFAULT_GOAL_PILL_STATE: dict[str, Any] = {
+    **DEFAULT_GOAL_STATE,
+    "label": "Tip goal",
+    "current": 0.0,
+    "target": 100.0,
+    "format": "currency",
+    "color": "f0b04a",
+    "track": "0f131c",
+    "labelColor": "f0f4fa",
+    "font": "sans",
+    "weight": 700,
+    "particles": False,
+    "percent": False,
+    "scale": 1.0,
+    "glow": 0.75,
+    "size": "full",
+    "icon": "tips",
+    "shellColor": "1a1f2c",
+    "corners": "round",
+    "width": 560,
+}
+
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 FORMAT_CHOICES = {"currency", "number"}
@@ -56,9 +78,18 @@ FONT_CHOICES = {"serif", "sans", "round", "mono", "display"}
 LAYOUT_CHOICES = {"horizontal", "vertical"}
 SIZE_CHOICES = {"full", "compact", "thin"}
 SHELL_CHOICES = {"on", "off"}
-ICON_CHOICES = {"followers", "tips", "subs", "bits", "none"}
+ICON_CHOICES = {
+    "followers",
+    "tips",
+    "subs",
+    "bits",
+    "gift",
+    "heart",
+    "star",
+    "none",
+}
 CORNER_CHOICES = {"round", "square"}
-GOAL_OVERLAY_TYPES = {"goal", "goal-bar"}
+GOAL_OVERLAY_TYPES = {"goal", "goal-bar", "goal-pill"}
 ACTIONS = {"add", "subtract", "reset", "complete"}
 MAX_GOAL_VALUE = 1_000_000_000.0
 
@@ -214,11 +245,12 @@ def normalize_goal_state(raw: Any) -> dict[str, Any]:
 
 
 def goal_defaults_for_type(overlay_type: str | None) -> dict[str, Any]:
-    defaults = (
-        DEFAULT_GOAL_BAR_STATE
-        if overlay_type == "goal-bar"
-        else DEFAULT_GOAL_STATE
-    )
+    defaults_by_type = {
+        "goal": DEFAULT_GOAL_STATE,
+        "goal-bar": DEFAULT_GOAL_BAR_STATE,
+        "goal-pill": DEFAULT_GOAL_PILL_STATE,
+    }
+    defaults = defaults_by_type.get(overlay_type, DEFAULT_GOAL_STATE)
     return dict(defaults)
 
 

@@ -39,6 +39,10 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
             ROOT_DIR / "overlays" / "goal-bar.html",
             overlays_dir / "goal-bar.html",
         )
+        shutil.copyfile(
+            ROOT_DIR / "overlays" / "goal-pill.html",
+            overlays_dir / "goal-pill.html",
+        )
         (root / "overlay-studio.html").write_text(
             "<!doctype html><title>Test</title>",
             encoding="utf-8",
@@ -55,6 +59,12 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
             "goal-bar",
             "follower-goal",
             "Follower Goal",
+        )
+        overlay_config = add_overlay_instance(
+            overlay_config,
+            "goal-pill",
+            "tip-pill",
+            "Tip Pill",
         )
         save_overlay_config(server_dir / "overlay-config.json", overlay_config)
 
@@ -149,6 +159,39 @@ class GoalApiTests(unittest.IsolatedAsyncioTestCase):
 
         tip_goal = await self.client.get("/api/goal?i=tip-goal")
         self.assertEqual((await tip_goal.json())["current"], 0)
+
+    async def test_goal_pill_uses_independent_defaults_and_persists(self) -> None:
+        initial = await self.client.get("/api/goal?i=tip-pill")
+        self.assertEqual(initial.status, 200)
+        initial_state = await initial.json()
+        self.assertEqual(initial_state["label"], "Tip goal")
+        self.assertEqual(initial_state["target"], 100)
+        self.assertEqual(initial_state["icon"], "tips")
+        self.assertEqual(initial_state["width"], 560)
+
+        overlay = await self.client.get("/overlays/goal-pill?i=tip-pill")
+        self.assertEqual(overlay.status, 200)
+        await overlay.read()
+
+        updated = await self.client.post(
+            "/api/goal?i=tip-pill",
+            json={
+                "action": "add",
+                "amount": 12.5,
+                "icon": "heart",
+                "width": 999,
+                "scale": 4,
+            },
+        )
+        self.assertEqual(updated.status, 200)
+        state = await updated.json()
+        self.assertEqual(state["current"], 12.5)
+        self.assertEqual(state["icon"], "heart")
+        self.assertEqual(state["width"], 640)
+        self.assertEqual(state["scale"], 1.2)
+
+        persisted = await self.client.get("/api/goal?i=tip-pill")
+        self.assertEqual((await persisted.json())["current"], 12.5)
 
     async def test_goal_route_and_write_guards(self) -> None:
         overlay = await self.client.get("/overlays/goal?i=tip-goal")

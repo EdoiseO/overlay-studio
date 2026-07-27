@@ -21,6 +21,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "now-playing-flow": ROOT_DIR / "overlays" / "now-playing-flow.html",
             "goal": ROOT_DIR / "overlays" / "goal.html",
             "goal-bar": ROOT_DIR / "overlays" / "goal-bar.html",
+            "goal-pill": ROOT_DIR / "overlays" / "goal-pill.html",
             "win-loss": ROOT_DIR / "overlays" / "win-loss.html",
         }
 
