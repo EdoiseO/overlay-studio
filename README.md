@@ -70,9 +70,12 @@ only added inside Overlay Studio; the OBS sources remain transparent.
 Every customization page also keeps a compact live draft preview beside its controls.
 Text, number, color, layout, media, and slider changes appear there immediately without
 writing to the server. OBS and the installed library preview continue using the saved
-settings until **Save** is selected. Leaving the customization page unloads the draft
-preview to release its browser resources. The form scrolls independently from the
-preview; click the live draft to expand it and press `Esc` to return to the editor.
+settings until **Save** is selected. Edited drafts are marked **Unsaved** and prompt
+for **Save**, **Discard**, or **Keep editing** when leaving the customizer or closing
+the app. The warning can be disabled from the prompt and restored under
+**Settings > Editing**. Leaving the customization page unloads the draft preview to
+release its browser resources. The form scrolls independently from the preview; click
+the live draft to expand it and press `Esc` to return to the editor.
 
 Each card can copy its OBS URL, be renamed without changing that URL, or be removed
 from My overlays. Removing an instance does not delete its local overlay type, which

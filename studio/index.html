@@ -655,6 +655,8 @@
       </section>
     </main>
 
+    <span class="customizer-dirty-badge" id="customizerDirtyBadge" hidden>Unsaved</span>
+
     <aside class="customizer-preview-dock" id="customizerPreviewDock" hidden>
       <div class="customizer-preview-heading">
         <div>
@@ -711,6 +713,16 @@
         <button type="button" data-theme-choice="dark">Dark</button>
         <button type="button" data-theme-choice="light">Light</button>
       </div>
+    </div>
+    <div class="drawer-section">
+      <h3>Editing</h3>
+      <label class="setting-toggle" for="confirmUnsavedChangesSetting">
+        <span>
+          <strong>Unsaved change warning</strong>
+          <small>Confirm before leaving an edited overlay.</small>
+        </span>
+        <input id="confirmUnsavedChangesSetting" type="checkbox" checked>
+      </label>
     </div>
     <div class="drawer-section">
       <h3>Connections</h3>
@@ -790,6 +802,20 @@
     <div class="dialog-actions">
       <button class="secondary-button" id="cancelDeleteMedia" type="button">Cancel</button>
       <button class="danger-button" id="confirmDeleteMedia" type="button">Delete</button>
+    </div>
+  </dialog>
+
+  <dialog class="confirmation-dialog unsaved-dialog" id="unsavedChangesDialog" aria-labelledby="unsavedChangesTitle">
+    <h2 id="unsavedChangesTitle">Unsaved changes</h2>
+    <p>Your latest customization has not been saved. What would you like to do?</p>
+    <label class="dialog-checkbox" for="dontWarnUnsavedChanges">
+      <input id="dontWarnUnsavedChanges" type="checkbox">
+      <span>Don't warn me again</span>
+    </label>
+    <div class="dialog-actions">
+      <button class="secondary-button" id="keepEditingButton" type="button">Keep editing</button>
+      <button class="danger-button" id="discardChangesButton" type="button">Discard</button>
+      <button class="primary-button" id="saveUnsavedChangesButton" type="button">Save</button>
     </div>
   </dialog>
 

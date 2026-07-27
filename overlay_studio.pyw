@@ -709,9 +709,43 @@ class DesktopApi:
     def __init__(self) -> None:
         self._window: webview.Window | None = None
         self._action_lock = threading.Lock()
+        self._close_lock = threading.Lock()
+        self._unsaved_changes = False
+        self._close_dialog_pending = False
+        self._allow_close_once = False
 
     def _bind_window(self, window: webview.Window) -> None:
         self._window = window
+
+    def _show_unsaved_close_dialog(self) -> None:
+        time.sleep(0.05)
+        window = self._window
+        if window is None:
+            return
+        with contextlib.suppress(Exception):
+            window.run_js(
+                "if (window.overlayStudioRequestClose) "
+                "window.overlayStudioRequestClose();"
+            )
+
+    def _on_window_closing(self) -> bool:
+        with self._close_lock:
+            if self._allow_close_once:
+                self._allow_close_once = False
+                return True
+            settings = load_json(APP_SETTINGS_PATH)
+            should_confirm = settings.get("confirmUnsavedChanges") is not False
+            if not self._unsaved_changes or not should_confirm:
+                return True
+            should_notify = not self._close_dialog_pending
+            self._close_dialog_pending = True
+
+        if should_notify:
+            threading.Thread(
+                target=self._show_unsaved_close_dialog,
+                daemon=True,
+            ).start()
+        return False
 
     def _python_executable(self) -> Path | None:
         preferred = SERVER_DIR / ".venv" / "Scripts" / "python.exe"
@@ -901,6 +935,9 @@ class DesktopApi:
                 str(settings.get("theme") or "dark")
                 if str(settings.get("theme") or "dark") in {"dark", "light"}
                 else "dark"
+            ),
+            "confirmUnsavedChanges": (
+                settings.get("confirmUnsavedChanges") is not False
             ),
         }
 
@@ -1371,6 +1408,39 @@ class DesktopApi:
         save_json(APP_SETTINGS_PATH, settings)
         return {"ok": True, "theme": selected}
 
+    def set_confirm_unsaved_changes(self, enabled: bool) -> dict[str, Any]:
+        selected = enabled if isinstance(enabled, bool) else True
+        settings = load_json(APP_SETTINGS_PATH)
+        settings["confirmUnsavedChanges"] = selected
+        save_json(APP_SETTINGS_PATH, settings)
+        if not selected:
+            with self._close_lock:
+                self._close_dialog_pending = False
+        return {"ok": True, "confirmUnsavedChanges": selected}
+
+    def set_unsaved_changes(self, dirty: bool) -> dict[str, Any]:
+        with self._close_lock:
+            self._unsaved_changes = dirty is True
+            if not self._unsaved_changes:
+                self._close_dialog_pending = False
+        return {"ok": True}
+
+    def cancel_close_request(self) -> dict[str, Any]:
+        with self._close_lock:
+            self._close_dialog_pending = False
+        return {"ok": True}
+
+    def close_window(self) -> dict[str, Any]:
+        window = self._window
+        if window is None:
+            return {"ok": False, "detail": "Window is unavailable"}
+        with self._close_lock:
+            self._unsaved_changes = False
+            self._close_dialog_pending = False
+            self._allow_close_once = True
+        window.destroy()
+        return {"ok": True}
+
     def open_folder(self, folder: str) -> dict[str, Any]:
         choices = {
             "assets": USER_ASSETS_DIR,
@@ -1481,6 +1551,7 @@ def main() -> None:
     if window is None:
         raise RuntimeError("Could not create Overlay Studio window")
     window.events.before_show += constrain_window_size
+    window.events.closing += api._on_window_closing
     api._bind_window(window)
     webview.start(
         gui="edgechromium",

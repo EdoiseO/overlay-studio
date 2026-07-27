@@ -9,6 +9,7 @@
   --accent: #4fc8bd;
   --accent-strong: #36a79e;
   --good: #49c98d;
+  --warning: #e7b65b;
   --danger: #e36f68;
   --border: #303a40;
   --shadow: rgba(0, 0, 0, 0.28);
@@ -24,6 +25,7 @@ body[data-theme="light"] {
   --accent: #4b948e;
   --accent-strong: #3b7d78;
   --good: #347e64;
+  --warning: #8c6729;
   --danger: #aa5a56;
   --border: #9eaeab;
   --shadow: rgba(31, 45, 47, 0.18);
@@ -520,6 +522,17 @@ body.server-running .card-copy small {
   height: 7px;
 }
 
+.customizer-preview-dock.has-unsaved .customizer-preview-status {
+  color: var(--warning);
+}
+
+body.server-running
+  .customizer-preview-dock.has-unsaved
+  .customizer-preview-status
+  .status-dot {
+  background: var(--warning);
+}
+
 .customizer-preview-stage {
   position: relative;
   width: 100%;
@@ -607,6 +620,23 @@ body.server-running .customizer-preview-offline {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.customizer-dirty-badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--warning) 62%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.customizer-dirty-badge[hidden] {
+  display: none;
 }
 
 .push-right {
@@ -1292,6 +1322,42 @@ body.drawer-open .settings-drawer {
   font-size: 12px;
 }
 
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.setting-toggle > span {
+  min-width: 0;
+}
+
+.setting-toggle strong,
+.setting-toggle small {
+  display: block;
+}
+
+.setting-toggle strong {
+  font-size: 13px;
+}
+
+.setting-toggle small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.setting-toggle input,
+.dialog-checkbox input {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  accent-color: var(--accent);
+}
+
 .connection-row {
   display: flex;
   align-items: center;
@@ -1394,6 +1460,23 @@ dialog .primary-button {
 
 .confirmation-dialog strong {
   color: var(--ink);
+}
+
+.unsaved-dialog {
+  width: 410px;
+}
+
+.dialog-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 20px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.unsaved-dialog .dialog-actions {
+  flex-wrap: wrap;
 }
 
 .rename-dialog label {

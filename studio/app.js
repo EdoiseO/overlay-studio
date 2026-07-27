@@ -22,6 +22,12 @@ const app = {
   customizerPreviewReady: false,
   customizerPreviewExpanded: false,
   customizerResizeObserver: null,
+  customizerBaseline: null,
+  customizerDirty: false,
+  confirmUnsavedChanges: true,
+  pendingUnsavedAction: null,
+  pendingUnsavedSource: null,
+  unsavedDecisionBusy: false,
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
@@ -100,6 +106,183 @@ async function callApi(method, ...args) {
   return window.pywebview.api[method](...args);
 }
 
+function activeViewId() {
+  return document.querySelector(".view.active")?.id || "libraryView";
+}
+
+function customizerDraftKey(instance = activeInstance()) {
+  const draft = customizerDraft(instance);
+  return draft ? JSON.stringify(draft) : null;
+}
+
+function renderCustomizerDirtyState() {
+  const activeView = document.querySelector(".detail-view.active");
+  const customizerActive =
+    activeView && CUSTOMIZER_VIEW_IDS.has(activeView.id);
+  const badge = byId("customizerDirtyBadge");
+  if (customizerActive && app.customizerDirty) {
+    const heading = activeView.querySelector(".detail-heading");
+    const title = heading?.querySelector(".detail-title")
+      || heading?.querySelector("h1");
+    if (title) title.insertAdjacentElement("afterend", badge);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+
+  const dock = byId("customizerPreviewDock");
+  dock.classList.toggle("has-unsaved", app.customizerDirty);
+  byId("customizerPreviewStatus").textContent = app.state?.running
+    ? (app.customizerDirty ? "UNSAVED" : "SAVED")
+    : "OFFLINE";
+}
+
+function setCustomizerDirty(dirty) {
+  const next = Boolean(dirty);
+  if (app.customizerDirty === next) {
+    renderCustomizerDirtyState();
+    return;
+  }
+  app.customizerDirty = next;
+  renderCustomizerDirtyState();
+  callApi("set_unsaved_changes", next).catch(() => {});
+}
+
+function rememberSavedCustomizer() {
+  app.customizerBaseline = customizerDraftKey();
+  setCustomizerDirty(false);
+}
+
+function refreshCustomizerDirty() {
+  if (
+    app.customizerBaseline === null
+    || !CUSTOMIZER_VIEW_IDS.has(activeViewId())
+  ) return;
+  setCustomizerDirty(customizerDraftKey() !== app.customizerBaseline);
+}
+
+function scheduleCustomizerChange(delay = 70) {
+  scheduleCustomizerDraft(delay);
+  queueMicrotask(refreshCustomizerDirty);
+}
+
+async function setConfirmUnsavedChanges(enabled) {
+  const selected = Boolean(enabled);
+  app.confirmUnsavedChanges = selected;
+  if (app.state) app.state.confirmUnsavedChanges = selected;
+  byId("confirmUnsavedChangesSetting").checked = selected;
+  try {
+    const result = await callApi("set_confirm_unsaved_changes", selected);
+    if (!result.ok) throw new Error("Preference could not be saved");
+    return true;
+  } catch (error) {
+    app.confirmUnsavedChanges = !selected;
+    if (app.state) app.state.confirmUnsavedChanges = !selected;
+    byId("confirmUnsavedChangesSetting").checked = !selected;
+    showToast(String(error.message || error));
+    return false;
+  }
+}
+
+function finishUnsavedAction(action) {
+  app.pendingUnsavedAction = null;
+  app.pendingUnsavedSource = null;
+  action?.();
+}
+
+function requestUnsavedAction(action, source = "navigation") {
+  if (!app.customizerDirty || !app.confirmUnsavedChanges) {
+    setCustomizerDirty(false);
+    app.customizerBaseline = null;
+    action();
+    return;
+  }
+  app.pendingUnsavedAction = action;
+  app.pendingUnsavedSource = source;
+  byId("dontWarnUnsavedChanges").checked = false;
+  const dialog = byId("unsavedChangesDialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+function navigateToView(viewId) {
+  const currentView = activeViewId();
+  if (viewId === currentView) return;
+  const leavingCustomizer =
+    CUSTOMIZER_VIEW_IDS.has(currentView)
+    && !CUSTOMIZER_VIEW_IDS.has(viewId);
+  if (leavingCustomizer) {
+    requestUnsavedAction(() => showView(viewId));
+  } else {
+    showView(viewId);
+  }
+}
+
+async function saveActiveCustomizer() {
+  const instance = activeInstance();
+  if (!instance) return false;
+  if (
+    instance.type === "larpdog-dance"
+    || instance.type === "spotify"
+    || instance.type === "now-playing-flow"
+  ) {
+    return saveOverlaySettings();
+  }
+  if (instance.type === "goal") {
+    return sendGoal(gatherGoalSettings(), "Goal saved and applied");
+  }
+  if (instance.type === "goal-bar") {
+    return sendGoal(gatherGoalBarSettings(), "Goal Bar saved and applied");
+  }
+  if (instance.type === "goal-pill") {
+    return sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  }
+  if (instance.type === "win-loss") {
+    return sendCounter({
+      title: byId("counterTitle").value,
+      accent: byId("counterAccent").value.slice(1),
+    });
+  }
+  return false;
+}
+
+async function applyDontWarnPreference() {
+  if (!byId("dontWarnUnsavedChanges").checked) return true;
+  return setConfirmUnsavedChanges(false);
+}
+
+async function resolveUnsavedChanges(choice) {
+  if (app.unsavedDecisionBusy) return;
+  const dialog = byId("unsavedChangesDialog");
+  const action = app.pendingUnsavedAction;
+  const source = app.pendingUnsavedSource;
+  app.unsavedDecisionBusy = true;
+  dialog.querySelectorAll("button").forEach((button) => {
+    button.disabled = true;
+  });
+  try {
+    if (choice === "save" && !(await saveActiveCustomizer())) return;
+    if (choice === "discard") {
+      setCustomizerDirty(false);
+      app.customizerBaseline = null;
+    }
+    await applyDontWarnPreference();
+    dialog.close();
+    if (choice === "keep") {
+      finishUnsavedAction(null);
+      if (source === "close") {
+        callApi("cancel_close_request").catch(() => {});
+      }
+      return;
+    }
+    finishUnsavedAction(action);
+  } finally {
+    app.unsavedDecisionBusy = false;
+    dialog.querySelectorAll("button").forEach((button) => {
+      button.disabled = false;
+    });
+  }
+}
+
 function showView(viewId) {
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === viewId);
@@ -113,6 +296,7 @@ function showView(viewId) {
   } else {
     hideCustomizerPreview();
   }
+  renderCustomizerDirtyState();
 }
 
 function setDrawer(open) {
@@ -339,9 +523,7 @@ function renderCustomizerPreview(state = app.state) {
   const source = customizerPreviewUrl(instance);
   dock.hidden = false;
   byId("customizerPreviewName").textContent = instance.name;
-  byId("customizerPreviewStatus").textContent = state?.running
-    ? "UNSAVED"
-    : "OFFLINE";
+  renderCustomizerDirtyState();
   frame.title = `Live ${instance.name} customization preview`;
   const desired = state?.running ? source : "";
   if (frame.dataset.source !== desired) {
@@ -1037,6 +1219,7 @@ async function deletePendingAsset() {
         ? materializeInstanceConfig(selectedInstance)
         : result.config,
     );
+    rememberSavedCustomizer();
     scheduleCustomizerDraft();
     byId("deleteMediaDialog").close();
     logActivity(`Media deleted: ${result.name}`);
@@ -1367,6 +1550,9 @@ function renderState(state, hydrate = false) {
     app.activeInstanceId = null;
   }
   setTheme(state.theme);
+  app.confirmUnsavedChanges = state.confirmUnsavedChanges !== false;
+  byId("confirmUnsavedChangesSetting").checked =
+    app.confirmUnsavedChanges;
   renderServerState(state);
   const selected = activeInstance();
   renderCounter(
@@ -1444,7 +1630,7 @@ async function chooseAsset(kind) {
     byId("danceRest").value = result.path;
   }
   renderMediaLibraries();
-  scheduleCustomizerDraft();
+  scheduleCustomizerChange();
   logActivity(`${kind === "gif" ? "Dance GIF" : "Resting image"} selected: ${result.name}`);
 }
 
@@ -1510,7 +1696,7 @@ async function importDroppedDanceFiles(fileList) {
     }
     byId("danceGif").value = [...app.danceSelection][0];
     renderMediaLibraries();
-    scheduleCustomizerDraft();
+    scheduleCustomizerChange();
     imported.forEach((result) => logActivity(`Dancing media imported: ${result.name}`));
     showToast(`${imported.length} dancing ${imported.length === 1 ? "file" : "files"} imported`);
   } else {
@@ -1605,6 +1791,7 @@ async function saveOverlaySettings(options = {}) {
       options.successMessage
       || (result.applied ? "Saved and applied" : "Saved"),
     );
+    rememberSavedCustomizer();
     return true;
   } catch (error) {
     showToast(String(error.message || error));
@@ -1617,16 +1804,23 @@ async function saveOverlaySettings(options = {}) {
 
 async function sendCounter(payload) {
   const instance = activeInstance();
-  if (!instance || instance.type !== "win-loss") return;
-  const result = await callApi("update_counter", payload, instance.id);
-  if (!result.ok) {
-    showToast(result.detail || "Counter update failed");
-    return;
+  if (!instance || instance.type !== "win-loss") return false;
+  try {
+    const result = await callApi("update_counter", payload, instance.id);
+    if (!result.ok) {
+      showToast(result.detail || "Counter update failed");
+      return false;
+    }
+    app.state.counters = app.state.counters || {};
+    app.state.counters[instance.id] = result.counter;
+    renderCounter(result.counter);
+    rememberSavedCustomizer();
+    logActivity(`Match record updated: ${result.counter.wins} wins, ${result.counter.losses} losses`);
+    return true;
+  } catch (error) {
+    showToast(String(error.message || error));
+    return false;
   }
-  app.state.counters = app.state.counters || {};
-  app.state.counters[instance.id] = result.counter;
-  renderCounter(result.counter);
-  logActivity(`Match record updated: ${result.counter.wins} wins, ${result.counter.losses} losses`);
 }
 
 function gatherGoalSettings() {
@@ -1698,13 +1892,13 @@ function gatherGoalPillSettings() {
 
 async function sendGoal(payload, message = "Goal updated") {
   const instance = activeInstance();
-  if (!instance || !isGoalOverlayType(instance.type) || app.busy) return;
+  if (!instance || !isGoalOverlayType(instance.type) || app.busy) return false;
   app.busy = true;
   try {
     const result = await callApi("update_goal", payload, instance.id);
     if (!result.ok) {
       showToast(result.detail || "Goal update failed");
-      return;
+      return false;
     }
     app.state.goals = app.state.goals || {};
     app.state.goals[instance.id] = result.goal;
@@ -1722,8 +1916,11 @@ async function sendGoal(payload, message = "Goal updated") {
       `${message}: ${result.goal.current} of ${result.goal.target}`,
     );
     showToast(message);
+    rememberSavedCustomizer();
+    return true;
   } catch (error) {
     showToast(String(error.message || error));
+    return false;
   } finally {
     app.busy = false;
   }
@@ -1742,10 +1939,19 @@ function openSource(instanceId) {
   if (instance) callApi("open_url", instanceUrl(instance));
 }
 
-function openInstanceSettings(instanceId) {
+function openInstanceSettings(instanceId, skipWarning = false) {
   const instance = instanceById(instanceId);
   const manifest = manifestFor(instance?.type);
   if (!instance || !manifest?.studioView) return;
+  const switchingCustomizer =
+    CUSTOMIZER_VIEW_IDS.has(activeViewId())
+    && app.activeInstanceId !== instance.id;
+  if (!skipWarning && switchingCustomizer && app.customizerDirty) {
+    requestUnsavedAction(
+      () => openInstanceSettings(instanceId, true),
+    );
+    return;
+  }
   app.activeInstanceId = instance.id;
   fillConfig(materializeInstanceConfig(instance));
   renderActiveIdentity(instance);
@@ -1768,6 +1974,7 @@ function openInstanceSettings(instanceId) {
     );
   }
   showView(manifest.studioView);
+  rememberSavedCustomizer();
 }
 
 async function addOverlayType(overlayType) {
@@ -1890,7 +2097,7 @@ function bindEvents() {
   });
   const scheduleFromCustomizerEvent = (event) => {
     if (event.target.closest(".detail-view.active.has-customizer-preview")) {
-      scheduleCustomizerDraft();
+      scheduleCustomizerChange();
     }
   };
   document.addEventListener("input", scheduleFromCustomizerEvent);
@@ -1902,20 +2109,20 @@ function bindEvents() {
   byId("drawerScrim").addEventListener("click", () => setDrawer(false));
 
   document.querySelectorAll("[data-view-target]").forEach((button) => {
-    button.addEventListener("click", () => showView(button.dataset.viewTarget));
+    button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
   });
   document.querySelectorAll(".library-button").forEach((button) => {
-    button.addEventListener("click", () => showView("libraryView"));
+    button.addEventListener("click", () => navigateToView("libraryView"));
   });
   document.querySelectorAll("[data-drawer-view]").forEach((button) => {
     button.addEventListener("click", () => {
-      showView(button.dataset.drawerView);
+      navigateToView(button.dataset.drawerView);
       setDrawer(false);
     });
   });
 
   byId("headerServerButton").addEventListener("click", () => {
-    if (app.state?.running) showView("serverView");
+    if (app.state?.running) navigateToView("serverView");
     else runServerAction("start");
   });
   document.querySelectorAll("[data-server-action]").forEach((button) => {
@@ -2164,6 +2371,9 @@ function bindEvents() {
       await callApi("set_theme", theme);
     });
   });
+  byId("confirmUnsavedChangesSetting").addEventListener("change", (event) => {
+    setConfirmUnsavedChanges(event.target.checked);
+  });
 
   const overlayGrid = byId("overlayGrid");
   overlayGrid.addEventListener("click", (event) => {
@@ -2242,6 +2452,21 @@ function bindEvents() {
     app.pendingDeleteAsset = null;
   });
 
+  const unsavedChangesDialog = byId("unsavedChangesDialog");
+  byId("keepEditingButton").addEventListener("click", () => {
+    resolveUnsavedChanges("keep");
+  });
+  byId("discardChangesButton").addEventListener("click", () => {
+    resolveUnsavedChanges("discard");
+  });
+  byId("saveUnsavedChangesButton").addEventListener("click", () => {
+    resolveUnsavedChanges("save");
+  });
+  unsavedChangesDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    resolveUnsavedChanges("keep");
+  });
+
   const previewDialog = byId("overlayPreviewDialog");
   byId("closePreviewButton").addEventListener("click", closeOverlayPreview);
   byId("copyPreviewUrlButton").addEventListener("click", () => copySource(app.previewInstanceId));
@@ -2286,3 +2511,9 @@ function initializeWhenReady() {
 window.addEventListener("pywebviewready", initializeWhenReady);
 initializeWhenReady();
 window.overlayStudioRefresh = () => refreshState(false);
+window.overlayStudioRequestClose = () => {
+  requestUnsavedAction(
+    () => callApi("close_window").catch(() => {}),
+    "close",
+  );
+};
