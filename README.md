@@ -135,7 +135,9 @@ also offers sticker, flat, compact, heading, and fused-capsule layouts with indi
 or shared handles. Social Rotator offers capsule, rounded, square, and cut-corner
 shells plus slide, fade, and flip transitions, a 1.5-to-30-second interval, and
 optional platform and timer labels. The same Social Studio page provides a live draft
-preview before settings are saved.
+preview before settings are saved. Handles are always shown in full; when their natural
+width would exceed the OBS canvas, the overlay scales the complete composition to fit
+instead of replacing text with an ellipsis.
 
 ## Custom media
 

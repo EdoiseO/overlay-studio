@@ -21,6 +21,7 @@
     --shell: #141418;
     --ink: #ffffff;
     --scale: 1;
+    --fit-scale: 1;
     --weight: 800;
     --icon: 44px;
     --name-size: 30px;
@@ -44,8 +45,6 @@
   .overlay-content {
     width: 100%;
     padding: 18px 28px;
-    transform: scale(var(--scale));
-    transform-origin: center;
   }
   .stack {
     width: 100%;
@@ -53,18 +52,28 @@
     flex-direction: column;
     align-items: center;
     gap: 14px;
+    transform: scale(calc(var(--scale) * var(--fit-scale)));
+    transform-origin: center;
   }
-  .stack[data-align="left"] { align-items: flex-start; }
-  .stack[data-align="right"] { align-items: flex-end; }
+  .stack[data-align="left"] {
+    align-items: flex-start;
+    transform-origin: left center;
+  }
+  .stack[data-align="right"] {
+    align-items: flex-end;
+    transform-origin: right center;
+  }
   .bar {
-    max-width: 100%;
+    width: max-content;
+    max-width: none;
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
     gap: var(--gap);
   }
   .item {
-    min-width: 0;
+    min-width: max-content;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -112,13 +121,11 @@
   }
   .name,
   .shared {
-    overflow: hidden;
-    max-width: 300px;
+    flex: 0 0 auto;
     color: var(--ink);
     font-size: var(--name-size);
     font-weight: var(--weight);
     line-height: 1.05;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .bar.outlined .name,
@@ -144,7 +151,6 @@
   .bar.symbols-only .icon .glyph { transform: none; }
   .bar.symbols-only .glyph svg { width: 78%; height: 78%; }
   .bar.flat { --gap: 42px; }
-  .bar.flat .name { max-width: 250px; }
   .bar.compact { --gap: 15px; --icon: 34px; --name-size: 22px; }
   .bar.compact .item { gap: 7px; }
   .heading {
@@ -167,13 +173,11 @@
   .bar.fused .shared { margin-left: 12px; }
   .bar.shared-mode { --gap: 10px; }
   .bar.shared-mode .shared {
-    max-width: 380px;
     margin-left: 8px;
     font-style: italic;
   }
   .bar.size-small { --icon: 30px; --name-size: 20px; --gap: 18px; }
   .bar.size-large { --icon: 56px; --name-size: 38px; --gap: 32px; }
-  .bar.size-large .name { max-width: 340px; }
   .bar.many { --gap: 14px; --name-size: 23px; }
   .bar.many .item { gap: 8px; }
   .bar.size-large.many { --icon: 46px; --name-size: 27px; --gap: 16px; }
@@ -206,6 +210,34 @@
   const stack = document.getElementById("stack");
   const heading = document.getElementById("heading");
   const bar = document.getElementById("bar");
+  let requestedScale = 1;
+  let fitFrame = 0;
+
+  function fitToCanvas() {
+    cancelAnimationFrame(fitFrame);
+    fitFrame = requestAnimationFrame(() => {
+      if (content.hidden) return;
+      const naturalWidth = Math.max(
+        bar.scrollWidth,
+        heading.hidden ? 0 : heading.scrollWidth,
+      );
+      const naturalHeight = stack.scrollHeight;
+      const availableWidth = Math.max(1, innerWidth - 56);
+      const availableHeight = Math.max(1, innerHeight - 36);
+      const fit = Math.max(
+        .04,
+        Math.min(
+          1,
+          availableWidth / Math.max(1, naturalWidth * requestedScale),
+          availableHeight / Math.max(1, naturalHeight * requestedScale),
+        ),
+      );
+      document.documentElement.style.setProperty(
+        "--fit-scale",
+        fit.toFixed(4),
+      );
+    });
+  }
 
   function buildIcon(account, settings) {
     const meta = social.PLATFORMS[account.platform];
@@ -258,6 +290,7 @@
     document.documentElement.style.setProperty("--weight", String(settings.weight));
     document.documentElement.style.setProperty("--outline", `${settings.outline}px`);
     document.documentElement.style.setProperty("--scale", String(settings.scale));
+    requestedScale = settings.scale;
 
     if (settings.layout !== "sticker") bar.classList.add(settings.layout);
     if (settings.outline > 0) bar.classList.add("outlined");
@@ -287,8 +320,11 @@
       name.textContent = sharedName ? `@${sharedName}` : "";
       bar.append(name);
     }
+    fitToCanvas();
   }
 
+  addEventListener("resize", fitToCanvas);
+  document.fonts?.ready.then(fitToCanvas);
   social.load(instanceId, OVERLAY_TYPE, query).then(settings => {
     apply(settings);
     social.listen(instanceId, OVERLAY_TYPE, apply);

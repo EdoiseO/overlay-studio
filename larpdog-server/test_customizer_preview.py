@@ -141,6 +141,21 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             studio,
         )
 
+    def test_social_handles_are_never_ellipsized(self) -> None:
+        bar = (
+            ROOT_DIR / "overlays" / "social.html"
+        ).read_text(encoding="utf-8")
+        rotator = (
+            ROOT_DIR / "overlays" / "social-rotator.html"
+        ).read_text(encoding="utf-8")
+
+        for source in (bar, rotator):
+            self.assertNotIn("text-overflow: ellipsis", source)
+            self.assertIn("fitToCanvas", source)
+            self.assertIn("--fit-scale", source)
+        self.assertIn("min-width: max-content", bar)
+        self.assertIn("min-width: max-content", rotator)
+
     @staticmethod
     def _contrast_ratio(first: str, second: str) -> float:
         def luminance(color: str) -> float:

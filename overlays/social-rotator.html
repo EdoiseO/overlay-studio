@@ -21,6 +21,7 @@
     --shell: #141418;
     --ink: #ffffff;
     --scale: 1;
+    --fit-scale: 1;
     --weight: 800;
     --icon: 54px;
     --name-size: 30px;
@@ -42,13 +43,14 @@
   }
   .overlay-content {
     padding: 20px;
-    transform: scale(var(--scale));
+    transform: scale(calc(var(--scale) * var(--fit-scale)));
     transform-origin: center;
   }
   .rotator {
     position: relative;
+    width: max-content;
     min-width: 320px;
-    max-width: 580px;
+    max-width: none;
     display: flex;
     align-items: center;
     gap: 16px;
@@ -75,7 +77,8 @@
     clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
   }
   .slot {
-    min-width: 0;
+    min-width: max-content;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 16px;
@@ -154,31 +157,27 @@
   .rotator.symbols-only .icon .glyph { transform: none; }
   .rotator.symbols-only .glyph svg { width: 78%; height: 78%; }
   .text {
-    min-width: 0;
+    min-width: max-content;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     gap: 3px;
   }
   .platform {
-    overflow: hidden;
     color: var(--brand);
     font-size: 13px;
     font-weight: var(--weight);
     line-height: 16px;
-    text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
     transition: color .45s ease;
   }
   .rotator.no-platform .platform { display: none; }
   .handle {
-    overflow: hidden;
-    max-width: 430px;
     color: var(--ink);
     font-size: var(--name-size);
     font-weight: var(--weight);
     line-height: 1.05;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .timer {
@@ -246,6 +245,28 @@
   let cycleTimer = null;
   let paintTimer = null;
   let settingsKey = "";
+  let fitFrame = 0;
+
+  function fitToCanvas() {
+    cancelAnimationFrame(fitFrame);
+    fitFrame = requestAnimationFrame(() => {
+      if (content.hidden) return;
+      const availableWidth = Math.max(1, innerWidth - 40);
+      const availableHeight = Math.max(1, innerHeight - 40);
+      const fit = Math.max(
+        .04,
+        Math.min(
+          1,
+          availableWidth / Math.max(1, rotator.scrollWidth * settings.scale),
+          availableHeight / Math.max(1, rotator.scrollHeight * settings.scale),
+        ),
+      );
+      document.documentElement.style.setProperty(
+        "--fit-scale",
+        fit.toFixed(4),
+      );
+    });
+  }
 
   function restart(element, className) {
     element.classList.remove(className);
@@ -278,6 +299,7 @@
     handle.textContent = account.handle
       ? `${settings.prefix}${account.handle}`
       : settings.prefix;
+    fitToCanvas();
   }
 
   function clearRotation() {
@@ -337,6 +359,8 @@
     startRotation();
   }
 
+  addEventListener("resize", fitToCanvas);
+  document.fonts?.ready.then(fitToCanvas);
   social.load(instanceId, OVERLAY_TYPE, query).then(initial => {
     apply(initial);
     social.listen(instanceId, OVERLAY_TYPE, apply);
