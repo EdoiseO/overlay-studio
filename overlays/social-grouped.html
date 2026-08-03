@@ -120,8 +120,6 @@
   /* tiles overlap so neighbouring white outlines merge into one sticker edge */
   .icon + .icon { margin-left: calc(var(--icon-overlap, 6px) * -1); }
 
-  .icon img { width: 100%; height: 100%; object-fit: contain; }
-
   /* Optional tiled look (?tile=on) — coloured chip behind the glyph. */
   .icon.tile {
     border-radius: calc(var(--icon) * var(--tile-round, 0.3));
@@ -131,13 +129,10 @@
       0 3px 8px rgba(0,0,0,.4);
     filter: none;
   }
-  .icon.tile.asset-tile { background: transparent; }
   .icon.tile svg { width: 60%; height: 60%; overflow: visible; }
   .icon.tile.brand-mark svg { width: 76%; height: 76%; }
   .icon.tile.round  { border-radius: 50%; }
   .icon.tile.square { border-radius: calc(var(--icon) * 0.14); }
-  .icon.tile.wide   { width: calc(var(--icon) * 1.44); }
-  .icon.tile.wide svg { width: 46%; height: 66%; }
 
   .handle {
     font-size: var(--name-size);
@@ -476,22 +471,13 @@
 
   function buildIcon(platform, settings) {
     const meta = platformMeta(platform, settings.brand);
-    const useTileAsset = Boolean(
-      settings.brand
-      && settings.shape === "squircle"
-      && meta.tileAsset
-    );
     const icon = document.createElement("span");
     const classes = ["icon", "tile"];
     if (settings.shape === "round") classes.push("round");
     else if (settings.shape === "square") classes.push("square");
-    if (meta.wide && settings.shape !== "round" && !useTileAsset) {
-      classes.push("wide");
-    }
-    if (settings.brand && Array.isArray(meta.details) && !useTileAsset) {
+    if (settings.brand && Array.isArray(meta.details)) {
       classes.push("brand-mark");
     }
-    if (useTileAsset) classes.push("asset-tile");
     icon.className = classes.join(" ");
     icon.style.setProperty(
       "--brand",
@@ -499,20 +485,6 @@
         ? (meta.cssGradient || meta.surface || meta.color)
         : "rgb(var(--accent))",
     );
-
-    if (useTileAsset) {
-      const image = new Image();
-      image.alt = "";
-      image.decoding = "async";
-      image.draggable = false;
-      image.src = meta.tileAsset;
-      image.addEventListener("error", () => {
-        icon.classList.remove("asset-tile");
-        image.replaceWith(buildVectorTileArtwork(meta, settings));
-      }, { once: true });
-      icon.append(image);
-      return icon;
-    }
 
     icon.append(buildVectorTileArtwork(meta, settings));
     return icon;

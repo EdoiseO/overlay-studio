@@ -1,72 +1,59 @@
-import struct
 import unittest
 from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-ICON_DIR = ROOT_DIR / "assets" / "social-icons"
-APPROVED_ICONS = (
-    "bluesky-symbol.png",
-    "bluesky-tile.png",
-    "discord-symbol.png",
-    "facebook-round.png",
-    "instagram-tile.png",
-    "kick-symbol.png",
-    "kick-tile.png",
-    "linkedin-tile.png",
-    "reddit-symbol.png",
-    "reddit-tile.png",
-    "telegram-round.png",
-    "threads-symbol.png",
-    "threads-tile.png",
-    "tiktok-symbol.png",
-    "twitch-symbol.png",
-    "whatsapp-tile.png",
-    "x-symbol.png",
-    "youtube-tile.png",
-)
 
 
 class SocialIconAssetTests(unittest.TestCase):
-    def test_approved_icons_are_square_rgba_pngs(self) -> None:
-        for filename in APPROVED_ICONS:
-            with self.subTest(filename=filename):
-                payload = (ICON_DIR / filename).read_bytes()
-                self.assertEqual(payload[:8], b"\x89PNG\r\n\x1a\n")
-                width, height, bit_depth, color_type = struct.unpack(
-                    ">IIBB",
-                    payload[16:26],
-                )
-                self.assertEqual((width, height), (512, 512))
-                self.assertEqual(bit_depth, 8)
-                self.assertIn(color_type, (4, 6), "PNG must retain an alpha channel")
-
-    def test_shared_metadata_only_references_packaged_icons(self) -> None:
-        shared = (
+    def setUp(self) -> None:
+        self.shared = (
             ROOT_DIR / "assets" / "social-platforms.js"
         ).read_text(encoding="utf-8")
-        for filename in APPROVED_ICONS:
-            with self.subTest(filename=filename):
-                self.assertIn(f'/assets/social-icons/{filename}', shared)
-
-    def test_renderers_keep_vector_fallbacks_and_shape_controls(self) -> None:
-        shared = (
-            ROOT_DIR / "assets" / "social-platforms.js"
+        self.bar = (
+            ROOT_DIR / "overlays" / "social.html"
         ).read_text(encoding="utf-8")
-        bar = (ROOT_DIR / "overlays" / "social.html").read_text(encoding="utf-8")
-        rotator = (
+        self.rotator = (
             ROOT_DIR / "overlays" / "social-rotator.html"
         ).read_text(encoding="utf-8")
-        grouped = (
+        self.grouped = (
             ROOT_DIR / "overlays" / "social-grouped.html"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("function createVectorGlyph", shared)
-        self.assertIn("image.replaceWith(createVectorGlyph", shared)
-        self.assertIn('settings.iconShape === "rounded"', bar)
-        self.assertIn('settings.iconShape === "rounded"', rotator)
-        self.assertIn('settings.shape === "squircle"', grouped)
-        self.assertIn("buildVectorTileArtwork", grouped)
+    def test_shared_metadata_uses_the_approved_vector_set(self) -> None:
+        self.assertIn('const SIMPLE_ICONS_VERSION = "16.28.0"', self.shared)
+        self.assertIn("SIMPLE_ICONS_VERSION,", self.shared)
+        self.assertEqual(self.shared.count('source: "simple-icons"'), 14)
+        self.assertEqual(self.shared.count('source: "fallback"'), 2)
+        self.assertNotIn("tileAsset", self.shared)
+        self.assertNotIn("symbolAsset", self.shared)
+
+    def test_builtin_renderers_only_use_inline_vectors(self) -> None:
+        self.assertIn("function createVectorGlyph", self.shared)
+        self.assertIn("return createVectorGlyph(meta, branded, bare);", self.shared)
+        self.assertNotIn("data-social-asset-kind", self.bar)
+        self.assertNotIn("data-social-asset-kind", self.rotator)
+        self.assertNotIn("asset-tile", self.bar)
+        self.assertNotIn("asset-tile", self.rotator)
+        self.assertNotIn("asset-tile", self.grouped)
+        self.assertNotIn("new Image()", self.grouped)
+        self.assertIn("buildVectorTileArtwork", self.grouped)
+
+    def test_existing_logo_customization_modes_remain_available(self) -> None:
+        for page in (self.bar, self.rotator):
+            with self.subTest(page=page[0:40]):
+                self.assertIn('"iconShape"', page)
+                self.assertIn('"iconBackground"', page)
+                self.assertIn('"brand"', page)
+                self.assertIn("shape-circle", page)
+                self.assertIn("shape-square", page)
+                self.assertIn("shape-diamond", page)
+                self.assertIn("shape-hex", page)
+
+        self.assertIn('"tile"', self.grouped)
+        self.assertIn('"shape"', self.grouped)
+        self.assertIn('"brand"', self.grouped)
+        self.assertIn('["squircle", "round", "square"]', self.grouped)
 
 
 if __name__ == "__main__":

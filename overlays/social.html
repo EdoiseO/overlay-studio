@@ -108,8 +108,6 @@
     display: block;
     object-fit: cover;
   }
-  .glyph img[data-social-asset-kind] { object-fit: contain; }
-  .icon.asset-tile { background: transparent; }
   .icon.shape-circle { border-radius: 50%; }
   .icon.shape-square { border-radius: 6px; }
   .icon.shape-diamond {
@@ -264,25 +262,11 @@
       image.src = account.icon;
       glyph.append(image);
     } else {
-      const assetKind = settings.brand && settings.iconShape === "rounded"
-        ? settings.iconBackground && meta?.tileAsset
-          ? "tile"
-          : !settings.iconBackground && meta?.symbolAssetBare
-            ? "symbol"
-            : ""
-        : "";
       const artwork = social.createGlyph(
         account.platform,
         settings.brand,
         !settings.iconBackground,
-        assetKind,
       );
-      if (artwork.dataset?.socialAssetKind === "tile") {
-        icon.classList.add("asset-tile");
-        artwork.addEventListener("error", () => {
-          icon.classList.remove("asset-tile");
-        }, { once: true });
-      }
       glyph.append(artwork);
     }
     icon.append(glyph);

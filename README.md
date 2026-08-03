@@ -146,6 +146,11 @@ preview before settings are saved. Handles are always shown in full; when their 
 width would exceed the OBS canvas, the overlay scales the complete composition to fit
 instead of replacing text with an ellipsis.
 
+Built-in social marks use normalized inline SVG geometry so branded tiles, alternate
+shapes, and symbol-only modes stay crisp without raster edge artifacts. Fourteen marks
+are derived from Simple Icons 16.28.0; see `THIRD_PARTY_NOTICES.md` for provenance and
+trademark guidance. Custom account images continue to use the user's imported asset.
+
 Social Grouped lets up to six account groups share one source, with up to six platforms
 per group. Its default bare-logo mode joins every logo and handle into one continuous
 three-layer sticker. Separate-group mode restores individual islands, while branded
