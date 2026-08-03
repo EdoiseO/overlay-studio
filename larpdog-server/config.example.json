@@ -18,5 +18,10 @@
     "poll_seconds": 2,
     "preferred_source": "spotify",
     "thumbnail_max_bytes": 524288
+  },
+  "rivals": {
+    "enabled": true,
+    "poll_seconds": 45,
+    "timeout_seconds": 12
   }
 }

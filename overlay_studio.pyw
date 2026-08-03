@@ -40,6 +40,7 @@ OVERLAY_CONFIG_PATH = SERVER_DIR / "overlay-config.json"
 APP_SETTINGS_PATH = SERVER_DIR / "app-settings.json"
 COUNTER_STATE_PATH = SERVER_DIR / "win-loss.json"
 GOAL_STATE_PATH = SERVER_DIR / "goal.json"
+RIVALS_STATE_PATH = SERVER_DIR / "rivals.json"
 USER_ASSETS_DIR = ROOT_DIR / "user-assets"
 PID_PATH = SERVER_DIR / "server.pid"
 LOG_PATH = SERVER_DIR / "server.log"
@@ -79,6 +80,12 @@ from overlay_config import (  # noqa: E402
     update_instance_config,
 )
 from overlay_manifest import scan_overlay_manifests  # noqa: E402
+from rivals_store import (  # noqa: E402
+    DEFAULT_RIVALS_STATE,
+    load_rivals_states,
+    remove_rivals_instance,
+    rivals_status,
+)
 
 
 ALLOWED_DANCE_EXTENSIONS = {
@@ -944,6 +951,11 @@ class DesktopApi:
             for instance_id, instance in config["instances"].items()
             if instance["type"] in GOAL_OVERLAY_TYPES
         }
+        rivals_instances = {
+            instance_id: instance
+            for instance_id, instance in config["instances"].items()
+            if instance["type"] == "rivals-rank"
+        }
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
@@ -972,6 +984,18 @@ class DesktopApi:
                     for instance_id, instance in goal_instances.items()
                 },
             ),
+            "rivalsDefaults": DEFAULT_RIVALS_STATE,
+            "rivals": load_rivals_states(
+                RIVALS_STATE_PATH,
+                rivals_instances,
+            ),
+            "rivalsLinked": {
+                instance_id: rivals_status(
+                    RIVALS_STATE_PATH,
+                    instance_id,
+                )["linked"]
+                for instance_id in rivals_instances
+            },
             "theme": (
                 str(settings.get("theme") or "dark")
                 if str(settings.get("theme") or "dark") in {"dark", "light"}
@@ -1321,6 +1345,7 @@ class DesktopApi:
             save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
             remove_counter_instance(COUNTER_STATE_PATH, instance_id)
             remove_goal_instance(GOAL_STATE_PATH, instance_id)
+            remove_rivals_instance(RIVALS_STATE_PATH, instance_id)
         except (OSError, ValueError) as error:
             return {"ok": False, "detail": str(error)}
         return {"ok": True, "state": self.get_state()}
@@ -1441,6 +1466,33 @@ class DesktopApi:
         except (OSError, ValueError, urllib.error.URLError) as exc:
             return {"ok": False, "detail": str(exc)}
         return {"ok": True, "goal": state}
+
+    def update_rivals(
+        self,
+        submitted: dict[str, Any],
+        instance_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(submitted, dict):
+            return {"ok": False, "detail": "Expected Rivals Rank values"}
+        if not instance_id or not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        if not is_healthy():
+            success, detail = self._start_server_blocking()
+            if not success:
+                return {"ok": False, "detail": detail}
+        try:
+            payload = request_json(
+                f"/api/rivals?i={urllib.parse.quote(instance_id)}",
+                submitted,
+            )
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            return {"ok": False, "detail": str(exc)}
+        state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+        return {
+            "ok": True,
+            "rivals": state,
+            "linked": payload.get("linked") is True,
+        }
 
     def set_theme(self, theme: str) -> dict[str, Any]:
         selected = theme if theme in {"dark", "light"} else "dark"

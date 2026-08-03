@@ -33,6 +33,8 @@ from overlay_config import (
     update_instance_config,
 )
 from overlay_manifest import OVERLAY_NAME, scan_overlay_manifests
+from rivals_store import rivals_status, update_rivals_record
+from rivals_worker import RivalsPollWorker
 
 
 APP_NAME = "overlay-studio-server"
@@ -60,6 +62,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "poll_seconds": 2,
         "preferred_source": "spotify",
         "thumbnail_max_bytes": 524288,
+    },
+    "rivals": {
+        "enabled": True,
+        "poll_seconds": 45,
+        "timeout_seconds": 12,
     },
 }
 
@@ -208,6 +215,7 @@ class ClientHub:
         self._last_track: dict[str, Any] | None = None
         self._last_win_loss: dict[str, dict[str, Any]] = {}
         self._last_goals: dict[str, dict[str, Any]] = {}
+        self._last_rivals: dict[str, dict[str, Any]] = {}
 
     async def add(self, ws: web.WebSocketResponse) -> None:
         self._clients.add(ws)
@@ -216,6 +224,8 @@ class ClientHub:
         for message in self._last_win_loss.values():
             await ws.send_str(json.dumps(message, separators=(",", ":")))
         for message in self._last_goals.values():
+            await ws.send_str(json.dumps(message, separators=(",", ":")))
+        for message in self._last_rivals.values():
             await ws.send_str(json.dumps(message, separators=(",", ":")))
 
     async def remove(self, ws: web.WebSocketResponse) -> None:
@@ -247,6 +257,9 @@ class ClientHub:
             cached = dict(message)
             cached.pop("event", None)
             self._last_goals[key] = cached
+        elif message.get("type") == "rivals":
+            key = str(message.get("instanceId") or "")
+            self._last_rivals[key] = message
         if not self._clients:
             return
 
@@ -653,13 +666,17 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
     goal_state_path = base_dir / "goal.json"
+    rivals_state_path = base_dir / "rivals.json"
     overlays_dir = base_dir.parent / "overlays"
+    rivals_store_lock = asyncio.Lock()
     app["hub"] = hub
     app["config"] = config
     app["base_dir"] = base_dir
     app["overlay_config_path"] = overlay_config_path
     app["counter_state_path"] = counter_state_path
     app["goal_state_path"] = goal_state_path
+    app["rivals_state_path"] = rivals_state_path
+    app["rivals_store_lock"] = rivals_store_lock
 
     def request_instance(
         request: web.Request,
@@ -894,6 +911,54 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         await hub.broadcast(message)
         return web.json_response(saved_state)
 
+    def request_rivals_instance(request: web.Request) -> str:
+        instance_id, _saved_config = request_instance(request, "rivals-rank")
+        if not instance_id:
+            raise web.HTTPBadRequest(
+                text="Rivals API requests require an overlay instance"
+            )
+        return instance_id
+
+    async def get_rivals(request: web.Request) -> web.Response:
+        instance_id = request_rivals_instance(request)
+        async with rivals_store_lock:
+            payload = rivals_status(rivals_state_path, instance_id)
+        return web.json_response(
+            payload,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def update_rivals(request: web.Request) -> web.Response:
+        if request.content_length is not None and request.content_length > 16 * 1024:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=16 * 1024,
+                actual_size=request.content_length,
+            )
+        try:
+            submitted = await request.json()
+        except (json.JSONDecodeError, TypeError):
+            raise web.HTTPBadRequest(text="Expected a JSON object") from None
+        if not isinstance(submitted, dict):
+            raise web.HTTPBadRequest(text="Expected a JSON object")
+        instance_id = request_rivals_instance(request)
+        try:
+            async with rivals_store_lock:
+                payload = update_rivals_record(
+                    rivals_state_path,
+                    instance_id,
+                    submitted,
+                )
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from None
+        await hub.broadcast(
+            {
+                "type": "rivals",
+                "instanceId": instance_id,
+                "state": payload["state"],
+            }
+        )
+        return web.json_response(payload)
+
     async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=30)
         await ws.prepare(request)
@@ -914,10 +979,19 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         loop = asyncio.get_running_loop()
         audio_worker = AudioLoopbackWorker(hub, loop, config.get("audio", {}))
         media_worker = MediaSessionWorker(hub, config.get("media", {}))
+        rivals_worker = RivalsPollWorker(
+            rivals_state_path,
+            hub.broadcast,
+            config.get("rivals", {}),
+            store_lock=rivals_store_lock,
+            logger=log,
+        )
         startup_app["audio_worker"] = audio_worker
         startup_app["media_worker"] = media_worker
+        startup_app["rivals_worker"] = rivals_worker
         audio_worker.start()
         media_worker.start()
+        rivals_worker.start()
         overlay_path = resolve_path(str(config["server"]["overlay_path"]), base_dir)
         log(f"Serving overlay: {overlay_path}")
         log(f"OBS URL: http://{config['server']['host']}:{config['server']['port']}/")
@@ -925,6 +999,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     async def on_cleanup(cleanup_app: web.Application) -> None:
         cleanup_app["audio_worker"].stop()
         await cleanup_app["media_worker"].stop()
+        await cleanup_app["rivals_worker"].stop()
 
     app.router.add_get("/", serve_overlay)
     app.router.add_get("/overlay-studio.html", serve_overlay)
@@ -952,6 +1027,8 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_post("/api/win-loss", update_win_loss)
     app.router.add_get("/api/goal", get_goal)
     app.router.add_post("/api/goal", update_goal)
+    app.router.add_get("/api/rivals", get_rivals)
+    app.router.add_post("/api/rivals", update_rivals)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)

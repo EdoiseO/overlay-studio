@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rivals Rank Tracker</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Rivals Rank Tracker",
+  "description": "Live Marvel Rivals rank badge, score, and this session's win-loss record.",
+  "category": "stats",
+  "canvas": { "w": 620, "h": 190 },
+  "settings": ["label", "showName", "shellColor", "textColor", "accentColor", "winColor", "lossColor", "font", "weight", "scale", "corners", "glow"],
+  "studioView": "rivalsRankView"
+}
+</script>
+<link rel="stylesheet" href="/assets/overlay-surface.css" />
+<style>
+  :root {
+    --shell: 20, 20, 24;
+    --ink: 255, 255, 255;
+    --accent: 246, 247, 251;
+    --win: 95, 217, 122;
+    --loss: 255, 95, 109;
+    --scale: 1;
+    --weight: 800;
+    --corners: 18px;
+    --glow: 1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    color: rgb(var(--ink));
+    font-family: var(--font-stack, "Segoe UI", system-ui, sans-serif);
+  }
+  body > .overlay-content { grid-area: 1 / 1; }
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #1c2429);
+  }
+
+  .overlay-content {
+    padding: 18px;
+    transform: scale(var(--scale));
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 22px 14px 14px;
+    border-radius: var(--corners);
+    background: rgb(var(--shell));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 16px 34px rgba(0,0,0,.4),
+      0 0 calc(var(--glow) * 22px) rgba(var(--accent), calc(var(--glow) * .16));
+  }
+
+  .badge {
+    flex: 0 0 auto;
+    width: 96px; height: 96px;
+    display: grid;
+    place-items: center;
+  }
+  .badge img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
+  }
+
+  .rank-copy {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .player-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(var(--ink), .6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .player-name[hidden] { display: none; }
+
+  .tier-line {
+    font-size: 27px;
+    font-weight: var(--weight);
+    line-height: 1.05;
+    white-space: nowrap;
+    color: rgb(var(--accent));
+  }
+
+  .score-line {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(var(--ink), .74);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .divider {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 0;
+    background: rgba(255,255,255,.12);
+  }
+
+  .session {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .session-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(var(--ink), .5);
+  }
+  .session-record {
+    font-size: 26px;
+    font-weight: var(--weight);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .session-record .wins { color: rgb(var(--win)); }
+  .session-record .sep { margin: 0 3px; color: rgba(var(--ink), .35); font-weight: 700; }
+  .session-record .losses { color: rgb(var(--loss)); }
+
+  /* ---------- event feedback ---------- */
+  @keyframes bump {
+    0% { scale: 1; } 42% { scale: 1.03; } 100% { scale: 1; }
+  }
+  .card.bumped { animation: bump .5s cubic-bezier(.22,.9,.28,1); }
+
+  @keyframes badge-pop {
+    0% { scale: 1; } 45% { scale: 1.16; } 100% { scale: 1; }
+  }
+  .badge.popped img { animation: badge-pop .55s cubic-bezier(.22,.9,.28,1); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card.bumped, .badge.popped img { animation: none; }
+  }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content">
+    <div class="card" id="card">
+      <span class="badge" id="badge"><img id="badgeImg" alt="" /></span>
+      <div class="rank-copy">
+        <span class="player-name" id="playerName"></span>
+        <span class="tier-line" id="tierLine">Grandmaster 2</span>
+        <span class="score-line" id="scoreLine">56 RS</span>
+      </div>
+      <span class="divider"></span>
+      <div class="session">
+        <span class="session-label" id="sessionLabel">This session</span>
+        <span class="session-record" id="sessionRecord">
+          <span class="wins" id="sessionWins">0</span><span class="sep">-</span><span class="losses" id="sessionLosses">0</span>
+        </span>
+      </div>
+    </div>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
+  if (query.get("preview") === "studio" || location.protocol === "file:") {
+    document.documentElement.classList.add("overlay-studio-preview");
+  }
+
+  /* Rank tiers, in ascending order. `divisions` counts how many numbered
+     sub-ranks a tier has (Bronze..Celestial = 3, Eternity/One Above All have
+     none). Badge art maps to the 8 supplied images; Eternity and One Above
+     All currently share the same top-tier badge until a dedicated one above
+     that is provided. Adjust `assets/ranks/*.png` and this table together if
+     the tier-to-artwork mapping needs correcting. */
+  const TIERS = {
+    bronze:      { name: "Bronze",       divisions: 3, asset: "bronze.png" },
+    silver:      { name: "Silver",       divisions: 3, asset: "silver.png" },
+    gold:        { name: "Gold",         divisions: 3, asset: "gold.png" },
+    platinum:    { name: "Platinum",     divisions: 3, asset: "platinum.png" },
+    diamond:     { name: "Diamond",      divisions: 3, asset: "diamond.png" },
+    grandmaster: { name: "Grandmaster",  divisions: 3, asset: "grandmaster.png" },
+    celestial:   { name: "Celestial",    divisions: 3, asset: "celestial.png" },
+    eternity:    { name: "Eternity",     divisions: 0, asset: "eternity-oaa.png" },
+    "one-above-all": { name: "One Above All", divisions: 0, asset: "eternity-oaa.png" },
+  };
+  const TIER_ORDER = Object.keys(TIERS);
+  const FONTS = {
+    montserrat: '"Montserrat", "Segoe UI", system-ui, sans-serif',
+    poppins: '"Poppins", "Segoe UI", system-ui, sans-serif',
+    archivo: '"Archivo Black", "Segoe UI", system-ui, sans-serif',
+    nunito: '"Nunito", "Segoe UI", system-ui, sans-serif',
+    anton: '"Anton", "Bahnschrift", system-ui, sans-serif',
+    sans: '"Segoe UI", system-ui, sans-serif',
+    display: '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
+  };
+
+  const card = document.getElementById("card");
+  const badge = document.getElementById("badge");
+  const badgeImg = document.getElementById("badgeImg");
+  const playerNameEl = document.getElementById("playerName");
+  const tierLineEl = document.getElementById("tierLine");
+  const scoreLineEl = document.getElementById("scoreLine");
+  const sessionLabelEl = document.getElementById("sessionLabel");
+  const sessionWinsEl = document.getElementById("sessionWins");
+  const sessionLossesEl = document.getElementById("sessionLosses");
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+  const hex = (value, dflt) => {
+    const candidate = String(value || "").trim().replace(/^#/, "");
+    return /^[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : dflt;
+  };
+  const hexToRgb = value => {
+    const clean = String(value || "").replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(clean)) return [255, 255, 255];
+    const n = parseInt(clean, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+
+  /* This overlay's live data (rank + session record) and its visual
+     settings are delivered together on one channel, the same pattern used
+     by goal.html: an initial GET to /api/rivals?i=<instance>, then
+     websocket {type:"rivals", instanceId, state:{...}} pushes on change.
+     Server side, this expects an analogous rivals_store.py keyed by
+     instance, fed by a poller against the Rivals Data API (see the
+     handoff notes for the exact contract). */
+  const state = {
+    playerName: "yourname",
+    tier: "grandmaster",
+    division: 2,
+    score: 0,
+    sessionWins: 0,
+    sessionLosses: 0,
+    label: "This session",
+    showName: true,
+    shellColor: "141418",
+    textColor: "ffffff",
+    accentColor: "f6f7fb",
+    winColor: "5fd97a",
+    lossColor: "ff5f6d",
+    font: "display",
+    weight: 800,
+    scale: 1,
+    corners: 18,
+    glow: 1,
+  };
+
+  function render() {
+    const root = document.documentElement;
+    root.style.setProperty("--shell", hexToRgb(state.shellColor).join(","));
+    root.style.setProperty("--ink", hexToRgb(state.textColor).join(","));
+    root.style.setProperty("--accent", hexToRgb(state.accentColor).join(","));
+    root.style.setProperty("--win", hexToRgb(state.winColor).join(","));
+    root.style.setProperty("--loss", hexToRgb(state.lossColor).join(","));
+    root.style.setProperty("--font-stack", FONTS[state.font] || FONTS.display);
+    root.style.setProperty("--weight", String(state.weight));
+    root.style.setProperty("--scale", String(state.scale));
+    root.style.setProperty("--corners", `${state.corners}px`);
+    root.style.setProperty("--glow", String(state.glow));
+
+    const tier = TIERS[state.tier] ? state.tier : "bronze";
+    const meta = TIERS[tier];
+    badgeImg.src = `../assets/ranks/${meta.asset}`;
+    badgeImg.alt = meta.name;
+
+    playerNameEl.hidden = !state.showName;
+    playerNameEl.textContent = state.playerName || "";
+
+    const division = meta.divisions > 0
+      ? clamp(Math.round(state.division), 1, meta.divisions)
+      : 0;
+    tierLineEl.textContent = division > 0 ? `${meta.name} ${division}` : meta.name;
+    scoreLineEl.textContent = `${Math.max(0, Math.round(state.score))} RS`;
+
+    sessionLabelEl.textContent = state.label || "This session";
+    sessionWinsEl.textContent = String(Math.max(0, Math.round(state.sessionWins)));
+    sessionLossesEl.textContent = String(Math.max(0, Math.round(state.sessionLosses)));
+  }
+
+  function bump() {
+    card.classList.remove("bumped");
+    void card.offsetWidth;
+    card.classList.add("bumped");
+    badge.classList.remove("popped");
+    void badge.offsetWidth;
+    badge.classList.add("popped");
+  }
+
+  function setRivals(patch, opts = {}) {
+    if (!patch || typeof patch !== "object") return;
+    const prevWins = state.sessionWins;
+    const prevLosses = state.sessionLosses;
+    const prevTier = state.tier;
+    const prevDivision = state.division;
+
+    if (typeof patch.playerName === "string") state.playerName = patch.playerName.slice(0, 32);
+    if (typeof patch.tier === "string" && TIERS[patch.tier]) state.tier = patch.tier;
+    if (patch.division !== undefined) state.division = clamp(Number(patch.division), 0, 3);
+    if (patch.score !== undefined) state.score = clamp(Number(patch.score), 0, 999);
+    if (patch.sessionWins !== undefined) state.sessionWins = clamp(Number(patch.sessionWins), 0, 999);
+    if (patch.sessionLosses !== undefined) state.sessionLosses = clamp(Number(patch.sessionLosses), 0, 999);
+    if (typeof patch.label === "string") state.label = patch.label.slice(0, 24);
+    if (typeof patch.showName === "boolean") state.showName = patch.showName;
+    state.shellColor = hex(patch.shellColor, state.shellColor);
+    state.textColor = hex(patch.textColor, state.textColor);
+    state.accentColor = hex(patch.accentColor, state.accentColor);
+    state.winColor = hex(patch.winColor, state.winColor);
+    state.lossColor = hex(patch.lossColor, state.lossColor);
+    if (FONTS[patch.font]) state.font = patch.font;
+    if (patch.weight !== undefined) state.weight = clamp(Number(patch.weight), 300, 900);
+    if (patch.scale !== undefined) state.scale = clamp(Number(patch.scale), .5, 1.6);
+    if (patch.corners !== undefined) state.corners = clamp(Number(patch.corners), 0, 40);
+    if (patch.glow !== undefined) state.glow = clamp(Number(patch.glow), 0, 2.5);
+
+    render();
+
+    const changed =
+      state.sessionWins !== prevWins
+      || state.sessionLosses !== prevLosses
+      || state.tier !== prevTier
+      || state.division !== prevDivision;
+    if (changed && !opts.silent) bump();
+  }
+
+  window.rivalsWidget = { set: setRivals, state };
+
+  async function loadInitial() {
+    if (!instanceId || location.protocol === "file:") return;
+    try {
+      const endpoint = new URL("/api/rivals", location.origin);
+      endpoint.searchParams.set("i", instanceId);
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (response.ok) {
+        const payload = await response.json();
+        setRivals(payload.state || payload || {}, { silent: true });
+      }
+    } catch {}
+  }
+
+  function connect() {
+    if (query.get("customizer") === "1") {
+      window.addEventListener("message", event => {
+        if (
+          event.source !== window.parent
+          || event.data?.type !== "overlay-studio-draft"
+          || event.data?.overlayType !== "rivals-rank"
+          || String(event.data?.instanceId || "") !== instanceId
+          || !event.data?.config?.rivals
+        ) return;
+        setRivals(event.data.config.rivals, { silent: true });
+      });
+    }
+    if (location.protocol === "file:" || !("WebSocket" in window)) return;
+    const attempt = () => {
+      let socket;
+      try {
+        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+        socket = new WebSocket(`${protocol}//${location.host}/ws`);
+      } catch {
+        setTimeout(attempt, 2000);
+        return;
+      }
+      socket.onmessage = event => {
+        if (typeof event.data !== "string" || event.data.length > 64 * 1024) return;
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (
+          message?.type === "rivals"
+          && String(message.instanceId || "") === instanceId
+          && message.state
+        ) {
+          setRivals(message.state);
+        }
+      };
+      socket.onclose = () => setTimeout(attempt, 2000);
+    };
+    attempt();
+  }
+
+  render();
+  loadInitial().then(connect);
+})();
+</script>
+</body>
+</html>
