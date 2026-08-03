@@ -290,8 +290,7 @@
         iconSurface,
       )
       : social.ensureContrast(bareGlyph, shell, meta?.bare);
-    const accentColor = social.ensureContrast(brand, shell, meta?.bare);
-    rotator.style.setProperty("--brand", accentColor);
+    rotator.style.setProperty("--brand", brand);
     icon.style.setProperty("--brand", iconSurface);
     icon.style.setProperty(
       "--glyph-color",
