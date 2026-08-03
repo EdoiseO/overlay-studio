@@ -151,6 +151,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             styles,
         )
         self.assertNotIn("100vmax", styles)
+        self.assertNotIn("@media (max-width: 960px)", styles)
         self.assertIn(
             'document.body.classList.toggle("customizer-preview-expanded", next)',
             script,
