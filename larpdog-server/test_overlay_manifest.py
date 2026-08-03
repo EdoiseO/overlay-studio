@@ -91,6 +91,38 @@ class OverlayManifestTests(unittest.TestCase):
 
             self.assertEqual(second[0]["name"], "Original")
 
+    def test_manifest_setting_limit_supports_larger_customizers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "many-settings.html"
+            settings = [
+                f'"setting{index}"'
+                for index in range(overlay_manifest.MAX_MANIFEST_SETTINGS + 6)
+            ]
+            path.write_text(
+                """<!doctype html>
+<script id="overlay-manifest" type="application/json">
+{
+  "name": "Many Settings",
+  "description": "Test a larger bounded manifest",
+  "category": "utility",
+  "canvas": {"w": 640, "h": 360},
+  "settings": [%s],
+  "studioView": "generic"
+}
+</script>
+""" % ",".join(settings),
+                encoding="utf-8",
+            )
+
+            manifest = overlay_manifest.read_overlay_manifest(path)
+
+            self.assertIsNotNone(manifest)
+            self.assertEqual(
+                len(manifest["settings"]),
+                overlay_manifest.MAX_MANIFEST_SETTINGS,
+            )
+            self.assertEqual(manifest["settings"][-1], "setting63")
+
 
 if __name__ == "__main__":
     unittest.main()

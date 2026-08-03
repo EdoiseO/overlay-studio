@@ -72,6 +72,63 @@ DEFAULT_SOCIAL_CONFIG: dict[str, Any] = {
     "showPlatform": True,
 }
 
+DEFAULT_SOCIAL_GROUPED_CONFIG: dict[str, Any] = {
+    "groups": "twitch+youtube:yourname,tiktok+instagram:yourname",
+    "prefix": "@",
+    "size": "medium",
+    "tile": False,
+    "shape": "squircle",
+    "round": 0.3,
+    "merge": 3.0,
+    "groupGap": -2.0,
+    "separate": False,
+    "overlap": 20.0,
+    "nameGap": 6.0,
+    "textSize": 20.0,
+    "textGap": -3.0,
+    "textNudge": 0.0,
+    "letterSpacing": -0.3,
+    "equalHeight": True,
+    "logoHeight": 19.0,
+    "logoOutline": 2.0,
+    "edgeWidth": 1.0,
+    "edgeColor": "000000",
+    "brand": True,
+    "color": "ffffff",
+    "tileEdge": "ffffff",
+    "textEdge": "000000",
+    "textColor": "ffffff",
+    "outline": 4.0,
+    "tileOutline": 3.0,
+    "gap": 26.0,
+    "align": "center",
+    "font": "montserrat",
+    "weight": 800,
+    "scale": 1.0,
+    "preset": "sticker",
+    "textOutline": 2.0,
+    "textEdgeWidth": 1.0,
+    "textOutlineColor": "ffffff",
+    "textEdgeColor": "000000",
+    "textSide": "right",
+    "textCase": "none",
+    "label": "",
+    "labelSize": 8.0,
+    "labelGap": 0.0,
+    "labelColor": "ffffff",
+    "direction": "horizontal",
+    "wrap": True,
+    "padding": 18.0,
+    "join": "round",
+    "outlineOpacity": 1.0,
+    "shadow": True,
+    "shadowX": 0.0,
+    "shadowY": 3.0,
+    "shadowBlur": 5.0,
+    "shadowColor": "000000",
+    "shadowOpacity": 0.45,
+}
+
 
 DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
     "dance": {
@@ -109,6 +166,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
         "fallbackBpm": 120,
     },
     "social": copy.deepcopy(DEFAULT_SOCIAL_CONFIG),
+    "socialGrouped": copy.deepcopy(DEFAULT_SOCIAL_GROUPED_CONFIG),
 }
 
 INSTANCE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]*"
@@ -125,10 +183,30 @@ SOCIAL_SIZE_CHOICES = {"small", "medium", "large"}
 SOCIAL_FONT_CHOICES = {"sans", "display", "round", "mono", "serif"}
 SOCIAL_ROTATOR_SHAPES = {"capsule", "rounded", "square", "cut"}
 SOCIAL_TRANSITIONS = {"slide", "fade", "flip"}
+SOCIAL_GROUPED_PRESETS = {"sticker", "clean", "bold", "custom"}
+SOCIAL_GROUPED_SIZES = {"small", "medium", "large"}
+SOCIAL_GROUPED_SHAPES = {"squircle", "round", "square"}
+SOCIAL_GROUPED_FONTS = {
+    "montserrat",
+    "poppins",
+    "archivo",
+    "nunito",
+    "anton",
+    "sans",
+    "display",
+    "round",
+    "mono",
+    "serif",
+}
+SOCIAL_GROUPED_TEXT_SIDES = {"left", "right"}
+SOCIAL_GROUPED_TEXT_CASES = {"none", "upper", "lower"}
+SOCIAL_GROUPED_DIRECTIONS = {"horizontal", "vertical"}
+SOCIAL_GROUPED_JOINS = {"round", "miter", "bevel"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 MAX_INSTANCES = 64
 MAX_DANCE_PROFILES = 5
 MAX_SOCIAL_BAR_ACCOUNTS = 8
+MAX_SOCIAL_ROTATOR_ACCOUNTS = 12
 
 LEGACY_INSTANCE_SPECS = (
     ("dancing-gif", "larpdog-dance", "Dancing GIF"),
@@ -201,6 +279,173 @@ def _short_text(value: Any, default: str, maximum: int) -> str:
     return candidate[:maximum] if candidate else default
 
 
+def _text(value: Any, default: str, maximum: int) -> str:
+    candidate = str(default if value is None else value)
+    candidate = "".join(
+        character
+        for character in candidate
+        if character >= " " and character != "\x7f"
+    )
+    return candidate[:maximum]
+
+
+def _boolean(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        candidate = value.strip().lower()
+        if candidate in {"on", "true", "1"}:
+            return True
+        if candidate in {"off", "false", "0"}:
+            return False
+    return default
+
+
+def _normalize_social_groups(value: Any, default: str) -> str:
+    aliases = {
+        "ig": "instagram",
+        "yt": "youtube",
+        "tt": "tiktok",
+        "fb": "facebook",
+        "snap": "snapchat",
+        "tg": "telegram",
+        "wa": "whatsapp",
+        "li": "linkedin",
+        "tweet": "twitter",
+    }
+    candidate = _text(value, default, 2048)
+    groups: list[str] = []
+    for chunk in candidate.split(",")[:6]:
+        platform_part, separator, handle_part = chunk.partition(":")
+        platforms: list[str] = []
+        for supplied in re.split(r"[+|]", platform_part):
+            platform = aliases.get(supplied.strip().lower(), supplied.strip().lower())
+            if (
+                platform in SOCIAL_PLATFORMS
+                and platform not in platforms
+                and len(platforms) < 6
+            ):
+                platforms.append(platform)
+        if not platforms:
+            continue
+        handle = _text(handle_part if separator else "", "", 128).strip()
+        groups.append(f"{'+'.join(platforms)}:{handle}")
+    return ",".join(groups) or default
+
+
+def _normalize_social_grouped(raw: Any) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    base = DEFAULT_SOCIAL_GROUPED_CONFIG
+    preset = _choice(
+        source.get("preset"),
+        SOCIAL_GROUPED_PRESETS,
+        base["preset"],
+    )
+    preset_defaults: dict[str, Any] = {}
+    if preset == "clean":
+        preset_defaults = {
+            "logoOutline": 1.25,
+            "edgeWidth": 0.5,
+            "textOutline": 1.25,
+            "textEdgeWidth": 0.5,
+            "merge": 1.0,
+            "textGap": 1.0,
+            "groupGap": 0.0,
+            "shadow": False,
+        }
+    elif preset == "bold":
+        preset_defaults = {
+            "logoOutline": 3.5,
+            "edgeWidth": 1.5,
+            "textOutline": 3.5,
+            "textEdgeWidth": 1.5,
+            "merge": 4.0,
+            "textGap": -4.0,
+            "groupGap": -3.0,
+            "weight": 900,
+        }
+    defaults = {**base, **preset_defaults}
+
+    prefix = (
+        defaults["prefix"]
+        if "prefix" not in source
+        else _text(source.get("prefix"), "", 8).strip()
+    )
+    tile_edge = _color(source.get("tileEdge"), defaults["tileEdge"])
+    edge_color = _color(source.get("edgeColor"), defaults["edgeColor"])
+    text_color = _color(source.get("textColor"), defaults["textColor"])
+    return {
+        "groups": _normalize_social_groups(
+            source.get("groups"),
+            defaults["groups"],
+        ),
+        "prefix": prefix,
+        "size": _choice(
+            source.get("size"),
+            SOCIAL_GROUPED_SIZES,
+            defaults["size"],
+        ),
+        "tile": _boolean(source.get("tile"), defaults["tile"]),
+        "shape": _choice(
+            source.get("shape"),
+            SOCIAL_GROUPED_SHAPES,
+            defaults["shape"],
+        ),
+        "round": round(_number(source.get("round"), defaults["round"], 0, 0.5), 2),
+        "merge": round(_number(source.get("merge"), defaults["merge"], -12, 22), 2),
+        "groupGap": round(
+            _number(source.get("groupGap"), defaults["groupGap"], -20, 40),
+            2,
+        ),
+        "separate": _boolean(source.get("separate"), defaults["separate"]),
+        "overlap": round(_number(source.get("overlap"), defaults["overlap"], -40, 60), 2),
+        "nameGap": round(_number(source.get("nameGap"), defaults["nameGap"], -20, 60), 2),
+        "textSize": round(_number(source.get("textSize"), defaults["textSize"], 6, 40), 2),
+        "textGap": round(_number(source.get("textGap"), defaults["textGap"], -14, 30), 2),
+        "textNudge": round(_number(source.get("textNudge"), defaults["textNudge"], -12, 12), 2),
+        "letterSpacing": round(_number(source.get("letterSpacing"), defaults["letterSpacing"], -3, 6), 2),
+        "equalHeight": _boolean(source.get("equalHeight"), defaults["equalHeight"]),
+        "logoHeight": round(_number(source.get("logoHeight"), defaults["logoHeight"], 6, 24), 2),
+        "logoOutline": round(_number(source.get("logoOutline"), defaults["logoOutline"], 0, 10), 2),
+        "edgeWidth": round(_number(source.get("edgeWidth"), defaults["edgeWidth"], 0, 6), 2),
+        "edgeColor": edge_color,
+        "brand": _boolean(source.get("brand"), defaults["brand"]),
+        "color": _color(source.get("color"), defaults["color"]),
+        "tileEdge": tile_edge,
+        "textEdge": _color(source.get("textEdge"), defaults["textEdge"]),
+        "textColor": text_color,
+        "outline": round(_number(source.get("outline"), defaults["outline"], 0, 12), 2),
+        "tileOutline": round(_number(source.get("tileOutline"), defaults["tileOutline"], 0, 10), 2),
+        "gap": round(_number(source.get("gap"), defaults["gap"], 0, 120), 2),
+        "align": _choice(source.get("align"), SOCIAL_ALIGN_CHOICES, defaults["align"]),
+        "font": _choice(source.get("font"), SOCIAL_GROUPED_FONTS, defaults["font"]),
+        "weight": int(round(_number(source.get("weight"), defaults["weight"], 100, 900))),
+        "scale": round(_number(source.get("scale"), defaults["scale"], 0.3, 3), 2),
+        "preset": preset,
+        "textOutline": round(_number(source.get("textOutline"), defaults["textOutline"], 0, 10), 2),
+        "textEdgeWidth": round(_number(source.get("textEdgeWidth"), defaults["textEdgeWidth"], 0, 6), 2),
+        "textOutlineColor": _color(source.get("textOutlineColor"), tile_edge),
+        "textEdgeColor": _color(source.get("textEdgeColor"), edge_color),
+        "textSide": _choice(source.get("textSide"), SOCIAL_GROUPED_TEXT_SIDES, defaults["textSide"]),
+        "textCase": _choice(source.get("textCase"), SOCIAL_GROUPED_TEXT_CASES, defaults["textCase"]),
+        "label": _text(source.get("label"), defaults["label"], 64).strip(),
+        "labelSize": round(_number(source.get("labelSize"), defaults["labelSize"], 4, 24), 2),
+        "labelGap": round(_number(source.get("labelGap"), defaults["labelGap"], -4, 12), 2),
+        "labelColor": _color(source.get("labelColor"), text_color),
+        "direction": _choice(source.get("direction"), SOCIAL_GROUPED_DIRECTIONS, defaults["direction"]),
+        "wrap": _boolean(source.get("wrap"), defaults["wrap"]),
+        "padding": round(_number(source.get("padding"), defaults["padding"], 0, 80), 2),
+        "join": _choice(source.get("join"), SOCIAL_GROUPED_JOINS, defaults["join"]),
+        "outlineOpacity": round(_number(source.get("outlineOpacity"), defaults["outlineOpacity"], 0, 1), 2),
+        "shadow": _boolean(source.get("shadow"), defaults["shadow"]),
+        "shadowX": round(_number(source.get("shadowX"), defaults["shadowX"], -30, 30), 2),
+        "shadowY": round(_number(source.get("shadowY"), defaults["shadowY"], -30, 30), 2),
+        "shadowBlur": round(_number(source.get("shadowBlur"), defaults["shadowBlur"], 0, 30), 2),
+        "shadowColor": _color(source.get("shadowColor"), defaults["shadowColor"]),
+        "shadowOpacity": round(_number(source.get("shadowOpacity"), defaults["shadowOpacity"], 0, 1), 2),
+    }
+
+
 def _normalize_social_accounts(
     raw: Any,
     *,
@@ -228,6 +473,10 @@ def _normalize_social_accounts(
 
     accounts: list[dict[str, Any]] = []
     enabled_count = 0
+    account_limit = {
+        "social": MAX_SOCIAL_BAR_ACCOUNTS,
+        "social-rotator": MAX_SOCIAL_ROTATOR_ACCOUNTS,
+    }.get(overlay_type, len(SOCIAL_PLATFORMS))
     for default in DEFAULT_SOCIAL_ACCOUNTS:
         fallback = (
             {
@@ -240,11 +489,7 @@ def _normalize_social_accounts(
         )
         account = by_platform.get(default["platform"], fallback)
         enabled = bool(account["enabled"])
-        if (
-            overlay_type == "social"
-            and enabled
-            and enabled_count >= MAX_SOCIAL_BAR_ACCOUNTS
-        ):
+        if enabled and enabled_count >= account_limit:
             enabled = False
         if enabled:
             enabled_count += 1
@@ -439,6 +684,11 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         else {}
     )
     social = source.get("social") if isinstance(source.get("social"), dict) else {}
+    social_grouped = (
+        source.get("socialGrouped")
+        if isinstance(source.get("socialGrouped"), dict)
+        else {}
+    )
     colors = (
         spotify.get("colors")
         if isinstance(spotify.get("colors"), dict)
@@ -636,6 +886,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
             "fallbackBpm": active_profile["fallbackBpm"],
         },
         "social": _normalize_social(social),
+        "socialGrouped": _normalize_social_grouped(social_grouped),
     }
 
 
@@ -658,6 +909,12 @@ def _instance_config(
             "social": _normalize_social(
                 source.get("social"),
                 overlay_type,
+            )
+        }
+    elif overlay_type == "social-grouped":
+        return {
+            "socialGrouped": _normalize_social_grouped(
+                source.get("socialGrouped")
             )
         }
     else:
@@ -741,6 +998,7 @@ def materialize_instance_config(
             "audio",
             "nowPlaying",
             "social",
+            "socialGrouped",
         )
     }
     if not instance_id:
@@ -765,7 +1023,15 @@ def update_instance_config(
     current = materialize_instance_config(config, instance_id)
     source = submitted if isinstance(submitted, dict) else {}
     merged = copy.deepcopy(current)
-    for key in ("dance", "spotify", "flow", "audio", "nowPlaying", "social"):
+    for key in (
+        "dance",
+        "spotify",
+        "flow",
+        "audio",
+        "nowPlaying",
+        "social",
+        "socialGrouped",
+    ):
         if isinstance(source.get(key), dict):
             merged[key] = source[key]
     instance["config"] = _instance_config(instance["type"], merged, current)

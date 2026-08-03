@@ -13,6 +13,7 @@ OVERLAY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 MAX_MANIFEST_BYTES = 32 * 1024
 MAX_OVERLAY_FILE_BYTES = 2 * 1024 * 1024
+MAX_MANIFEST_SETTINGS = 64
 
 _manifest_cache: dict[
     Path,
@@ -109,7 +110,7 @@ def read_overlay_manifest(path: Path) -> dict[str, Any] | None:
     settings: list[str] = []
     supplied_settings = raw.get("settings")
     if isinstance(supplied_settings, list):
-        for supplied in supplied_settings[:32]:
+        for supplied in supplied_settings[:MAX_MANIFEST_SETTINGS]:
             setting = str(supplied or "")
             if SETTING_NAME.fullmatch(setting) and setting not in settings:
                 settings.append(setting)

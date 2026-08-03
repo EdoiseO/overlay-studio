@@ -196,7 +196,7 @@ class SocialOverlayConfigTests(unittest.TestCase):
         self.assertEqual(social["outline"], 8)
         self.assertEqual(social["scale"], 0.5)
 
-    def test_social_rotator_allows_all_platforms_and_bounded_timing(self) -> None:
+    def test_social_rotator_limits_platforms_and_bounds_timing(self) -> None:
         config = add_overlay_instance(
             normalize_overlay_config({}),
             "social-rotator",
@@ -247,7 +247,13 @@ class SocialOverlayConfigTests(unittest.TestCase):
 
         self.assertEqual(
             len([item for item in social["accounts"] if item["enabled"]]),
-            16,
+            12,
+        )
+        self.assertEqual(
+            [item["platform"] for item in social["accounts"] if item["enabled"]][
+                -1
+            ],
+            "whatsapp",
         )
         self.assertEqual(social["cycle"], 30.0)
         self.assertEqual(social["weight"], 900)
@@ -297,6 +303,58 @@ class SocialOverlayConfigTests(unittest.TestCase):
             [item["platform"] for item in second["accounts"] if item["enabled"]],
             ["twitch", "youtube", "instagram", "tiktok"],
         )
+
+    def test_social_grouped_settings_round_trip_per_instance(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "social-grouped",
+            "grouped-main",
+            "Grouped Socials",
+        )
+
+        updated = update_instance_config(
+            config,
+            "grouped-main",
+            {
+                "socialGrouped": {
+                    "groups": (
+                        "twitch+youtube:First Name,invalid:ignored,"
+                        "tiktok|instagram:second"
+                    ),
+                    "groupGap": -99,
+                    "separate": True,
+                    "logoOutline": 99,
+                    "textOutline": 4.25,
+                    "textGap": -99,
+                    "textSide": "left",
+                    "textCase": "upper",
+                    "join": "miter",
+                    "outlineOpacity": 2,
+                    "shadow": False,
+                    "preset": "custom",
+                }
+            },
+        )
+        restarted = normalize_overlay_config(updated)
+        grouped = materialize_instance_config(
+            restarted,
+            "grouped-main",
+        )["socialGrouped"]
+
+        self.assertEqual(
+            grouped["groups"],
+            "twitch+youtube:First Name,tiktok+instagram:second",
+        )
+        self.assertEqual(grouped["groupGap"], -20)
+        self.assertTrue(grouped["separate"])
+        self.assertEqual(grouped["logoOutline"], 10)
+        self.assertEqual(grouped["textOutline"], 4.25)
+        self.assertEqual(grouped["textGap"], -14)
+        self.assertEqual(grouped["textSide"], "left")
+        self.assertEqual(grouped["textCase"], "upper")
+        self.assertEqual(grouped["join"], "miter")
+        self.assertEqual(grouped["outlineOpacity"], 1)
+        self.assertFalse(grouped["shadow"])
 
 
 if __name__ == "__main__":
