@@ -601,12 +601,14 @@ body.server-running
   color: var(--ink);
 }
 
-.customizer-preview-save {
+.customizer-preview-toolbar .customizer-preview-save {
   min-width: 48px;
+  height: 28px;
   min-height: 28px;
   justify-self: end;
-  padding: 4px 9px;
+  padding: 0 9px;
   font-size: 10px;
+  line-height: 1;
 }
 
 .customizer-preview-stage {
