@@ -37,11 +37,51 @@ def _walk_dicts(value: Any, maximum: int = 512) -> list[dict[str, Any]]:
     return result
 
 
+def _optional_integer(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _latest_rank_season(
+    payload: Any,
+) -> tuple[int | None, dict[str, Any] | None]:
+    for candidate in _walk_dicts(payload):
+        seasons = candidate.get(
+            "rank_game_season",
+            candidate.get("rankGameSeason"),
+        )
+        if not isinstance(seasons, dict):
+            continue
+
+        ranked: list[tuple[int, int | None, dict[str, Any]]] = []
+        for key, record in list(seasons.items())[:MAX_MATCHES]:
+            if not isinstance(record, dict):
+                continue
+            season = _optional_integer(
+                record.get("rank_game_id", record.get("rankGameId"))
+            )
+            sort_key = season
+            if sort_key is None:
+                sort_key = _optional_integer(key)
+            if sort_key is not None:
+                ranked.append((sort_key, season, record))
+        if ranked:
+            _sort_key, season, record = max(ranked, key=lambda item: item[0])
+            return season, record
+    return None, None
+
+
 def extract_profile_snapshot(payload: Any) -> tuple[str, Any, Any]:
     dictionaries = _walk_dicts(payload)
     name = ""
     rank_level: Any = None
     rank_score: Any = None
+    _season, latest_rank = _latest_rank_season(payload)
+    if latest_rank is not None:
+        rank_level = latest_rank.get("rank_level", latest_rank.get("rankLevel"))
+        rank_score = latest_rank.get("rank_score", latest_rank.get("rankScore"))
     for candidate in dictionaries:
         if not name:
             for key in ("player_name", "playerName", "nickname", "name"):
@@ -169,10 +209,21 @@ class RivalsPollWorker:
             if is_competitive_match(match)
         ]
         player_name, rank_level, rank_score = extract_profile_snapshot(profile)
+        profile_season, _profile_rank = _latest_rank_season(profile)
         if matches:
+            # Profile scores are current while the cached match list can lag.
+            # Keep the match rank level, but only pair it with the profile
+            # score when both sources refer to the same competitive season.
             newest = matches[0]
             rank_level = newest.get("rank_level", newest.get("rankLevel", rank_level))
-            rank_score = newest.get("rank_score", newest.get("rankScore", rank_score))
+            match_score = newest.get("rank_score", newest.get("rankScore"))
+            match_season = _optional_integer(newest.get("season"))
+            if (
+                rank_score is None
+                or profile_season is None
+                or match_season != profile_season
+            ):
+                rank_score = match_score if match_score is not None else rank_score
 
         async with self.store_lock:
             state, changed = save_rivals_poll(
