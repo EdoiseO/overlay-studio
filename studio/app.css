@@ -626,14 +626,10 @@ body.server-running
   cursor: grabbing;
 }
 
-.customizer-preview-dock.expanded .customizer-preview-stage {
-  height: calc(100% - 94px);
-}
-
 @media (min-width: 961px) {
   body.customizer-preview-expanded .app-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    grid-template-columns: minmax(0, 1fr) minmax(460px, 480px);
     grid-template-rows: 76px minmax(0, 1fr);
     column-gap: 16px;
   }
@@ -669,6 +665,12 @@ body.server-running
     min-height: 0;
     z-index: 8;
     box-shadow: 0 14px 32px var(--shadow);
+  }
+
+  body.customizer-preview-expanded
+    .customizer-preview-dock.expanded
+    .customizer-preview-stage {
+    height: calc(100% - 94px);
   }
 }
 
@@ -1500,7 +1502,7 @@ output {
 
 .social-grouped-quick-add {
   display: grid;
-  grid-template-columns: minmax(140px, 0.8fr) minmax(180px, 1.4fr) auto;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto;
   align-items: end;
   gap: 8px;
   margin-bottom: 15px;
@@ -1522,11 +1524,27 @@ output {
 
 .social-grouped-quick-add select,
 .social-grouped-quick-add input {
+  min-width: 0;
   width: 100%;
 }
 
 .social-grouped-quick-add .primary-button {
   min-height: 36px;
+}
+
+.social-grouped-accounts-panel {
+  container-type: inline-size;
+}
+
+@container (max-width: 460px) {
+  .social-grouped-quick-add {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .social-grouped-quick-add .primary-button {
+    width: 100%;
+  }
 }
 
 .social-grouped-section-heading {
@@ -2340,18 +2358,5 @@ dialog .primary-button {
 
   .social-grouped-row-heading {
     grid-column: 1;
-  }
-}
-
-@media (max-width: 960px) {
-  .customizer-preview-dock.expanded {
-    position: fixed;
-    inset: 24px;
-    width: auto;
-    height: auto;
-    z-index: 30;
-    box-shadow:
-      0 18px 52px rgba(0, 0, 0, 0.55),
-      0 0 0 100vmax rgba(6, 9, 11, 0.72);
   }
 }

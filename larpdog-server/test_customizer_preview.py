@@ -139,7 +139,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn(".customizer-preview-dock.expanded", styles)
         self.assertIn("@media (min-width: 961px)", styles)
         self.assertIn(
-            "grid-template-columns: minmax(0, 1fr) minmax(360px, 440px)",
+            "grid-template-columns: minmax(0, 1fr) minmax(460px, 480px)",
             styles,
         )
         self.assertIn(
@@ -150,16 +150,47 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             ".detail-view.active.has-customizer-preview",
             styles,
         )
-        self.assertIn("@media (max-width: 960px)", styles)
-        self.assertRegex(
-            styles,
-            r"@media \(max-width: 960px\) \{[\s\S]*?"
-            r"\.customizer-preview-dock\.expanded \{[\s\S]*?"
-            r"position: fixed;",
-        )
+        self.assertNotIn("100vmax", styles)
         self.assertIn(
             'document.body.classList.toggle("customizer-preview-expanded", next)',
             script,
+        )
+        self.assertRegex(
+            script,
+            r"function setCustomizerPreviewExpanded\(expanded\) \{[\s\S]*?"
+            r"requestAnimationFrame\(resetCustomizerPreviewViewport\);",
+        )
+        self.assertIn(
+            'const CUSTOMIZER_SPLIT_MEDIA = window.matchMedia("(min-width: 961px)")',
+            script,
+        )
+        self.assertIn(
+            "expanded && !dock.hidden && CUSTOMIZER_SPLIT_MEDIA.matches",
+            script,
+        )
+        self.assertIn("container-type: inline-size", styles)
+        self.assertRegex(
+            styles,
+            r"@container \(max-width: 460px\) \{[\s\S]*?"
+            r"\.social-grouped-quick-add \{[\s\S]*?"
+            r"grid-template-columns: minmax\(0, 1fr\);",
+        )
+
+    def test_customizer_opens_expanded_once_without_refresh_forcing_it(self) -> None:
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        show_view = script.split("function showView(viewId)", maxsplit=1)[1].split(
+            "function setDrawer", maxsplit=1
+        )[0]
+        render_preview = script.split(
+            "function renderCustomizerPreview(state = app.state)", maxsplit=1
+        )[1].split("function fitCardPreviewHost", maxsplit=1)[0]
+
+        self.assertIn("setCustomizerPreviewExpanded(true)", show_view)
+        self.assertNotIn("setCustomizerPreviewExpanded", render_preview)
+        self.assertRegex(
+            script,
+            r'CUSTOMIZER_SPLIT_MEDIA\.addEventListener\("change",[\s\S]*?'
+            r"if \(!event\.matches\) setCustomizerPreviewExpanded\(false\);",
         )
 
     def test_goal_currency_fields_use_shared_typeahead_selects(self) -> None:

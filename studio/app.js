@@ -153,6 +153,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "socialGroupedView",
   "counterView",
 ]);
+const CUSTOMIZER_SPLIT_MEDIA = window.matchMedia("(min-width: 961px)");
 
 function logActivity(message) {
   const log = byId("activityLog");
@@ -393,7 +394,10 @@ function showView(viewId) {
     );
   });
   if (CUSTOMIZER_VIEW_IDS.has(viewId)) {
-    requestAnimationFrame(() => renderCustomizerPreview());
+    requestAnimationFrame(() => {
+      renderCustomizerPreview();
+      setCustomizerPreviewExpanded(true);
+    });
   } else {
     hideCustomizerPreview();
   }
@@ -821,7 +825,9 @@ function scheduleCustomizerDraft(delay = 70) {
 function setCustomizerPreviewExpanded(expanded) {
   const dock = byId("customizerPreviewDock");
   const button = byId("customizerPreviewExpandButton");
-  const next = Boolean(expanded && !dock.hidden);
+  const next = Boolean(
+    expanded && !dock.hidden && CUSTOMIZER_SPLIT_MEDIA.matches,
+  );
   app.customizerPreviewExpanded = next;
   document.body.classList.toggle("customizer-preview-expanded", next);
   dock.classList.toggle("expanded", next);
@@ -831,7 +837,7 @@ function setCustomizerPreviewExpanded(expanded) {
     next ? "Collapse live draft" : "Expand live draft",
   );
   button.title = next ? "Collapse live draft" : "Expand live draft";
-  requestAnimationFrame(fitCustomizerPreview);
+  requestAnimationFrame(resetCustomizerPreviewViewport);
 }
 
 async function syncCustomizerPreviewWindow(payload) {
@@ -3224,6 +3230,9 @@ function bindEvents() {
   });
   app.customizerResizeObserver = new ResizeObserver(fitCustomizerPreview);
   app.customizerResizeObserver.observe(byId("customizerPreviewStage"));
+  CUSTOMIZER_SPLIT_MEDIA.addEventListener("change", (event) => {
+    if (!event.matches) setCustomizerPreviewExpanded(false);
+  });
   byId("customizerPreviewExpandButton").addEventListener("click", () => {
     setCustomizerPreviewExpanded(!app.customizerPreviewExpanded);
   });
