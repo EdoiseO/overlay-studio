@@ -908,9 +908,51 @@ input[readonly] {
 
 .range-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: start;
+  gap: 10px;
+}
+
+.range-track {
+  min-width: 0;
+}
+
+.range-track > input[type="range"] {
+  display: block;
+  width: 100%;
+}
+
+.range-limits {
+  min-height: 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 12px;
+}
+
+.range-value-input {
+  width: 72px;
+  height: 28px;
+  padding: 3px 4px;
+  border-color: var(--border);
+  background: var(--panel-alt);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.range-value-input:hover,
+.range-value-input:focus {
+  border-color: var(--accent);
+}
+
+.range-value-input[aria-invalid="true"] {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .media-library-section {

@@ -413,6 +413,137 @@ function setTheme(theme) {
   });
 }
 
+function rangeDecimalPlaces(value) {
+  const fraction = String(value ?? "").split(".")[1] || "";
+  return Math.min(6, fraction.length);
+}
+
+function rangePrecision(slider) {
+  return Math.max(
+    rangeDecimalPlaces(slider.step),
+    rangeDecimalPlaces(slider.min),
+  );
+}
+
+function formatRangeValue(slider, value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  return numeric.toFixed(rangePrecision(slider));
+}
+
+function normalizeRangeValue(slider, value) {
+  const minimum = Number(slider.min);
+  const maximum = Number(slider.max);
+  const numeric = Number(value);
+  const fallback = Number(slider.value) || (Number.isFinite(minimum) ? minimum : 0);
+  if (!Number.isFinite(numeric)) return fallback;
+  let normalized = numeric;
+  if (Number.isFinite(minimum)) normalized = Math.max(minimum, normalized);
+  if (Number.isFinite(maximum)) normalized = Math.min(maximum, normalized);
+  const step = Number(slider.step);
+  if (Number.isFinite(step) && step > 0) {
+    const base = Number.isFinite(minimum) ? minimum : 0;
+    normalized = base + Math.round((normalized - base) / step) * step;
+  }
+  if (Number.isFinite(minimum)) normalized = Math.max(minimum, normalized);
+  if (Number.isFinite(maximum)) normalized = Math.min(maximum, normalized);
+  return Number(normalized.toFixed(rangePrecision(slider)));
+}
+
+function rangeEditorValueIsValid(editor, slider) {
+  if (!editor.value.trim()) return false;
+  const numeric = Number(editor.value);
+  if (!Number.isFinite(numeric)) return false;
+  const minimum = Number(slider.min);
+  const maximum = Number(slider.max);
+  if (Number.isFinite(minimum) && numeric < minimum) return false;
+  if (Number.isFinite(maximum) && numeric > maximum) return false;
+  const step = Number(slider.step);
+  if (!Number.isFinite(step) || step <= 0) return true;
+  const base = Number.isFinite(minimum) ? minimum : 0;
+  const steps = (numeric - base) / step;
+  return Math.abs(steps - Math.round(steps)) < 1e-7;
+}
+
+function initializeRangeControls() {
+  const labels = [...document.querySelectorAll("label[for]")];
+  document.querySelectorAll(".range-control").forEach((control) => {
+    const slider = control.querySelector('input[type="range"]');
+    const output = control.querySelector("output");
+    if (!slider || !output || control.dataset.rangeEnhanced === "true") return;
+    control.dataset.rangeEnhanced = "true";
+
+    const track = document.createElement("div");
+    track.className = "range-track";
+    slider.replaceWith(track);
+    track.append(slider);
+
+    const limits = document.createElement("div");
+    limits.className = "range-limits";
+    limits.id = `${slider.id}Limits`;
+    const minimum = document.createElement("span");
+    minimum.textContent = `Min ${Number(slider.min)}`;
+    const maximum = document.createElement("span");
+    maximum.textContent = `Max ${Number(slider.max)}`;
+    limits.append(minimum, maximum);
+    track.append(limits);
+    slider.setAttribute("aria-describedby", limits.id);
+
+    const label = labels.find((candidate) => candidate.htmlFor === slider.id);
+    const editor = document.createElement("input");
+    editor.type = "number";
+    editor.className = "range-value-input";
+    editor.id = output.id;
+    editor.min = slider.min;
+    editor.max = slider.max;
+    editor.step = slider.step;
+    editor.inputMode = "decimal";
+    editor.value = output.value || formatRangeValue(slider, slider.value);
+    editor.dataset.customizerPassive = "";
+    editor.setAttribute(
+      "aria-label",
+      `${label?.textContent.trim() || "Slider"} value`,
+    );
+    editor.title = `Enter a value from ${slider.min} to ${slider.max}`;
+    output.replaceWith(editor);
+
+    const syncEditor = () => {
+      editor.value = formatRangeValue(slider, slider.value);
+      editor.removeAttribute("aria-invalid");
+    };
+    const commitEditor = () => {
+      slider.value = String(normalizeRangeValue(slider, editor.value));
+      syncEditor();
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      slider.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    slider.addEventListener("input", syncEditor);
+    editor.addEventListener("focus", () => editor.select());
+    editor.addEventListener("input", () => {
+      const valid = rangeEditorValueIsValid(editor, slider);
+      if (valid) editor.removeAttribute("aria-invalid");
+      else editor.setAttribute("aria-invalid", "true");
+      if (!valid) return;
+      slider.value = editor.value;
+      scheduleCustomizerChange(0);
+    });
+    editor.addEventListener("change", commitEditor);
+    editor.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitEditor();
+        editor.blur();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        syncEditor();
+        editor.blur();
+      }
+    });
+  });
+}
+
 function updatePreview(iframe, url, running) {
   const desired = running ? url : "";
   if (iframe.dataset.source === desired) return;
@@ -3021,6 +3152,7 @@ function handleInstanceAction(action, instanceId) {
 }
 
 function bindEvents() {
+  initializeRangeControls();
   initializeCurrencySelects();
   bindDanceDropZone();
   populateSocialGroupedPlatformSelect();
