@@ -827,12 +827,6 @@
             <div class="goal-toggle-row">
               <label><input id="socialGroupedTile" type="checkbox"> Branded tiles</label>
             </div>
-            <label for="socialGroupedShape">Tile shape</label>
-            <select id="socialGroupedShape">
-              <option value="squircle">Rounded</option>
-              <option value="round">Circle</option>
-              <option value="square">Square</option>
-            </select>
             <label for="socialGroupedTextSide">Text position</label>
             <select id="socialGroupedTextSide">
               <option value="right">After logos</option>
@@ -914,6 +908,119 @@
             </div>
           </div>
         </div>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Typography and label</h2></summary>
+          <div class="form-grid">
+            <label for="socialGroupedTextNudge">Text vertical nudge</label>
+            <div class="range-control">
+              <input id="socialGroupedTextNudge" type="range" min="-12" max="12" step="0.25">
+              <output id="socialGroupedTextNudgeOutput">0.00</output>
+            </div>
+            <label for="socialGroupedLetterSpacing">Letter spacing</label>
+            <div class="range-control">
+              <input id="socialGroupedLetterSpacing" type="range" min="-3" max="6" step="0.1">
+              <output id="socialGroupedLetterSpacingOutput">-0.3</output>
+            </div>
+            <label for="socialGroupedLabel">Eyebrow label</label>
+            <input id="socialGroupedLabel" type="text" maxlength="64" autocomplete="off">
+            <label for="socialGroupedLabelSize">Label size</label>
+            <div class="range-control">
+              <input id="socialGroupedLabelSize" type="range" min="4" max="24" step="0.5">
+              <output id="socialGroupedLabelSizeOutput">8.0</output>
+            </div>
+            <label for="socialGroupedLabelGap">Label gap</label>
+            <div class="range-control">
+              <input id="socialGroupedLabelGap" type="range" min="-4" max="12" step="0.5">
+              <output id="socialGroupedLabelGapOutput">0.0</output>
+            </div>
+            <label for="socialGroupedLabelColor">Label color</label>
+            <label class="color-field compact-color-field">
+              <input id="socialGroupedLabelColor" type="color">
+              <span id="socialGroupedLabelColorLabel">#FFFFFF</span>
+            </label>
+          </div>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Canvas layout</h2></summary>
+          <div class="form-grid">
+            <label for="socialGroupedAlign">Alignment</label>
+            <select id="socialGroupedAlign">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+            <label for="socialGroupedPadding">Canvas padding</label>
+            <div class="range-control">
+              <input id="socialGroupedPadding" type="range" min="0" max="80" step="0.5">
+              <output id="socialGroupedPaddingOutput">18.0</output>
+            </div>
+          </div>
+          <div class="social-grouped-mode-controls" id="socialGroupedSplitLayoutControls" hidden>
+            <h3>Split layout</h3>
+            <div class="form-grid">
+              <label for="socialGroupedDirection">Direction</label>
+              <select id="socialGroupedDirection">
+                <option value="horizontal">Horizontal</option>
+                <option value="vertical">Vertical</option>
+              </select>
+              <span>Wrapping</span>
+              <div class="goal-toggle-row">
+                <label><input id="socialGroupedWrap" type="checkbox"> Wrap groups</label>
+              </div>
+              <label for="socialGroupedGap">Row gap</label>
+              <div class="range-control">
+                <input id="socialGroupedGap" type="range" min="0" max="120" step="0.5">
+                <output id="socialGroupedGapOutput">26.0</output>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="panel customizer-disclosure" id="socialGroupedTileFineTuningSection" hidden>
+          <summary><h2>Tile fine tuning</h2></summary>
+          <div class="form-grid">
+            <label for="socialGroupedShape">Tile shape</label>
+            <select id="socialGroupedShape">
+              <option value="squircle">Rounded</option>
+              <option value="round">Circle</option>
+              <option value="square">Square</option>
+            </select>
+            <label for="socialGroupedRound">Corner radius</label>
+            <div class="range-control">
+              <input id="socialGroupedRound" type="range" min="0" max="0.5" step="0.05">
+              <output id="socialGroupedRoundOutput">0.30</output>
+            </div>
+            <label for="socialGroupedOverlap">Tile overlap</label>
+            <div class="range-control">
+              <input id="socialGroupedOverlap" type="range" min="-40" max="60" step="0.5">
+              <output id="socialGroupedOverlapOutput">20.0</output>
+            </div>
+            <label for="socialGroupedNameGap">Handle spacing</label>
+            <div class="range-control">
+              <input id="socialGroupedNameGap" type="range" min="-20" max="60" step="0.5">
+              <output id="socialGroupedNameGapOutput">6.0</output>
+            </div>
+            <label for="socialGroupedBaseColor">Fallback tile color</label>
+            <label class="color-field compact-color-field">
+              <input id="socialGroupedBaseColor" type="color">
+              <span id="socialGroupedBaseColorLabel">#FFFFFF</span>
+            </label>
+            <label for="socialGroupedTileOutline">Tile outer band</label>
+            <div class="range-control">
+              <input id="socialGroupedTileOutline" type="range" min="0" max="10" step="0.25">
+              <output id="socialGroupedTileOutlineOutput">3.00</output>
+            </div>
+            <label for="socialGroupedOutline">Handle outline</label>
+            <div class="range-control">
+              <input id="socialGroupedOutline" type="range" min="0" max="12" step="0.25">
+              <output id="socialGroupedOutlineOutput">4.00</output>
+            </div>
+            <label for="socialGroupedLegacyTextEdgeColor">Handle outline color</label>
+            <label class="color-field compact-color-field">
+              <input id="socialGroupedLegacyTextEdgeColor" type="color">
+              <span id="socialGroupedLegacyTextEdgeColorLabel">#000000</span>
+            </label>
+          </div>
+        </details>
         <div class="panel">
           <h2>Outline and color</h2>
           <div class="form-grid">
@@ -969,6 +1076,21 @@
               <input id="socialGroupedShadowBlur" type="range" min="0" max="30" step="0.5">
               <output id="socialGroupedShadowBlurOutput">5.0</output>
             </div>
+            <label for="socialGroupedShadowX">Shadow horizontal offset</label>
+            <div class="range-control">
+              <input id="socialGroupedShadowX" type="range" min="-30" max="30" step="0.5">
+              <output id="socialGroupedShadowXOutput">0.0</output>
+            </div>
+            <label for="socialGroupedShadowY">Shadow vertical offset</label>
+            <div class="range-control">
+              <input id="socialGroupedShadowY" type="range" min="-30" max="30" step="0.5">
+              <output id="socialGroupedShadowYOutput">3.0</output>
+            </div>
+            <label for="socialGroupedShadowColor">Shadow color</label>
+            <label class="color-field compact-color-field">
+              <input id="socialGroupedShadowColor" type="color">
+              <span id="socialGroupedShadowColorLabel">#000000</span>
+            </label>
             <label for="socialGroupedShadowOpacity">Shadow opacity</label>
             <div class="range-control">
               <input id="socialGroupedShadowOpacity" type="range" min="0" max="1" step="0.05">

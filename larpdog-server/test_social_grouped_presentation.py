@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -14,6 +15,12 @@ class SocialGroupedPresentationTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         cls.shared = (
             ROOT_DIR / "assets" / "social-platforms.js"
+        ).read_text(encoding="utf-8")
+        cls.studio_markup = (
+            ROOT_DIR / "studio" / "index.html"
+        ).read_text(encoding="utf-8")
+        cls.studio_script = (
+            ROOT_DIR / "studio" / "app.js"
         ).read_text(encoding="utf-8")
 
     def test_manifest_exposes_continuous_layout_and_studio_view(self) -> None:
@@ -55,6 +62,74 @@ class SocialGroupedPresentationTests(unittest.TestCase):
         self.assertIn("requestAnimationFrame(() => pack())", self.source)
         self.assertIn("document.fonts.ready", self.source)
         self.assertIn("svg.style.aspectRatio", self.source)
+
+    def test_studio_gathers_every_manifest_setting(self) -> None:
+        manifest_match = re.search(
+            r'<script type="application/json" id="overlay-manifest">\s*'
+            r"(\{.*?\})\s*</script>",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(manifest_match)
+        manifest = json.loads(manifest_match.group(1))
+        gather = self.studio_script.split(
+            "function gatherSocialGroupedSettings()",
+            maxsplit=1,
+        )[1].split("function applySocialGroupedPreset", maxsplit=1)[0]
+
+        for setting in manifest["settings"]:
+            with self.subTest(setting=setting):
+                self.assertRegex(
+                    gather,
+                    re.compile(rf"(?m)^\s*{re.escape(setting)}(?:\s*:|\s*,)"),
+                )
+
+    def test_studio_progressively_reveals_advanced_controls(self) -> None:
+        controls = {
+            "round": "socialGroupedRound",
+            "overlap": "socialGroupedOverlap",
+            "nameGap": "socialGroupedNameGap",
+            "textNudge": "socialGroupedTextNudge",
+            "letterSpacing": "socialGroupedLetterSpacing",
+            "color": "socialGroupedBaseColor",
+            "textEdge": "socialGroupedLegacyTextEdgeColor",
+            "outline": "socialGroupedOutline",
+            "tileOutline": "socialGroupedTileOutline",
+            "gap": "socialGroupedGap",
+            "align": "socialGroupedAlign",
+            "label": "socialGroupedLabel",
+            "labelSize": "socialGroupedLabelSize",
+            "labelGap": "socialGroupedLabelGap",
+            "labelColor": "socialGroupedLabelColor",
+            "direction": "socialGroupedDirection",
+            "wrap": "socialGroupedWrap",
+            "padding": "socialGroupedPadding",
+            "shadowX": "socialGroupedShadowX",
+            "shadowY": "socialGroupedShadowY",
+            "shadowColor": "socialGroupedShadowColor",
+        }
+        gather = self.studio_script.split(
+            "function gatherSocialGroupedSettings()",
+            maxsplit=1,
+        )[1].split("function applySocialGroupedPreset", maxsplit=1)[0]
+
+        for setting, control_id in controls.items():
+            with self.subTest(setting=setting):
+                self.assertIn(f'id="{control_id}"', self.studio_markup)
+                self.assertIn(f'byId("{control_id}")', gather)
+
+        self.assertIn(
+            'id="socialGroupedTileFineTuningSection" hidden',
+            self.studio_markup,
+        )
+        self.assertIn(
+            'id="socialGroupedSplitLayoutControls" hidden',
+            self.studio_markup,
+        )
+        self.assertIn(
+            'const split = tile || byId("socialGroupedSeparate").checked',
+            self.studio_script,
+        )
 
 
 if __name__ == "__main__":

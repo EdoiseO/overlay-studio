@@ -739,6 +739,66 @@ body.server-running .customizer-preview-offline {
   line-height: 20px;
 }
 
+.customizer-disclosure > summary {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.customizer-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.customizer-disclosure > summary::after {
+  width: 24px;
+  flex: 0 0 24px;
+  color: var(--muted);
+  content: "+";
+  font-size: 20px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.customizer-disclosure[open] > summary::after {
+  content: "-";
+}
+
+.customizer-disclosure > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.customizer-disclosure > summary h2 {
+  margin: 0;
+}
+
+.customizer-disclosure[open] > summary {
+  margin-bottom: 15px;
+}
+
+.customizer-disclosure[hidden],
+.social-grouped-mode-controls[hidden] {
+  display: none;
+}
+
+.social-grouped-mode-controls {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.social-grouped-mode-controls h3 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
 .profile-panel {
   padding-top: 14px;
   padding-bottom: 14px;
@@ -1226,6 +1286,11 @@ output {
   position: relative;
   z-index: 1;
   pointer-events: none;
+}
+
+.compact-color-field {
+  width: 112px;
+  min-width: 112px;
 }
 
 .counter-settings {

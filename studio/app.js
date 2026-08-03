@@ -2390,8 +2390,19 @@ function setSocialGroupedRange(name, value, precision = 2) {
   output.value = Number(input.value).toFixed(precision);
 }
 
-function syncSocialGroupedTileControls() {
-  byId("socialGroupedShape").disabled = !byId("socialGroupedTile").checked;
+function setSocialGroupedModeControls(id, enabled) {
+  const section = byId(id);
+  section.hidden = !enabled;
+  section.querySelectorAll("input, select").forEach((control) => {
+    control.disabled = !enabled;
+  });
+}
+
+function syncSocialGroupedModeControls() {
+  const tile = byId("socialGroupedTile").checked;
+  const split = tile || byId("socialGroupedSeparate").checked;
+  setSocialGroupedModeControls("socialGroupedSplitLayoutControls", split);
+  setSocialGroupedModeControls("socialGroupedTileFineTuningSection", tile);
 }
 
 function renderSocialGrouped(socialGrouped) {
@@ -2409,6 +2420,10 @@ function renderSocialGrouped(socialGrouped) {
   byId("socialGroupedFont").value = config.font || "montserrat";
   byId("socialGroupedWeight").value = String(config.weight || 800);
   byId("socialGroupedSize").value = config.size || "medium";
+  byId("socialGroupedAlign").value = config.align || "center";
+  byId("socialGroupedDirection").value = config.direction || "horizontal";
+  byId("socialGroupedWrap").checked = config.wrap !== false;
+  byId("socialGroupedLabel").value = config.label || "";
   byId("socialGroupedEqualHeight").checked = config.equalHeight !== false;
   byId("socialGroupedBrand").checked = config.brand !== false;
   byId("socialGroupedJoin").value = config.join || "round";
@@ -2417,17 +2432,32 @@ function renderSocialGrouped(socialGrouped) {
   setSocialGroupedRange("Merge", config.merge ?? 3, 1);
   setSocialGroupedRange("TextGap", config.textGap ?? -3, 1);
   setSocialGroupedRange("GroupGap", config.groupGap ?? -2, 1);
+  setSocialGroupedRange("TextNudge", config.textNudge ?? 0);
+  setSocialGroupedRange("LetterSpacing", config.letterSpacing ?? -0.3, 1);
   setSocialGroupedRange("LogoHeight", config.logoHeight ?? 19, 1);
   setSocialGroupedRange("TextSize", config.textSize ?? 20, 1);
+  setSocialGroupedRange("LabelSize", config.labelSize ?? 8, 1);
+  setSocialGroupedRange("LabelGap", config.labelGap ?? 0, 1);
+  setSocialGroupedRange("Padding", config.padding ?? 18, 1);
+  setSocialGroupedRange("Gap", config.gap ?? 26, 1);
+  setSocialGroupedRange("Round", config.round ?? 0.3);
+  setSocialGroupedRange("Overlap", config.overlap ?? 20, 1);
+  setSocialGroupedRange("NameGap", config.nameGap ?? 6, 1);
+  setSocialGroupedRange("Outline", config.outline ?? 4);
+  setSocialGroupedRange("TileOutline", config.tileOutline ?? 3);
   setSocialGroupedRange("LogoOutline", config.logoOutline ?? 2);
   setSocialGroupedRange("TextOutline", config.textOutline ?? 2);
   setSocialGroupedRange("EdgeWidth", config.edgeWidth ?? 1);
   setSocialGroupedRange("TextEdgeWidth", config.textEdgeWidth ?? 1);
   setSocialGroupedRange("OutlineOpacity", config.outlineOpacity ?? 1);
+  setSocialGroupedRange("ShadowX", config.shadowX ?? 0, 1);
+  setSocialGroupedRange("ShadowY", config.shadowY ?? 3, 1);
   setSocialGroupedRange("ShadowBlur", config.shadowBlur ?? 5, 1);
   setSocialGroupedRange("ShadowOpacity", config.shadowOpacity ?? 0.45);
+  setColor("socialGroupedBaseColor", config.color || "ffffff");
   setColor("socialGroupedOuterColor", config.tileEdge || "ffffff");
   setColor("socialGroupedEdgeColor", config.edgeColor || "000000");
+  setColor("socialGroupedLegacyTextEdgeColor", config.textEdge || "000000");
   setColor("socialGroupedTextColor", config.textColor || "ffffff");
   setColor(
     "socialGroupedTextOuterColor",
@@ -2437,7 +2467,12 @@ function renderSocialGrouped(socialGrouped) {
     "socialGroupedTextEdgeColor",
     config.textEdgeColor || config.edgeColor || "000000",
   );
-  syncSocialGroupedTileControls();
+  setColor(
+    "socialGroupedLabelColor",
+    config.labelColor || config.textColor || "ffffff",
+  );
+  setColor("socialGroupedShadowColor", config.shadowColor || "000000");
+  syncSocialGroupedModeControls();
 }
 
 function gatherSocialGroupedSettings() {
@@ -2460,6 +2495,7 @@ function gatherSocialGroupedSettings() {
     separate: byId("socialGroupedSeparate").checked,
     tile: byId("socialGroupedTile").checked,
     shape: byId("socialGroupedShape").value,
+    round: Number(byId("socialGroupedRound").value),
     textSide: byId("socialGroupedTextSide").value,
     textCase: byId("socialGroupedTextCase").value,
     font: byId("socialGroupedFont").value,
@@ -2469,6 +2505,10 @@ function gatherSocialGroupedSettings() {
     merge: Number(byId("socialGroupedMerge").value),
     textGap: Number(byId("socialGroupedTextGap").value),
     groupGap: Number(byId("socialGroupedGroupGap").value),
+    overlap: Number(byId("socialGroupedOverlap").value),
+    nameGap: Number(byId("socialGroupedNameGap").value),
+    textNudge: Number(byId("socialGroupedTextNudge").value),
+    letterSpacing: Number(byId("socialGroupedLetterSpacing").value),
     logoHeight: Number(byId("socialGroupedLogoHeight").value),
     textSize: Number(byId("socialGroupedTextSize").value),
     equalHeight: byId("socialGroupedEqualHeight").checked,
@@ -2479,13 +2519,29 @@ function gatherSocialGroupedSettings() {
     textEdgeWidth: Number(byId("socialGroupedTextEdgeWidth").value),
     join: byId("socialGroupedJoin").value,
     outlineOpacity: Number(byId("socialGroupedOutlineOpacity").value),
+    color: byId("socialGroupedBaseColor").value.slice(1),
     tileEdge: byId("socialGroupedOuterColor").value.slice(1),
     edgeColor: byId("socialGroupedEdgeColor").value.slice(1),
+    textEdge: byId("socialGroupedLegacyTextEdgeColor").value.slice(1),
     textColor: byId("socialGroupedTextColor").value.slice(1),
     textOutlineColor: byId("socialGroupedTextOuterColor").value.slice(1),
     textEdgeColor: byId("socialGroupedTextEdgeColor").value.slice(1),
+    outline: Number(byId("socialGroupedOutline").value),
+    tileOutline: Number(byId("socialGroupedTileOutline").value),
+    gap: Number(byId("socialGroupedGap").value),
+    align: byId("socialGroupedAlign").value,
+    label: byId("socialGroupedLabel").value.slice(0, 64),
+    labelSize: Number(byId("socialGroupedLabelSize").value),
+    labelGap: Number(byId("socialGroupedLabelGap").value),
+    labelColor: byId("socialGroupedLabelColor").value.slice(1),
+    direction: byId("socialGroupedDirection").value,
+    wrap: byId("socialGroupedWrap").checked,
+    padding: Number(byId("socialGroupedPadding").value),
     shadow: byId("socialGroupedShadow").checked,
+    shadowX: Number(byId("socialGroupedShadowX").value),
+    shadowY: Number(byId("socialGroupedShadowY").value),
     shadowBlur: Number(byId("socialGroupedShadowBlur").value),
+    shadowColor: byId("socialGroupedShadowColor").value.slice(1),
     shadowOpacity: Number(byId("socialGroupedShadowOpacity").value),
   };
 }
@@ -3373,13 +3429,26 @@ function bindEvents() {
     ["Merge", 1],
     ["TextGap", 1],
     ["GroupGap", 1],
+    ["TextNudge", 2],
+    ["LetterSpacing", 1],
     ["LogoHeight", 1],
     ["TextSize", 1],
+    ["LabelSize", 1],
+    ["LabelGap", 1],
+    ["Padding", 1],
+    ["Gap", 1],
+    ["Round", 2],
+    ["Overlap", 1],
+    ["NameGap", 1],
+    ["Outline", 2],
+    ["TileOutline", 2],
     ["LogoOutline", 2],
     ["TextOutline", 2],
     ["EdgeWidth", 2],
     ["TextEdgeWidth", 2],
     ["OutlineOpacity", 2],
+    ["ShadowX", 1],
+    ["ShadowY", 1],
     ["ShadowBlur", 1],
     ["ShadowOpacity", 2],
   ].forEach(([name, precision]) => {
@@ -3388,10 +3457,9 @@ function bindEvents() {
         Number(byId(`socialGrouped${name}`).value).toFixed(precision);
     });
   });
-  byId("socialGroupedTile").addEventListener(
-    "change",
-    syncSocialGroupedTileControls,
-  );
+  ["socialGroupedTile", "socialGroupedSeparate"].forEach((id) => {
+    byId(id).addEventListener("change", syncSocialGroupedModeControls);
+  });
   byId("socialGroupedPreset").addEventListener("change", (event) => {
     applySocialGroupedPreset(event.target.value);
   });
@@ -3522,6 +3590,10 @@ function bindEvents() {
     "socialGroupedTextColor",
     "socialGroupedTextOuterColor",
     "socialGroupedTextEdgeColor",
+    "socialGroupedLabelColor",
+    "socialGroupedBaseColor",
+    "socialGroupedLegacyTextEdgeColor",
+    "socialGroupedShadowColor",
   ].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
