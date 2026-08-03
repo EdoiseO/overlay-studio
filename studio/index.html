@@ -783,10 +783,29 @@
         <div class="panel">
           <div class="social-panel-heading">
             <div>
-              <h2>Account groups</h2>
+              <h2>Social accounts</h2>
+              <span id="socialGroupedAccountCount">4 accounts</span>
+            </div>
+          </div>
+          <div class="social-grouped-quick-add" id="socialGroupedQuickAdd" data-customizer-passive>
+            <label for="socialGroupedPlatformSelect">
+              <span>Platform</span>
+              <select id="socialGroupedPlatformSelect">
+                <option value="">Choose a platform</option>
+              </select>
+            </label>
+            <label for="socialGroupedHandleInput">
+              <span>Handle</span>
+              <input id="socialGroupedHandleInput" type="text" maxlength="128" autocomplete="off" placeholder="yourname">
+            </label>
+            <button class="primary-button compact" id="socialGroupedAddButton" type="button" disabled>Add social</button>
+          </div>
+          <div class="social-grouped-section-heading">
+            <div>
+              <h3>Groups</h3>
               <span id="socialGroupedCount">2 groups</span>
             </div>
-            <button class="secondary-button compact" id="addSocialGroupButton" type="button">Add group</button>
+            <button class="secondary-button compact" id="addSocialGroupButton" type="button">New empty group</button>
           </div>
           <div class="social-grouped-list" id="socialGroupedList" aria-label="Grouped social accounts"></div>
         </div>
@@ -1036,6 +1055,19 @@
             <span id="customizerPreviewStatus">Checking</span>
           </div>
           <button
+            class="icon-button customizer-preview-popout"
+            id="customizerPreviewPopoutButton"
+            type="button"
+            aria-label="Open live draft in a separate window"
+            title="Open preview window"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 3h6v6"></path>
+              <path d="M10 14 21 3"></path>
+              <path d="M18 13v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h7"></path>
+            </svg>
+          </button>
+          <button
             class="icon-button customizer-preview-expand"
             id="customizerPreviewExpandButton"
             type="button"
@@ -1043,14 +1075,38 @@
             aria-expanded="false"
             title="Expand live draft"
           >
-            <span aria-hidden="true">&#x26F6;</span>
+            <svg class="preview-expand-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+              <path d="m3 3 6 6"></path>
+              <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
+              <path d="m21 3-6 6"></path>
+              <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
+              <path d="m3 21 6-6"></path>
+              <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+              <path d="m21 21-6-6"></path>
+            </svg>
+            <svg class="preview-collapse-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14 10 7-7"></path>
+              <path d="M20 10h-6V4"></path>
+              <path d="m10 14-7 7"></path>
+              <path d="M4 14h6v6"></path>
+            </svg>
           </button>
         </div>
+      </div>
+      <div class="customizer-preview-toolbar" aria-label="Preview zoom controls">
+        <button class="icon-button" id="customizerPreviewZoomOutButton" type="button" aria-label="Zoom preview out" title="Zoom out">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+        </button>
+        <button class="customizer-preview-zoom-reset" id="customizerPreviewZoomResetButton" type="button" aria-label="Reset preview zoom and position" title="Reset zoom and position">100%</button>
+        <button class="icon-button" id="customizerPreviewZoomInButton" type="button" aria-label="Zoom preview in" title="Zoom in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        </button>
       </div>
       <div
         class="customizer-preview-stage"
         id="customizerPreviewStage"
-        title="Click to expand live draft"
+        title="Drag to move the preview; use the mouse wheel to zoom"
       >
         <iframe id="customizerPreviewFrame" title="Live customization preview" tabindex="-1"></iframe>
         <div class="customizer-preview-offline">

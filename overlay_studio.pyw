@@ -45,6 +45,7 @@ PID_PATH = SERVER_DIR / "server.pid"
 LOG_PATH = SERVER_DIR / "server.log"
 ERROR_LOG_PATH = SERVER_DIR / "server.err"
 STUDIO_UI_PATH = RESOURCE_DIR / "studio" / "index.html"
+PREVIEW_UI_PATH = RESOURCE_DIR / "studio" / "preview-window.html"
 WINDOW_SIZE = (1000, 700)
 WINDOW_MIN_SIZE = (900, 620)
 WINDOW_MAX_SIZE = (1280, 820)
@@ -672,6 +673,32 @@ def base_url() -> str:
     return f"http://{host}:{port}/"
 
 
+def validated_preview_source(value: Any) -> str | None:
+    source = str(value or "")
+    if not source or len(source) > 4096:
+        return None
+    try:
+        parsed = urllib.parse.urlparse(source)
+        port = parsed.port
+    except ValueError:
+        return None
+    _, expected_port = server_address()
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "localhost"}
+        or port != expected_port
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or not re.fullmatch(
+            r"/overlays/[a-z0-9][a-z0-9_-]{0,63}(?:\.html)?",
+            parsed.path,
+        )
+    ):
+        return None
+    return parsed.geturl()
+
+
 def request_json(
     path: str,
     payload: dict[str, Any] | None = None,
@@ -717,11 +744,16 @@ def server_process_options() -> dict[str, Any]:
 class DesktopApi:
     def __init__(self) -> None:
         self._window: webview.Window | None = None
+        self._preview_window: webview.Window | None = None
         self._action_lock = threading.Lock()
         self._close_lock = threading.Lock()
+        self._preview_lock = threading.RLock()
         self._unsaved_changes = False
         self._close_dialog_pending = False
         self._allow_close_once = False
+        self._preview_ready = False
+        self._preview_config: dict[str, Any] = {}
+        self._preview_draft: dict[str, Any] = {}
 
     def _bind_window(self, window: webview.Window) -> None:
         self._window = window
@@ -1439,6 +1471,157 @@ class DesktopApi:
             self._close_dialog_pending = False
         return {"ok": True}
 
+    @staticmethod
+    def _preview_payload(value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        try:
+            encoded = json.dumps(
+                value,
+                ensure_ascii=True,
+                separators=(",", ":"),
+            )
+        except (TypeError, ValueError):
+            return None
+        if len(encoded) > 262_144:
+            return None
+        decoded = json.loads(encoded)
+        return decoded if isinstance(decoded, dict) else None
+
+    @staticmethod
+    def _preview_dimension(value: Any, fallback: int) -> int:
+        try:
+            numeric = int(value)
+        except (TypeError, ValueError):
+            numeric = fallback
+        return max(100, min(4096, numeric))
+
+    def _run_preview_script(self, method: str, payload: dict[str, Any]) -> bool:
+        with self._preview_lock:
+            window = self._preview_window
+            ready = self._preview_ready
+        if window is None or not ready:
+            return False
+        encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+        try:
+            window.run_js(
+                f"window.overlayStudioPreview?.{method}({encoded});"
+            )
+        except Exception:
+            return False
+        return True
+
+    def _configure_preview_window(self) -> None:
+        with self._preview_lock:
+            payload = copy.deepcopy(self._preview_config)
+            payload["draft"] = copy.deepcopy(self._preview_draft)
+        self._run_preview_script("configure", payload)
+
+    def _on_preview_window_loaded(self) -> None:
+        with self._preview_lock:
+            self._preview_ready = True
+        self._configure_preview_window()
+
+    def _on_preview_window_closed(self) -> None:
+        with self._preview_lock:
+            self._preview_window = None
+            self._preview_ready = False
+            self._preview_config = {}
+            self._preview_draft = {}
+
+    def _close_preview_window(self) -> None:
+        with self._preview_lock:
+            window = self._preview_window
+            self._preview_window = None
+            self._preview_ready = False
+            self._preview_config = {}
+            self._preview_draft = {}
+        if window is not None:
+            with contextlib.suppress(Exception):
+                window.destroy()
+
+    def _on_main_window_closed(self) -> None:
+        self._close_preview_window()
+
+    def open_preview_window(
+        self,
+        source: str,
+        title: str,
+        width: Any,
+        height: Any,
+        draft: Any,
+    ) -> dict[str, Any]:
+        validated_source = validated_preview_source(source)
+        validated_draft = self._preview_payload(draft)
+        if validated_source is None:
+            return {"ok": False, "detail": "Invalid local preview URL"}
+        if validated_draft is None:
+            return {"ok": False, "detail": "Invalid preview draft"}
+        if not PREVIEW_UI_PATH.exists():
+            return {"ok": False, "detail": "Preview window files are missing"}
+
+        clean_title = re.sub(
+            r"[\x00-\x1f\x7f]+",
+            " ",
+            str(title or "Overlay preview"),
+        ).strip()[:64] or "Overlay preview"
+        config = {
+            "source": validated_source,
+            "title": clean_title,
+            "width": self._preview_dimension(width, 1280),
+            "height": self._preview_dimension(height, 720),
+        }
+        with self._preview_lock:
+            existing = self._preview_window
+            self._preview_config = config
+            self._preview_draft = validated_draft
+
+        if existing is not None:
+            self._configure_preview_window()
+            with contextlib.suppress(Exception):
+                existing.set_title(f"{clean_title} - Overlay Studio")
+                existing.restore()
+                existing.show()
+            return {"ok": True, "reused": True}
+
+        try:
+            preview = webview.create_window(
+                f"{clean_title} - Overlay Studio",
+                url=PREVIEW_UI_PATH.as_uri(),
+                width=1100,
+                height=650,
+                min_size=(640, 400),
+                resizable=True,
+                background_color="#101619",
+                text_select=False,
+            )
+        except Exception as exc:
+            return {"ok": False, "detail": f"Could not open preview: {exc}"}
+        if preview is None:
+            return {"ok": False, "detail": "Could not open preview window"}
+
+        preview.events.loaded += self._on_preview_window_loaded
+        preview.events.closed += self._on_preview_window_closed
+        with self._preview_lock:
+            self._preview_window = preview
+            self._preview_ready = preview.events.loaded.is_set()
+        if preview.events.loaded.is_set():
+            self._configure_preview_window()
+        return {"ok": True, "reused": False}
+
+    def update_preview_window(self, draft: Any) -> dict[str, Any]:
+        validated_draft = self._preview_payload(draft)
+        if validated_draft is None:
+            return {"ok": False, "open": False, "detail": "Invalid preview draft"}
+        with self._preview_lock:
+            if self._preview_window is None:
+                return {"ok": True, "open": False}
+            self._preview_draft = validated_draft
+            ready = self._preview_ready
+        if ready:
+            self._run_preview_script("applyDraft", validated_draft)
+        return {"ok": True, "open": True}
+
     def close_window(self) -> dict[str, Any]:
         window = self._window
         if window is None:
@@ -1447,6 +1630,7 @@ class DesktopApi:
             self._unsaved_changes = False
             self._close_dialog_pending = False
             self._allow_close_once = True
+        self._close_preview_window()
         window.destroy()
         return {"ok": True}
 
@@ -1561,6 +1745,7 @@ def main() -> None:
         raise RuntimeError("Could not create Overlay Studio window")
     window.events.before_show += constrain_window_size
     window.events.closing += api._on_window_closing
+    window.events.closed += api._on_main_window_closed
     api._bind_window(window)
     webview.start(
         gui="edgechromium",

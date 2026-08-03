@@ -1,6 +1,9 @@
 import re
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import overlay_studio
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +22,85 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('type: "overlay-studio-draft"', script)
         self.assertIn('url.searchParams.set("customizer", "1")', script)
         self.assertIn("setCustomizerPreviewExpanded", script)
+
+    def test_customizer_preview_supports_zoom_pan_and_native_popout(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        popout = (
+            ROOT_DIR / "studio" / "preview-window.html"
+        ).read_text(encoding="utf-8")
+
+        for element_id in (
+            "customizerPreviewZoomOutButton",
+            "customizerPreviewZoomResetButton",
+            "customizerPreviewZoomInButton",
+            "customizerPreviewPopoutButton",
+        ):
+            self.assertEqual(markup.count(f'id="{element_id}"'), 1)
+        self.assertIn('addEventListener("wheel"', script)
+        self.assertIn('addEventListener("pointerdown"', script)
+        self.assertIn("PREVIEW_ZOOM_MIN = 0.25", script)
+        self.assertIn("PREVIEW_ZOOM_MAX = 3", script)
+        self.assertIn('callApi(\n      "open_preview_window"', script)
+        self.assertIn("window.overlayStudioPreview", popout)
+        self.assertIn('addEventListener("pointermove"', popout)
+        self.assertIn("frame.contentWindow.postMessage", popout)
+
+    def test_native_preview_accepts_only_the_local_overlay_server(self) -> None:
+        with patch.object(
+            overlay_studio,
+            "server_address",
+            return_value=("127.0.0.1", 8474),
+        ):
+            self.assertEqual(
+                overlay_studio.validated_preview_source(
+                    "http://127.0.0.1:8474/overlays/social-grouped"
+                    "?i=grouped-main&customizer=1"
+                ),
+                "http://127.0.0.1:8474/overlays/social-grouped"
+                "?i=grouped-main&customizer=1",
+            )
+            for source in (
+                "https://127.0.0.1:8474/overlays/social-grouped",
+                "http://example.com:8474/overlays/social-grouped",
+                "http://127.0.0.1:8475/overlays/social-grouped",
+                "http://127.0.0.1:8474/api/config",
+                "http://user@127.0.0.1:8474/overlays/social-grouped",
+                "http://127.0.0.1:8474/overlays/../api/config",
+            ):
+                with self.subTest(source=source):
+                    self.assertIsNone(
+                        overlay_studio.validated_preview_source(source)
+                    )
+
+    def test_native_preview_bridge_bounds_and_forwards_drafts(self) -> None:
+        class PreviewWindow:
+            def __init__(self) -> None:
+                self.scripts: list[str] = []
+
+            def run_js(self, script: str) -> None:
+                self.scripts.append(script)
+
+        api = overlay_studio.DesktopApi()
+        window = PreviewWindow()
+        api._preview_window = window
+        api._preview_ready = True
+
+        result = api.update_preview_window(
+            {
+                "type": "overlay-studio-draft",
+                "overlayType": "social-grouped",
+                "instanceId": "grouped-main",
+                "config": {"socialGrouped": {"groups": "twitch:name"}},
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["open"])
+        self.assertIn("applyDraft", window.scripts[-1])
+        self.assertIsNone(
+            api._preview_payload({"value": "x" * 262_145})
+        )
 
     def test_customizer_scroll_and_expansion_have_separate_layouts(self) -> None:
         styles = (ROOT_DIR / "studio" / "app.css").read_text(encoding="utf-8")
@@ -98,8 +180,13 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('id="socialGroupedList"', markup)
         self.assertIn('id="socialGroupedTile"', markup)
         self.assertIn('id="socialGroupedShape"', markup)
+        self.assertIn('id="socialGroupedPlatformSelect"', markup)
+        self.assertIn('id="socialGroupedHandleInput"', markup)
+        self.assertIn('id="socialGroupedAddButton"', markup)
         self.assertIn("function renderSocialGrouped(socialGrouped)", script)
         self.assertIn("function gatherSocialGroupedSettings()", script)
+        self.assertIn("function addSocialGroupedAccount()", script)
+        self.assertIn("matchingGroup.platforms.push(platform.id)", script)
         self.assertIn("SOCIAL_GROUPED_LIMITS", script)
         self.assertIn("socialGroupedGroupsFromEditor", script)
         self.assertIn(".social-grouped-chip", styles)
@@ -116,7 +203,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('id="socialIconBackground"', markup)
         self.assertNotIn('data-social-enabled', markup)
         self.assertIn("function addSocialAccount()", script)
-        self.assertIn("function socialHandleFromInput(value)", script)
+        self.assertIn("function socialHandleFromInput(value, limit = 64)", script)
         self.assertIn("remove.dataset.socialRemove = platform.id", script)
         self.assertIn("if (!account.enabled) return", script)
 

@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overlay Studio Preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #101619;
+      color: #f1f5f6;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #101619;
+    }
+
+    button {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    .preview-shell {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: 52px minmax(0, 1fr);
+    }
+
+    .preview-toolbar {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 7px 12px 7px 16px;
+      border-bottom: 1px solid #304047;
+      background: #141c20;
+    }
+
+    .preview-title {
+      min-width: 0;
+    }
+
+    .preview-title span {
+      display: block;
+      color: #57cbc7;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 12px;
+    }
+
+    .preview-title strong {
+      display: block;
+      overflow: hidden;
+      margin-top: 1px;
+      font-size: 13px;
+      line-height: 17px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .preview-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #8fa1a9;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .preview-status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4bd29a;
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .icon-button,
+    .zoom-reset {
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid #35464d;
+      border-radius: 4px;
+      background: #192226;
+      color: #aebdc3;
+    }
+
+    .icon-button {
+      width: 30px;
+    }
+
+    .zoom-reset {
+      width: 50px;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .icon-button:hover,
+    .zoom-reset:hover {
+      border-color: #57cbc7;
+      color: #ffffff;
+    }
+
+    .icon-button svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .preview-stage {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: #1c252a;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .preview-stage.dragging {
+      cursor: grabbing;
+    }
+
+    .preview-stage iframe {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      border: 0;
+      opacity: 0;
+      pointer-events: none;
+      background: #1c252a;
+      transform-origin: center;
+      transition: opacity 160ms ease;
+    }
+
+    .preview-stage.ready iframe {
+      opacity: 1;
+    }
+
+    .preview-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #8fa1a9;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .preview-stage.ready .preview-empty {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <main class="preview-shell">
+    <header class="preview-toolbar">
+      <div class="preview-title">
+        <span>LIVE DRAFT</span>
+        <strong id="previewName">Overlay preview</strong>
+      </div>
+      <div class="preview-status">LIVE</div>
+      <div class="zoom-controls" aria-label="Preview zoom controls">
+        <button class="icon-button" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+        </button>
+        <button class="zoom-reset" id="zoomReset" type="button" aria-label="Reset zoom and position" title="Reset zoom and position">100%</button>
+        <button class="icon-button" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        </button>
+      </div>
+    </header>
+    <section class="preview-stage" id="previewStage" title="Drag to move the preview; use the mouse wheel to zoom">
+      <iframe id="previewFrame" title="Live overlay draft" tabindex="-1"></iframe>
+      <div class="preview-empty">Waiting for preview</div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+
+      const ZOOM_MIN = 0.25;
+      const ZOOM_MAX = 3;
+      const ZOOM_STEP = 0.1;
+      const MIN_VISIBLE = 64;
+      const stage = document.getElementById("previewStage");
+      const frame = document.getElementById("previewFrame");
+      const readout = document.getElementById("zoomReset");
+      const state = {
+        source: "",
+        targetOrigin: "",
+        width: 1280,
+        height: 720,
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        draft: null,
+        ready: false,
+        drag: null,
+      };
+
+      function geometry() {
+        if (stage.clientWidth <= 0 || stage.clientHeight <= 0) return null;
+        return {
+          baseScale: Math.min(
+            stage.clientWidth / state.width,
+            stage.clientHeight / state.height,
+          ) * 0.9,
+        };
+      }
+
+      function clampPan(baseScale) {
+        const scale = baseScale * state.zoom;
+        const maxX = Math.max(
+          0,
+          (stage.clientWidth + state.width * scale) / 2 - MIN_VISIBLE,
+        );
+        const maxY = Math.max(
+          0,
+          (stage.clientHeight + state.height * scale) / 2 - MIN_VISIBLE,
+        );
+        state.panX = Math.max(-maxX, Math.min(maxX, state.panX));
+        state.panY = Math.max(-maxY, Math.min(maxY, state.panY));
+      }
+
+      function fit() {
+        const current = geometry();
+        if (!current) return;
+        clampPan(current.baseScale);
+        frame.style.width = `${state.width}px`;
+        frame.style.height = `${state.height}px`;
+        frame.style.left = `${stage.clientWidth / 2 + state.panX}px`;
+        frame.style.top = `${stage.clientHeight / 2 + state.panY}px`;
+        frame.style.transform =
+          `translate(-50%, -50%) scale(${current.baseScale * state.zoom})`;
+        readout.textContent = `${Math.round(state.zoom * 100)}%`;
+      }
+
+      function setZoom(value, clientX = null, clientY = null) {
+        const previous = state.zoom;
+        const next = Math.max(
+          ZOOM_MIN,
+          Math.min(ZOOM_MAX, Math.round(Number(value) * 10) / 10),
+        );
+        if (!Number.isFinite(next) || next === previous) return;
+        const rect = stage.getBoundingClientRect();
+        const originX = Number.isFinite(clientX)
+          ? clientX - rect.left - rect.width / 2
+          : 0;
+        const originY = Number.isFinite(clientY)
+          ? clientY - rect.top - rect.height / 2
+          : 0;
+        const ratio = next / previous;
+        state.panX = originX - (originX - state.panX) * ratio;
+        state.panY = originY - (originY - state.panY) * ratio;
+        state.zoom = next;
+        fit();
+      }
+
+      function resetViewport() {
+        state.zoom = 1;
+        state.panX = 0;
+        state.panY = 0;
+        fit();
+      }
+
+      function postDraft() {
+        if (
+          !state.ready
+          || !state.draft
+          || !state.targetOrigin
+          || !frame.contentWindow
+        ) return;
+        frame.contentWindow.postMessage(state.draft, state.targetOrigin);
+      }
+
+      function applyDraft(payload) {
+        if (!payload || typeof payload !== "object") return;
+        state.draft = payload;
+        postDraft();
+      }
+
+      function configure(options) {
+        if (!options || typeof options !== "object") return;
+        const source = String(options.source || "");
+        const changed = source !== state.source;
+        state.source = source;
+        state.width = Math.max(100, Math.min(4096, Number(options.width) || 1280));
+        state.height = Math.max(100, Math.min(4096, Number(options.height) || 720));
+        state.draft = options.draft || state.draft;
+        document.getElementById("previewName").textContent =
+          String(options.title || "Overlay preview").slice(0, 64);
+        document.title = `${String(options.title || "Overlay").slice(0, 64)} - Overlay Studio`;
+        try {
+          state.targetOrigin = new URL(source).origin;
+        } catch {
+          state.targetOrigin = "";
+        }
+        if (changed) {
+          state.ready = false;
+          stage.classList.remove("ready");
+          resetViewport();
+          frame.dataset.source = source;
+          frame.src = source || "about:blank";
+        } else {
+          fit();
+          postDraft();
+        }
+      }
+
+      frame.addEventListener("load", () => {
+        state.ready = Boolean(state.source) && frame.src !== "about:blank";
+        stage.classList.toggle("ready", state.ready);
+        fit();
+        requestAnimationFrame(postDraft);
+        setTimeout(postDraft, 80);
+      });
+
+      stage.addEventListener("wheel", event => {
+        if (!state.ready) return;
+        event.preventDefault();
+        setZoom(
+          state.zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP),
+          event.clientX,
+          event.clientY,
+        );
+      }, { passive: false });
+
+      stage.addEventListener("pointerdown", event => {
+        if (!state.ready || event.button !== 0) return;
+        event.preventDefault();
+        state.drag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          panX: state.panX,
+          panY: state.panY,
+        };
+        stage.classList.add("dragging");
+        stage.setPointerCapture(event.pointerId);
+      });
+
+      stage.addEventListener("pointermove", event => {
+        if (!state.drag || state.drag.pointerId !== event.pointerId) return;
+        state.panX = state.drag.panX + event.clientX - state.drag.startX;
+        state.panY = state.drag.panY + event.clientY - state.drag.startY;
+        fit();
+      });
+
+      function finishDrag(event) {
+        if (!state.drag || state.drag.pointerId !== event.pointerId) return;
+        state.drag = null;
+        stage.classList.remove("dragging");
+        if (stage.hasPointerCapture(event.pointerId)) {
+          stage.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      stage.addEventListener("pointerup", finishDrag);
+      stage.addEventListener("pointercancel", finishDrag);
+      stage.addEventListener("lostpointercapture", () => {
+        state.drag = null;
+        stage.classList.remove("dragging");
+      });
+      document.getElementById("zoomOut").addEventListener(
+        "click",
+        () => setZoom(state.zoom - ZOOM_STEP),
+      );
+      document.getElementById("zoomIn").addEventListener(
+        "click",
+        () => setZoom(state.zoom + ZOOM_STEP),
+      );
+      readout.addEventListener("click", resetViewport);
+      window.addEventListener("resize", fit);
+      window.overlayStudioPreview = Object.freeze({ configure, applyDraft });
+      fit();
+    })();
+  </script>
+</body>
+</html>

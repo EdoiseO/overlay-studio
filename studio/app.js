@@ -1,4 +1,8 @@
 const MAX_DANCE_PROFILES = 5;
+const PREVIEW_ZOOM_MIN = 0.25;
+const PREVIEW_ZOOM_MAX = 3;
+const PREVIEW_ZOOM_STEP = 0.1;
+const PREVIEW_MIN_VISIBLE = 48;
 
 const app = {
   state: null,
@@ -21,6 +25,14 @@ const app = {
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
   customizerPreviewExpanded: false,
+  customizerPreviewZoom: 1,
+  customizerPreviewPan: { x: 0, y: 0 },
+  customizerPreviewDrag: null,
+  customizerPreviewSource: "",
+  customizerPreviewPoppedOut: false,
+  customizerPreviewWindowSource: "",
+  customizerPreviewWindowSyncPending: false,
+  customizerPreviewWindowDraft: null,
   customizerResizeObserver: null,
   customizerBaseline: null,
   customizerDirty: false,
@@ -477,10 +489,95 @@ function fitCardPreview(frame, manifest) {
   return true;
 }
 
-function fitCustomizerPreview() {
+function customizerPreviewGeometry() {
   const frame = byId("customizerPreviewFrame");
+  const stage = byId("customizerPreviewStage");
   const manifest = manifestFor(activeInstance()?.type);
-  return fitCardPreview(frame, manifest);
+  if (
+    !frame
+    || !stage
+    || !manifest
+    || stage.clientWidth <= 0
+    || stage.clientHeight <= 0
+  ) return null;
+  const width = Number(manifest.canvas?.w) || 1;
+  const height = Number(manifest.canvas?.h) || 1;
+  const baseScale = Math.min(
+    stage.clientWidth / width,
+    stage.clientHeight / height,
+  ) * 0.88;
+  return { frame, stage, width, height, baseScale };
+}
+
+function clampCustomizerPreviewPan(geometry) {
+  if (!geometry) return;
+  const scale = geometry.baseScale * app.customizerPreviewZoom;
+  const maxX = Math.max(
+    0,
+    (geometry.stage.clientWidth + geometry.width * scale) / 2
+      - PREVIEW_MIN_VISIBLE,
+  );
+  const maxY = Math.max(
+    0,
+    (geometry.stage.clientHeight + geometry.height * scale) / 2
+      - PREVIEW_MIN_VISIBLE,
+  );
+  app.customizerPreviewPan.x = Math.max(
+    -maxX,
+    Math.min(maxX, app.customizerPreviewPan.x),
+  );
+  app.customizerPreviewPan.y = Math.max(
+    -maxY,
+    Math.min(maxY, app.customizerPreviewPan.y),
+  );
+}
+
+function fitCustomizerPreview() {
+  const geometry = customizerPreviewGeometry();
+  if (!geometry) return false;
+  clampCustomizerPreviewPan(geometry);
+  const scale = geometry.baseScale * app.customizerPreviewZoom;
+  geometry.frame.style.width = `${geometry.width}px`;
+  geometry.frame.style.height = `${geometry.height}px`;
+  geometry.frame.style.left = `${geometry.stage.clientWidth / 2 + app.customizerPreviewPan.x}px`;
+  geometry.frame.style.top = `${geometry.stage.clientHeight / 2 + app.customizerPreviewPan.y}px`;
+  geometry.frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  byId("customizerPreviewZoomResetButton").textContent =
+    `${Math.round(app.customizerPreviewZoom * 100)}%`;
+  return true;
+}
+
+function setCustomizerPreviewZoom(value, clientX = null, clientY = null) {
+  const geometry = customizerPreviewGeometry();
+  if (!geometry) return;
+  const previous = app.customizerPreviewZoom;
+  const next = Math.max(
+    PREVIEW_ZOOM_MIN,
+    Math.min(PREVIEW_ZOOM_MAX, Math.round(Number(value) * 10) / 10),
+  );
+  if (!Number.isFinite(next) || next === previous) return;
+  const rect = geometry.stage.getBoundingClientRect();
+  const originX = Number.isFinite(clientX)
+    ? clientX - rect.left - rect.width / 2
+    : 0;
+  const originY = Number.isFinite(clientY)
+    ? clientY - rect.top - rect.height / 2
+    : 0;
+  const ratio = next / previous;
+  app.customizerPreviewPan.x =
+    originX - (originX - app.customizerPreviewPan.x) * ratio;
+  app.customizerPreviewPan.y =
+    originY - (originY - app.customizerPreviewPan.y) * ratio;
+  app.customizerPreviewZoom = next;
+  fitCustomizerPreview();
+}
+
+function resetCustomizerPreviewViewport() {
+  app.customizerPreviewZoom = 1;
+  app.customizerPreviewPan = { x: 0, y: 0 };
+  app.customizerPreviewDrag = null;
+  byId("customizerPreviewStage")?.classList.remove("dragging");
+  fitCustomizerPreview();
 }
 
 function customizerDraft(instance) {
@@ -528,29 +625,34 @@ function postCustomizerDraft() {
   const dock = byId("customizerPreviewDock");
   const frame = byId("customizerPreviewFrame");
   const instance = activeInstance();
-  if (
-    dock.hidden
-    || !app.customizerPreviewReady
-    || !frame.contentWindow
-    || !instance
-  ) return;
+  if (dock.hidden || !instance) return;
   const payload = customizerDraft(instance);
   if (!payload) return;
-  let targetOrigin;
-  try {
-    targetOrigin = new URL(app.state?.baseUrl || "").origin;
-  } catch {
-    return;
+  if (app.customizerPreviewReady && frame.contentWindow) {
+    let targetOrigin;
+    try {
+      targetOrigin = new URL(app.state?.baseUrl || "").origin;
+    } catch {
+      targetOrigin = null;
+    }
+    if (targetOrigin) {
+      frame.contentWindow.postMessage(
+        {
+          type: "overlay-studio-draft",
+          overlayType: instance.type,
+          instanceId: instance.id,
+          ...payload,
+        },
+        targetOrigin,
+      );
+    }
   }
-  frame.contentWindow.postMessage(
-    {
-      type: "overlay-studio-draft",
-      overlayType: instance.type,
-      instanceId: instance.id,
-      ...payload,
-    },
-    targetOrigin,
-  );
+  syncCustomizerPreviewWindow({
+    type: "overlay-studio-draft",
+    overlayType: instance.type,
+    instanceId: instance.id,
+    ...payload,
+  });
 }
 
 function scheduleCustomizerDraft(delay = 70) {
@@ -571,10 +673,76 @@ function setCustomizerPreviewExpanded(expanded) {
     next ? "Collapse live draft" : "Expand live draft",
   );
   button.title = next ? "Collapse live draft" : "Expand live draft";
-  button.firstElementChild.textContent = next ? "\u00d7" : "\u26f6";
-  byId("customizerPreviewStage").title =
-    next ? "" : "Click to expand live draft";
   requestAnimationFrame(fitCustomizerPreview);
+}
+
+async function syncCustomizerPreviewWindow(payload) {
+  if (
+    !app.customizerPreviewPoppedOut
+    || app.customizerPreviewWindowSource
+      !== customizerPreviewUrl(activeInstance())
+  ) return;
+  app.customizerPreviewWindowDraft = payload;
+  if (app.customizerPreviewWindowSyncPending) return;
+  app.customizerPreviewWindowSyncPending = true;
+  try {
+    while (
+      app.customizerPreviewPoppedOut
+      && app.customizerPreviewWindowDraft
+    ) {
+      const next = app.customizerPreviewWindowDraft;
+      app.customizerPreviewWindowDraft = null;
+      const result = await callApi("update_preview_window", next);
+      if (!result?.open) {
+        app.customizerPreviewPoppedOut = false;
+        app.customizerPreviewWindowSource = "";
+        app.customizerPreviewWindowDraft = null;
+      }
+    }
+  } catch {
+    app.customizerPreviewPoppedOut = false;
+    app.customizerPreviewWindowSource = "";
+    app.customizerPreviewWindowDraft = null;
+  } finally {
+    app.customizerPreviewWindowSyncPending = false;
+  }
+}
+
+async function openCustomizerPreviewWindow() {
+  const instance = activeInstance();
+  const manifest = manifestFor(instance?.type);
+  const source = instance ? customizerPreviewUrl(instance) : "";
+  if (!instance || !manifest || !source || !app.state?.running) {
+    showToast("Start the overlay server to open the preview window");
+    return;
+  }
+  const payload = customizerDraft(instance);
+  if (!payload) return;
+  const draft = {
+    type: "overlay-studio-draft",
+    overlayType: instance.type,
+    instanceId: instance.id,
+    ...payload,
+  };
+  try {
+    const result = await callApi(
+      "open_preview_window",
+      source,
+      instance.name,
+      manifest.canvas.w,
+      manifest.canvas.h,
+      draft,
+    );
+    if (!result?.ok) {
+      showToast(result?.detail || "Preview window could not be opened");
+      return;
+    }
+    app.customizerPreviewPoppedOut = true;
+    app.customizerPreviewWindowSource = source;
+    showToast(result.reused ? "Preview window updated" : "Preview window opened");
+  } catch (error) {
+    showToast(String(error.message || error));
+  }
 }
 
 function hideCustomizerPreview() {
@@ -583,6 +751,8 @@ function hideCustomizerPreview() {
   clearTimeout(app.customizerPreviewTimer);
   app.customizerPreviewReady = false;
   setCustomizerPreviewExpanded(false);
+  resetCustomizerPreviewViewport();
+  app.customizerPreviewSource = "";
   dock.hidden = true;
   updatePreview(frame, "", false);
 }
@@ -604,12 +774,24 @@ function renderCustomizerPreview(state = app.state) {
   const frame = byId("customizerPreviewFrame");
   const source = customizerPreviewUrl(instance);
   dock.hidden = false;
+  [
+    "customizerPreviewZoomOutButton",
+    "customizerPreviewZoomResetButton",
+    "customizerPreviewZoomInButton",
+    "customizerPreviewPopoutButton",
+  ].forEach((id) => {
+    byId(id).disabled = !state?.running;
+  });
   byId("customizerPreviewName").textContent = instance.name;
   renderCustomizerDirtyState();
   frame.title = `Live ${instance.name} customization preview`;
   const desired = state?.running ? source : "";
   if (frame.dataset.source !== desired) {
     app.customizerPreviewReady = false;
+    if (app.customizerPreviewSource !== desired) {
+      app.customizerPreviewSource = desired;
+      resetCustomizerPreviewViewport();
+    }
   }
   updatePreview(frame, source, Boolean(state?.running));
   requestAnimationFrame(fitCustomizerPreview);
@@ -1615,7 +1797,7 @@ function socialRows() {
   )];
 }
 
-function socialHandleFromInput(value) {
+function socialHandleFromInput(value, limit = 64) {
   const original = String(value || "").trim();
   if (!original) return "";
   let candidate = original;
@@ -1638,7 +1820,7 @@ function socialHandleFromInput(value) {
       candidate = original;
     }
   }
-  return candidate.replace(/^@+/, "").trim().slice(0, 64);
+  return candidate.replace(/^@+/, "").trim().slice(0, limit);
 }
 
 function refreshSocialPlatformOptions(overlayType = activeInstance()?.type) {
@@ -1850,6 +2032,83 @@ function createSocialGroupedMark(platform) {
   return mark;
 }
 
+function populateSocialGroupedPlatformSelect() {
+  const select = byId("socialGroupedPlatformSelect");
+  const previous = select.value;
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose a platform";
+  select.append(placeholder);
+  SOCIAL_PLATFORMS.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform.id;
+    option.textContent = platform.name;
+    select.append(option);
+  });
+  if (SOCIAL_PLATFORMS.some((platform) => platform.id === previous)) {
+    select.value = previous;
+  }
+}
+
+function updateSocialGroupedQuickAddState(groups = socialGroupedGroupsFromEditor()) {
+  const select = byId("socialGroupedPlatformSelect");
+  const handle = byId("socialGroupedHandleInput");
+  const accountCount = groups.reduce(
+    (total, group) => total + group.platforms.length,
+    0,
+  );
+  byId("socialGroupedAccountCount").textContent =
+    `${accountCount} account${accountCount === 1 ? "" : "s"}`;
+  byId("socialGroupedAddButton").disabled =
+    !select.value || !String(handle.value || "").trim();
+}
+
+function addSocialGroupedAccount() {
+  const platformId = byId("socialGroupedPlatformSelect").value;
+  const platform = SOCIAL_PLATFORMS.find((item) => item.id === platformId);
+  if (!platform) {
+    showToast("Choose a platform first");
+    return;
+  }
+  const handleInput = byId("socialGroupedHandleInput");
+  const handle = socialHandleFromInput(handleInput.value, 128);
+  if (!handle) {
+    showToast("Enter a handle or profile link");
+    handleInput.focus();
+    return;
+  }
+
+  const groups = socialGroupedGroupsFromEditor();
+  const handleKey = handle.toLocaleLowerCase();
+  const matchingGroup = groups.find((group) => (
+    socialHandleFromInput(group.handle, 128).toLocaleLowerCase() === handleKey
+  ));
+  if (matchingGroup) {
+    if (matchingGroup.platforms.includes(platform.id)) {
+      showToast(`${platform.name} already uses this handle`);
+      return;
+    }
+    if (matchingGroup.platforms.length >= SOCIAL_GROUPED_LIMITS.platforms) {
+      showToast("This group already has the maximum number of platforms");
+      return;
+    }
+    matchingGroup.platforms.push(platform.id);
+  } else {
+    if (groups.length >= SOCIAL_GROUPED_LIMITS.groups) {
+      showToast("Social Grouped supports up to 6 handles");
+      return;
+    }
+    groups.push({ platforms: [platform.id], handle });
+  }
+
+  renderSocialGroupedGroups(groups);
+  byId("socialGroupedPlatformSelect").value = "";
+  updateSocialGroupedQuickAddState(groups);
+  byId("socialGroupedPlatformSelect").focus();
+  scheduleCustomizerChange(0);
+}
+
 function renderSocialGroupedGroups(groups) {
   const normalized = (Array.isArray(groups) ? groups : [])
     .slice(0, SOCIAL_GROUPED_LIMITS.groups);
@@ -1962,6 +2221,7 @@ function renderSocialGroupedGroups(groups) {
     `${count} group${count === 1 ? "" : "s"}`;
   byId("addSocialGroupButton").disabled =
     count >= SOCIAL_GROUPED_LIMITS.groups;
+  updateSocialGroupedQuickAddState(normalized);
 }
 
 function setSocialGroupedRange(name, value, precision = 2) {
@@ -2736,7 +2996,9 @@ function handleInstanceAction(action, instanceId) {
 function bindEvents() {
   initializeCurrencySelects();
   bindDanceDropZone();
+  populateSocialGroupedPlatformSelect();
   const customizerFrame = byId("customizerPreviewFrame");
+  const customizerStage = byId("customizerPreviewStage");
   customizerFrame.addEventListener("load", () => {
     app.customizerPreviewReady =
       Boolean(customizerFrame.dataset.source)
@@ -2749,8 +3011,71 @@ function bindEvents() {
   byId("customizerPreviewExpandButton").addEventListener("click", () => {
     setCustomizerPreviewExpanded(!app.customizerPreviewExpanded);
   });
-  byId("customizerPreviewStage").addEventListener("click", () => {
-    if (!app.customizerPreviewExpanded) setCustomizerPreviewExpanded(true);
+  byId("customizerPreviewPopoutButton").addEventListener(
+    "click",
+    openCustomizerPreviewWindow,
+  );
+  byId("customizerPreviewZoomOutButton").addEventListener("click", () => {
+    setCustomizerPreviewZoom(app.customizerPreviewZoom - PREVIEW_ZOOM_STEP);
+  });
+  byId("customizerPreviewZoomInButton").addEventListener("click", () => {
+    setCustomizerPreviewZoom(app.customizerPreviewZoom + PREVIEW_ZOOM_STEP);
+  });
+  byId("customizerPreviewZoomResetButton").addEventListener(
+    "click",
+    resetCustomizerPreviewViewport,
+  );
+  customizerStage.addEventListener("wheel", (event) => {
+    if (!app.customizerPreviewReady) return;
+    event.preventDefault();
+    setCustomizerPreviewZoom(
+      app.customizerPreviewZoom
+        + (event.deltaY < 0 ? PREVIEW_ZOOM_STEP : -PREVIEW_ZOOM_STEP),
+      event.clientX,
+      event.clientY,
+    );
+  }, { passive: false });
+  customizerStage.addEventListener("pointerdown", (event) => {
+    if (!app.customizerPreviewReady || event.button !== 0) return;
+    event.preventDefault();
+    app.customizerPreviewDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: app.customizerPreviewPan.x,
+      panY: app.customizerPreviewPan.y,
+      moved: false,
+    };
+    customizerStage.classList.add("dragging");
+    customizerStage.setPointerCapture(event.pointerId);
+  });
+  customizerStage.addEventListener("pointermove", (event) => {
+    const drag = app.customizerPreviewDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    drag.moved ||= Math.hypot(deltaX, deltaY) > 3;
+    app.customizerPreviewPan.x = drag.panX + deltaX;
+    app.customizerPreviewPan.y = drag.panY + deltaY;
+    fitCustomizerPreview();
+  });
+  const finishCustomizerPreviewDrag = (event) => {
+    const drag = app.customizerPreviewDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    app.customizerPreviewDrag = null;
+    customizerStage.classList.remove("dragging");
+    if (customizerStage.hasPointerCapture(event.pointerId)) {
+      customizerStage.releasePointerCapture(event.pointerId);
+    }
+    if (!drag.moved && !app.customizerPreviewExpanded) {
+      setCustomizerPreviewExpanded(true);
+    }
+  };
+  customizerStage.addEventListener("pointerup", finishCustomizerPreviewDrag);
+  customizerStage.addEventListener("pointercancel", finishCustomizerPreviewDrag);
+  customizerStage.addEventListener("lostpointercapture", () => {
+    app.customizerPreviewDrag = null;
+    customizerStage.classList.remove("dragging");
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && app.customizerPreviewExpanded) {
@@ -2758,7 +3083,10 @@ function bindEvents() {
     }
   });
   const scheduleFromCustomizerEvent = (event) => {
-    if (event.target.closest(".detail-view.active.has-customizer-preview")) {
+    if (
+      event.target.closest(".detail-view.active.has-customizer-preview")
+      && !event.target.closest("[data-customizer-passive]")
+    ) {
       scheduleCustomizerChange();
     }
   };
@@ -2905,11 +3233,27 @@ function bindEvents() {
     if (
       event.target.id === "socialGroupedPreset"
       || event.target.closest("#socialGroupedList")
+      || event.target.closest("#socialGroupedQuickAdd")
     ) return;
     byId("socialGroupedPreset").value = "custom";
   };
   socialGroupedView.addEventListener("input", markSocialGroupedCustom);
   socialGroupedView.addEventListener("change", markSocialGroupedCustom);
+  byId("socialGroupedPlatformSelect").addEventListener("change", () => {
+    updateSocialGroupedQuickAddState();
+  });
+  byId("socialGroupedHandleInput").addEventListener("input", () => {
+    updateSocialGroupedQuickAddState();
+  });
+  byId("socialGroupedHandleInput").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addSocialGroupedAccount();
+  });
+  byId("socialGroupedAddButton").addEventListener(
+    "click",
+    addSocialGroupedAccount,
+  );
   byId("addSocialGroupButton").addEventListener("click", () => {
     const groups = socialGroupedGroupsFromEditor();
     if (groups.length >= SOCIAL_GROUPED_LIMITS.groups) return;

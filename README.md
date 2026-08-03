@@ -77,8 +77,12 @@ settings until **Save** is selected. Edited drafts are marked **Unsaved** and pr
 for **Save**, **Discard**, or **Keep editing** when leaving the customizer or closing
 the app. The warning can be disabled from the prompt and restored under
 **Settings > Editing**. Leaving the customization page unloads the draft preview to
-release its browser resources. The form scrolls independently from the preview; click
-the live draft to expand it and press `Esc` to return to the editor.
+release its browser resources. The form scrolls independently from the preview. Drag
+the live draft to reposition it, use the mouse wheel or zoom controls to inspect it from
+25% to 300%, and reset the percentage to restore both zoom and position. The expand
+button fills the Studio window, while the pop-out button opens a larger resizable window
+that continues receiving unsaved draft changes. Press `Esc` to leave the in-app expanded
+view.
 
 Each card can copy its OBS URL, be renamed without changing that URL, or be removed
 from My overlays. Removing an instance does not delete its local overlay type, which
@@ -144,8 +148,11 @@ instead of replacing text with an ellipsis.
 Social Grouped lets up to six account groups share one source, with up to six platforms
 per group. Its default bare-logo mode joins every logo and handle into one continuous
 three-layer sticker. Separate-group mode restores individual islands, while branded
-tiles offer rounded, circular, and square shapes. The dedicated Studio customizer also
-includes spacing, type, outline, color, shadow, and preset controls with a live draft.
+tiles offer rounded, circular, and square shapes. Choose a platform and enter its handle
+in the quick-add row; matching handles join the same group automatically, while a new
+handle creates a group. The manual group editor remains available for rearranging and
+fine-tuning. The dedicated Studio customizer also includes spacing, type, outline,
+color, shadow, and preset controls with a live draft.
 
 ## Custom media
 
