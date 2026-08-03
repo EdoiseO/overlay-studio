@@ -131,6 +131,7 @@
       0 3px 8px rgba(0,0,0,.4);
     filter: none;
   }
+  .icon.tile.asset-tile { background: transparent; }
   .icon.tile svg { width: 60%; height: 60%; overflow: visible; }
   .icon.tile.brand-mark svg { width: 76%; height: 76%; }
   .icon.tile.round  { border-radius: 50%; }
@@ -429,24 +430,7 @@
     row.dataset.wrap = settings.wrap ? "on" : "off";
   }
 
-  function buildIcon(platform, settings) {
-    const meta = platformMeta(platform, settings.brand);
-    const icon = document.createElement("span");
-    const classes = ["icon", "tile"];
-    if (settings.shape === "round") classes.push("round");
-    else if (settings.shape === "square") classes.push("square");
-    if (meta.wide && settings.shape !== "round") classes.push("wide");
-    if (settings.brand && Array.isArray(meta.details)) {
-      classes.push("brand-mark");
-    }
-    icon.className = classes.join(" ");
-    icon.style.setProperty(
-      "--brand",
-      settings.brand
-        ? (meta.cssGradient || meta.surface || meta.color)
-        : "rgb(var(--accent))",
-    );
-
+  function buildVectorTileArtwork(meta, settings) {
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute(
       "viewBox",
@@ -487,7 +471,50 @@
       }
     }
     svg.append(artwork);
-    icon.append(svg);
+    return svg;
+  }
+
+  function buildIcon(platform, settings) {
+    const meta = platformMeta(platform, settings.brand);
+    const useTileAsset = Boolean(
+      settings.brand
+      && settings.shape === "squircle"
+      && meta.tileAsset
+    );
+    const icon = document.createElement("span");
+    const classes = ["icon", "tile"];
+    if (settings.shape === "round") classes.push("round");
+    else if (settings.shape === "square") classes.push("square");
+    if (meta.wide && settings.shape !== "round" && !useTileAsset) {
+      classes.push("wide");
+    }
+    if (settings.brand && Array.isArray(meta.details) && !useTileAsset) {
+      classes.push("brand-mark");
+    }
+    if (useTileAsset) classes.push("asset-tile");
+    icon.className = classes.join(" ");
+    icon.style.setProperty(
+      "--brand",
+      settings.brand
+        ? (meta.cssGradient || meta.surface || meta.color)
+        : "rgb(var(--accent))",
+    );
+
+    if (useTileAsset) {
+      const image = new Image();
+      image.alt = "";
+      image.decoding = "async";
+      image.draggable = false;
+      image.src = meta.tileAsset;
+      image.addEventListener("error", () => {
+        icon.classList.remove("asset-tile");
+        image.replaceWith(buildVectorTileArtwork(meta, settings));
+      }, { once: true });
+      icon.append(image);
+      return icon;
+    }
+
+    icon.append(buildVectorTileArtwork(meta, settings));
     return icon;
   }
 
