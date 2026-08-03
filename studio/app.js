@@ -44,6 +44,10 @@ const app = {
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
+  overlayDragInstanceId: null,
+  overlayDropTargetId: null,
+  overlayDropAfter: false,
+  overlayOrderSaving: false,
   socialGroupedBase: null,
 };
 
@@ -1034,7 +1038,28 @@ function createCardAction(label, action, instanceId, className = "") {
   return button;
 }
 
-function createOverlayCard(instance, running) {
+function createCardDragHandle(instance) {
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "card-drag-handle";
+  handle.draggable = true;
+  handle.dataset.dragInstance = instance.id;
+  handle.title = "Drag to reorder";
+  handle.setAttribute(
+    "aria-label",
+    `Move ${instance.name}. Drag or use the arrow keys to reorder.`,
+  );
+  const grip = document.createElement("span");
+  grip.className = "card-drag-grip";
+  grip.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < 6; index += 1) {
+    grip.append(document.createElement("i"));
+  }
+  handle.append(grip);
+  return handle;
+}
+
+function createOverlayCard(instance, running, canReorder) {
   const manifest = manifestFor(instance.type);
   if (!manifest) return null;
   const card = document.createElement("article");
@@ -1087,6 +1112,7 @@ function createOverlayCard(instance, running) {
   );
   copy.append(name, description, meta, actions);
   card.append(previewButton, copy);
+  if (canReorder) card.append(createCardDragHandle(instance));
   cardPreviewObserver.observe(livePreview);
   requestAnimationFrame(() => {
     if (!fitCardPreview(frame, manifest)) {
@@ -1122,13 +1148,177 @@ function renderLibrary(state) {
     cardPreviewObserver.unobserve(host);
   });
   grid.replaceChildren();
-  instances().forEach((instance) => {
-    const card = createOverlayCard(instance, state.running);
+  const installed = instances();
+  installed.forEach((instance) => {
+    const card = createOverlayCard(instance, state.running, installed.length > 1);
     if (card) grid.append(card);
   });
   grid.append(createAddCard());
-  const count = instances().length;
+  const count = installed.length;
   byId("overlayCount").textContent = `${count} installed`;
+}
+
+function overlayOrderIds() {
+  return instances().map((instance) => instance.id);
+}
+
+function clearOverlayDropTarget() {
+  const grid = byId("overlayGrid");
+  grid.querySelectorAll(".drop-before, .drop-after").forEach((card) => {
+    card.classList.remove("drop-before", "drop-after");
+  });
+  app.overlayDropTargetId = null;
+  app.overlayDropAfter = false;
+}
+
+function finishOverlayCardDrag() {
+  const grid = byId("overlayGrid");
+  grid.classList.remove("is-reordering");
+  grid.querySelectorAll(".is-dragging").forEach((card) => {
+    card.classList.remove("is-dragging");
+  });
+  clearOverlayDropTarget();
+  app.overlayDragInstanceId = null;
+}
+
+function reorderedOverlayIds(draggedId, targetId, dropAfter) {
+  const current = overlayOrderIds();
+  if (!current.includes(draggedId) || targetId === draggedId) return current;
+  const reordered = current.filter((instanceId) => instanceId !== draggedId);
+  if (!targetId) {
+    reordered.push(draggedId);
+    return reordered;
+  }
+  const targetIndex = reordered.indexOf(targetId);
+  if (targetIndex < 0) return current;
+  reordered.splice(targetIndex + (dropAfter ? 1 : 0), 0, draggedId);
+  return reordered;
+}
+
+function focusOverlayDragHandle(instanceId) {
+  const handle = [...byId("overlayGrid").querySelectorAll("[data-drag-instance]")]
+    .find((candidate) => candidate.dataset.dragInstance === instanceId);
+  handle?.focus();
+}
+
+async function persistOverlayOrder(orderedIds, focusInstanceId = null) {
+  const current = overlayOrderIds();
+  if (
+    app.overlayOrderSaving
+    || orderedIds.length !== current.length
+    || orderedIds.every((instanceId, index) => instanceId === current[index])
+  ) {
+    if (focusInstanceId) focusOverlayDragHandle(focusInstanceId);
+    return;
+  }
+  app.overlayOrderSaving = true;
+  try {
+    const result = await callApi("reorder_overlay_instances", orderedIds);
+    if (!result.ok) {
+      showToast(result.detail || "Overlay order could not be saved");
+      return;
+    }
+    app.libraryKey = "";
+    renderState(result.state, false);
+    logActivity("Overlay order saved");
+    showToast("Overlay order saved");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.overlayOrderSaving = false;
+    if (focusInstanceId) {
+      requestAnimationFrame(() => focusOverlayDragHandle(focusInstanceId));
+    }
+  }
+}
+
+function beginOverlayCardDrag(event) {
+  const handle = event.target.closest("[data-drag-instance]");
+  if (!handle || app.overlayOrderSaving) {
+    event.preventDefault();
+    return;
+  }
+  const card = handle.closest(".overlay-card");
+  app.overlayDragInstanceId = handle.dataset.dragInstance;
+  app.overlayDropTargetId = app.overlayDragInstanceId;
+  byId("overlayGrid").classList.add("is-reordering");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", app.overlayDragInstanceId);
+  if (card) event.dataTransfer.setDragImage(card, card.offsetWidth - 20, 20);
+  requestAnimationFrame(() => card?.classList.add("is-dragging"));
+}
+
+function updateOverlayDropTarget(event) {
+  if (!app.overlayDragInstanceId) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearOverlayDropTarget();
+  const grid = byId("overlayGrid");
+  const target = event.target.closest(".overlay-card");
+  if (!target || target.classList.contains("add-card")) {
+    const addCard = grid.querySelector(".add-card");
+    addCard?.classList.add("drop-before");
+    return;
+  }
+  const targetId = target.dataset.instanceId;
+  app.overlayDropTargetId = targetId;
+  if (targetId === app.overlayDragInstanceId) return;
+  const bounds = target.getBoundingClientRect();
+  app.overlayDropAfter = event.clientX >= bounds.left + (bounds.width / 2);
+  target.classList.add(app.overlayDropAfter ? "drop-after" : "drop-before");
+}
+
+function dropOverlayCard(event) {
+  if (!app.overlayDragInstanceId) return;
+  event.preventDefault();
+  const draggedId = app.overlayDragInstanceId;
+  const orderedIds = reorderedOverlayIds(
+    draggedId,
+    app.overlayDropTargetId,
+    app.overlayDropAfter,
+  );
+  finishOverlayCardDrag();
+  persistOverlayOrder(orderedIds, draggedId);
+}
+
+function moveOverlayCardWithKeyboard(event) {
+  const handle = event.target.closest("[data-drag-instance]");
+  if (!handle || app.overlayOrderSaving) return;
+  const keys = new Set([
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+  ]);
+  if (!keys.has(event.key)) return;
+  event.preventDefault();
+  const current = overlayOrderIds();
+  const sourceIndex = current.indexOf(handle.dataset.dragInstance);
+  if (sourceIndex < 0) return;
+  const columns = Math.max(
+    1,
+    getComputedStyle(byId("overlayGrid"))
+      .gridTemplateColumns.trim().split(/\s+/).length,
+  );
+  const destinations = {
+    ArrowLeft: sourceIndex - 1,
+    ArrowRight: sourceIndex + 1,
+    ArrowUp: sourceIndex - columns,
+    ArrowDown: sourceIndex + columns,
+    Home: 0,
+    End: current.length - 1,
+  };
+  const destination = Math.max(
+    0,
+    Math.min(current.length - 1, destinations[event.key]),
+  );
+  if (destination === sourceIndex) return;
+  const reordered = [...current];
+  const [moved] = reordered.splice(sourceIndex, 1);
+  reordered.splice(destination, 0, moved);
+  persistOverlayOrder(reordered, moved);
 }
 
 function renderCatalog() {
@@ -4018,6 +4208,14 @@ function bindEvents() {
   });
 
   const overlayGrid = byId("overlayGrid");
+  overlayGrid.addEventListener("dragstart", beginOverlayCardDrag);
+  overlayGrid.addEventListener("dragover", updateOverlayDropTarget);
+  overlayGrid.addEventListener("drop", dropOverlayCard);
+  overlayGrid.addEventListener("dragend", finishOverlayCardDrag);
+  overlayGrid.addEventListener("keydown", moveOverlayCardWithKeyboard);
+  overlayGrid.addEventListener("dragleave", (event) => {
+    if (!overlayGrid.contains(event.relatedTarget)) clearOverlayDropTarget();
+  });
   overlayGrid.addEventListener("click", (event) => {
     const preview = event.target.closest("[data-preview-instance]");
     if (preview) {

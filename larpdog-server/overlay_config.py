@@ -1078,6 +1078,25 @@ def rename_overlay_instance(
     return normalize_overlay_config(config)
 
 
+def reorder_overlay_instances(raw: Any, ordered_instance_ids: Any) -> dict[str, Any]:
+    config = normalize_overlay_config(raw)
+    if not isinstance(ordered_instance_ids, list):
+        raise ValueError("Expected a complete overlay order")
+    ordered = [str(instance_id or "") for instance_id in ordered_instance_ids]
+    current_ids = list(config["instances"])
+    if (
+        len(ordered) != len(current_ids)
+        or len(set(ordered)) != len(ordered)
+        or set(ordered) != set(current_ids)
+    ):
+        raise ValueError("Overlay order must include every installed overlay once")
+    config["instances"] = {
+        instance_id: config["instances"][instance_id]
+        for instance_id in ordered
+    }
+    return normalize_overlay_config(config)
+
+
 def remove_overlay_instance(raw: Any, instance_id: str) -> dict[str, Any]:
     config = normalize_overlay_config(raw)
     if str(instance_id) not in config["instances"]:

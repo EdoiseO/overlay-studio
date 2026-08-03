@@ -76,6 +76,7 @@ from overlay_config import (  # noqa: E402
     normalize_overlay_config,
     remove_overlay_instance as remove_overlay_instance_config,
     rename_overlay_instance as rename_overlay_instance_config,
+    reorder_overlay_instances as reorder_overlay_instances_config,
     save_overlay_config as save_overlay_config_file,
     update_instance_config,
 )
@@ -1355,6 +1356,21 @@ class DesktopApi:
         config = load_overlay_config(OVERLAY_CONFIG_PATH)
         try:
             updated = rename_overlay_instance_config(config, instance_id, name)
+            save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+        return {"ok": True, "state": self.get_state()}
+
+    def reorder_overlay_instances(
+        self,
+        ordered_instance_ids: list[str],
+    ) -> dict[str, Any]:
+        config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        try:
+            updated = reorder_overlay_instances_config(
+                config,
+                ordered_instance_ids,
+            )
             save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
         except (OSError, ValueError) as error:
             return {"ok": False, "detail": str(error)}

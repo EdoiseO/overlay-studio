@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,8 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from overlay_config import (  # noqa: E402
     add_overlay_instance,
+    load_overlay_config,
     materialize_instance_config,
     normalize_overlay_config,
+    reorder_overlay_instances,
+    save_overlay_config,
     update_instance_config,
 )
 
@@ -355,6 +359,57 @@ class SocialOverlayConfigTests(unittest.TestCase):
         self.assertEqual(grouped["join"], "miter")
         self.assertEqual(grouped["outlineOpacity"], 1)
         self.assertFalse(grouped["shadow"])
+
+
+class OverlayOrderConfigTests(unittest.TestCase):
+    def setUp(self) -> None:
+        config = normalize_overlay_config({"instances": {}})
+        for instance_id, overlay_type, name in (
+            ("dance-one", "larpdog-dance", "Dance One"),
+            ("social-one", "social", "Social One"),
+            ("goal-one", "goal", "Goal One"),
+        ):
+            config = add_overlay_instance(
+                config,
+                overlay_type,
+                instance_id,
+                name,
+            )
+        self.config = config
+
+    def test_reorders_instances_without_changing_their_values(self) -> None:
+        reordered = reorder_overlay_instances(
+            self.config,
+            ["goal-one", "dance-one", "social-one"],
+        )
+
+        self.assertEqual(
+            list(reordered["instances"]),
+            ["goal-one", "dance-one", "social-one"],
+        )
+        self.assertEqual(
+            reordered["instances"]["dance-one"],
+            self.config["instances"]["dance-one"],
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "overlay-config.json"
+            save_overlay_config(path, reordered)
+            self.assertEqual(
+                list(load_overlay_config(path)["instances"]),
+                ["goal-one", "dance-one", "social-one"],
+            )
+
+    def test_rejects_partial_duplicate_or_unknown_orders(self) -> None:
+        invalid_orders = (
+            ["dance-one", "social-one"],
+            ["dance-one", "dance-one", "goal-one"],
+            ["dance-one", "social-one", "missing"],
+            "dance-one,social-one,goal-one",
+        )
+        for order in invalid_orders:
+            with self.subTest(order=order):
+                with self.assertRaisesRegex(ValueError, "[Oo]verlay order"):
+                    reorder_overlay_instances(self.config, order)
 
 
 if __name__ == "__main__":

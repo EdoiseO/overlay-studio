@@ -60,7 +60,9 @@ copies of the same local overlay type with independent names, URLs, settings, an
 addressed state. Select **Add overlay** to open **Browse overlays**, which is generated
 from manifests embedded in local `overlays/*.html` files. Every catalog entry includes
 a live scaled preview; previews load only near the visible scroll area and unload when
-Browse overlays closes.
+Browse overlays closes. Drag an installed card by its upper-right grip to place it
+anywhere in the library; the order is saved between launches. The same grip supports
+the arrow, Home, and End keys when focused.
 
 Clicking an instance preview opens a larger live preview with actions to:
 
