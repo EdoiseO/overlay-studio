@@ -19,6 +19,9 @@ class SocialIconAssetTests(unittest.TestCase):
         self.grouped = (
             ROOT_DIR / "overlays" / "social-grouped.html"
         ).read_text(encoding="utf-8")
+        self.overlay_readme = (
+            ROOT_DIR / "overlays" / "README.md"
+        ).read_text(encoding="utf-8")
 
     def test_shared_metadata_uses_the_approved_vector_set(self) -> None:
         self.assertIn('const SIMPLE_ICONS_VERSION = "16.28.0"', self.shared)
@@ -27,6 +30,21 @@ class SocialIconAssetTests(unittest.TestCase):
         self.assertEqual(self.shared.count('source: "fallback"'), 2)
         self.assertNotIn("tileAsset", self.shared)
         self.assertNotIn("symbolAsset", self.shared)
+
+    def test_vector_pipeline_has_no_web_served_png_catalog(self) -> None:
+        self.assertFalse((ROOT_DIR / "assets" / "social-icons").exists())
+        self.assertIn("Built-in social marks are vector-only", self.overlay_readme)
+        self.assertNotIn("assets/social-icons/", self.overlay_readme)
+
+    def test_shared_export_is_recursively_frozen(self) -> None:
+        self.assertIn(
+            "function deepFreeze(value, seen = new WeakSet())",
+            self.shared,
+        )
+        self.assertIn("deepFreeze(value[key], seen);", self.shared)
+        self.assertIn("return Object.freeze(value);", self.shared)
+        self.assertIn("window.OverlaySocial = deepFreeze({", self.shared)
+        self.assertNotIn("window.OverlaySocial = Object.freeze({", self.shared)
 
     def test_builtin_renderers_only_use_inline_vectors(self) -> None:
         self.assertIn("function createVectorGlyph", self.shared)
@@ -38,6 +56,19 @@ class SocialIconAssetTests(unittest.TestCase):
         self.assertNotIn("asset-tile", self.grouped)
         self.assertNotIn("new Image()", self.grouped)
         self.assertIn("buildVectorTileArtwork", self.grouped)
+
+    def test_grouped_merged_renderer_does_not_use_shared_glyph_factory(self) -> None:
+        merged_renderer = self.grouped.split(
+            "function buildMergedSticker",
+            maxsplit=1,
+        )[1].split("function buildMergedIcons", maxsplit=1)[0]
+
+        self.assertIn('const svg = svgElement("svg"', merged_renderer)
+        self.assertIn("appendLogo(", merged_renderer)
+        self.assertNotIn("createGlyph(", merged_renderer)
+        self.assertNotIn("createVectorGlyph(", merged_renderer)
+        self.assertNotIn("social.createGlyph(", self.grouped)
+        self.assertNotIn("social.createVectorGlyph(", self.grouped)
 
     def test_existing_logo_customization_modes_remain_available(self) -> None:
         for page in (self.bar, self.rotator):

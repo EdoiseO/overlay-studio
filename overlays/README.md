@@ -102,17 +102,19 @@ larger than the object, then position that source in OBS.
 
 ## Built-in social overlays
 
-`social.html` and `social-rotator.html` share their platform definitions, local branded
-logo assets, vector fallbacks, defaults, query compatibility, and live-update handling
-through `assets/social-platforms.js`. Approved transparent logo crops live in
-`assets/social-icons/`. Their `accounts` setting is an ordered list of platform,
-enabled, and handle values. Social Bar accepts up to eight enabled platforms; Social
-Rotator accepts all supported platforms. Both deliberately render an empty transparent
-source when no account is enabled.
+`social.html`, `social-rotator.html`, and `social-grouped.html` read their platform
+metadata and inline vector paths from `assets/social-platforms.js`. Social Bar and
+Social Rotator use the shared vector glyph factory. Social Grouped deliberately keeps
+its own single-SVG, three-layer renderer so overlapping logo and text outlines merge
+into one sticker instead of separate outlined tiles.
 
-Branded rounded icons prefer the local tile artwork, while symbol-only layouts use the
-approved color-safe symbols. Custom shapes, recoloring, merged stickers, and any failed
-image load fall back to the centered vector glyphs so an overlay never loses its icon.
+Built-in social marks are vector-only; no PNG logo directory is loaded at runtime.
+Icon backgrounds and shapes are drawn by the overlay around the centered vector path,
+and branded modes use the colors, layers, and gradients in the shared metadata. The
+`accounts` setting is an ordered list of platform, enabled, and handle values. Social
+Bar accepts up to eight enabled platforms; Social Rotator accepts all supported
+platforms. Both deliberately render an empty transparent source when no account is
+enabled.
 
 Use the shared `socialView` customizer for selection, colors, fonts, icon shapes, scale,
 and live drafts. Bar-specific controls choose the row layout, shared-handle mode,
