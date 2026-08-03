@@ -68,7 +68,8 @@ class RivalsStoreTests(unittest.TestCase):
             )
         )
         self.assertEqual(rank_progress_score(4653.152, 17), 53.15)
-        self.assertEqual(rank_progress_score(5340.41, 23), 240.41)
+        self.assertEqual(rank_progress_score(5129.99, 22), 59)
+        self.assertEqual(rank_progress_score(5193.232359915297, 23), 123)
         self.assertEqual(rank_progress_score(56, 17), 56)
 
     def test_parses_only_numeric_ids_and_rivals_data_profile_urls(self) -> None:

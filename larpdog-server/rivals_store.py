@@ -80,6 +80,7 @@ COMPETITIVE_PLAY_MODE_ID = 200
 RANK_SCORE_BASE = 3000.0
 RANK_SCORE_STEP = 100.0
 RANK_SCORE_CAP_LEVEL = 22
+RANK_SCORE_TOP_TIER_BONUS = 30.0
 
 
 def _number(
@@ -168,6 +169,10 @@ def rank_progress_score(value: Any, rank_level: Any) -> float:
     level = _integer(rank_level, 1, 1, 23)
     threshold_level = min(level, RANK_SCORE_CAP_LEVEL)
     threshold = RANK_SCORE_BASE + ((threshold_level - 1) * RANK_SCORE_STEP)
+    if level >= RANK_SCORE_CAP_LEVEL:
+        return float(
+            math.floor(max(0.0, score - threshold + RANK_SCORE_TOP_TIER_BONUS))
+        )
     return round(max(0.0, score - threshold), 2)
 
 

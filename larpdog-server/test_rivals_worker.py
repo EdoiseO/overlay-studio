@@ -192,7 +192,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                         "rank_game_season": {
                             "1001018": {
                                 "rank_game_id": 18,
-                                "rank_score": 5370.41,
+                                "rank_score": 5193.232359915297,
                             }
                         },
                     },
@@ -204,7 +204,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                                 "timestamp": 110,
                                 "season": 18,
                                 "rank_level": 23,
-                                "rank_score": 5340.41,
+                                "rank_score": 5176.0,
                                 "game_mode_id": 2,
                                 "game_play_mode_id": 200,
                             }
@@ -218,7 +218,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             result = rivals_status(path, "rank-card")
             self.assertEqual(result["state"]["tier"], "one-above-all")
             self.assertEqual(result["state"]["division"], 0)
-            self.assertEqual(result["state"]["score"], 270.41)
+            self.assertEqual(result["state"]["score"], 123)
 
 
 if __name__ == "__main__":
