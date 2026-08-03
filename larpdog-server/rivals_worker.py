@@ -80,7 +80,10 @@ def extract_profile_snapshot(payload: Any) -> tuple[str, Any, Any]:
     rank_score: Any = None
     _season, latest_rank = _latest_rank_season(payload)
     if latest_rank is not None:
-        rank_level = latest_rank.get("rank_level", latest_rank.get("rankLevel"))
+        rank_level = latest_rank.get(
+            "rank_level",
+            latest_rank.get("rankLevel", latest_rank.get("level")),
+        )
         rank_score = latest_rank.get("rank_score", latest_rank.get("rankScore"))
     for candidate in dictionaries:
         if not name:
@@ -212,18 +215,33 @@ class RivalsPollWorker:
         profile_season, _profile_rank = _latest_rank_season(profile)
         if matches:
             # Profile scores are current while the cached match list can lag.
-            # Keep the match rank level, but only pair it with the profile
-            # score when both sources refer to the same competitive season.
+            # Keep a complete profile rank pair together; otherwise use the
+            # newest match pair or fill a missing level from the same season.
             newest = matches[0]
-            rank_level = newest.get("rank_level", newest.get("rankLevel", rank_level))
+            match_level = newest.get("rank_level", newest.get("rankLevel"))
             match_score = newest.get("rank_score", newest.get("rankScore"))
             match_season = _optional_integer(newest.get("season"))
-            if (
-                rank_score is None
-                or profile_season is None
-                or match_season != profile_season
-            ):
-                rank_score = match_score if match_score is not None else rank_score
+            profile_pair_is_current = (
+                rank_level is not None
+                and rank_score is not None
+                and (
+                    profile_season is None
+                    or match_season is None
+                    or profile_season >= match_season
+                )
+            )
+            if not profile_pair_is_current:
+                if (
+                    rank_score is not None
+                    and rank_level is None
+                    and profile_season is not None
+                    and profile_season == match_season
+                    and match_level is not None
+                ):
+                    rank_level = match_level
+                else:
+                    rank_level = match_level if match_level is not None else rank_level
+                    rank_score = match_score if match_score is not None else rank_score
 
         async with self.store_lock:
             state, changed = save_rivals_poll(

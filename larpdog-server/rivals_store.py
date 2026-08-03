@@ -546,7 +546,9 @@ def apply_rivals_poll(
         if parsed is not None
     ]
     newest = parsed_matches[0] if parsed_matches else None
-    effective_level = newest["rankLevel"] if newest and newest["rankLevel"] else rank_level
+    effective_level = rank_level
+    if effective_level is None and newest and newest["rankLevel"]:
+        effective_level = newest["rankLevel"]
     effective_score = rank_score
     if effective_score is None and newest:
         effective_score = newest["rankScore"]

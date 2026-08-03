@@ -44,16 +44,18 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                     "rank_game_season": {
                         "1001004": {
                             "rank_game_id": 4,
+                            "level": 14,
                             "rank_score": 4351.74,
                         },
                         "1001018": {
                             "rank_game_id": 18,
+                            "level": 13,
                             "rank_score": 4656.718,
                         },
                     },
                 }
             ),
-            ("iiTzEdo", None, 4656.718),
+            ("iiTzEdo", 13, 4656.718),
         )
 
     async def test_poll_failure_keeps_last_known_state(self) -> None:
@@ -165,6 +167,63 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["state"]["sessionLosses"], 0)
             self.assertEqual(len(messages), 1)
 
+    async def test_poll_keeps_current_profile_rank_pair_together(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(
+                path,
+                "rank-card",
+                {"uid": "502565567"},
+                now=100,
+            )
+
+            async def broadcast(_message: dict[str, object]) -> None:
+                return None
+
+            worker = RivalsPollWorker(
+                path,
+                broadcast,
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            worker._request_json = mock.AsyncMock(  # type: ignore[method-assign]
+                side_effect=[
+                    {
+                        "name": "iiTzMag",
+                        "rank_game_season": {
+                            "1001018": {
+                                "rank_game_id": 18,
+                                "level": 13,
+                                "rank_score": 4251.905999370158,
+                            }
+                        },
+                    },
+                    {
+                        "matches": [
+                            {
+                                "match_uid": "stale-cached-rank",
+                                "is_win": True,
+                                "timestamp": 110,
+                                "season": 18,
+                                "rank_level": 12,
+                                "rank_score": 4205.962459730864,
+                                "game_mode_id": 2,
+                                "game_play_mode_id": 200,
+                            }
+                        ]
+                    },
+                ]
+            )
+
+            await worker._poll_instance(mock.MagicMock(), "rank-card", 502565567)
+
+            result = rivals_status(path, "rank-card")
+            self.assertEqual(result["state"]["playerName"], "iiTzMag")
+            self.assertEqual(result["state"]["tier"], "diamond")
+            self.assertEqual(result["state"]["division"], 3)
+            self.assertEqual(result["state"]["score"], 51.91)
+
     async def test_poll_uses_live_profile_score_for_one_above_all(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "rivals.json"
@@ -192,6 +251,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                         "rank_game_season": {
                             "1001018": {
                                 "rank_game_id": 18,
+                                "level": 23,
                                 "rank_score": 5193.232359915297,
                             }
                         },

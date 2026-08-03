@@ -197,6 +197,32 @@ class RivalsStoreTests(unittest.TestCase):
         self.assertEqual(updated["state"]["division"], 1)
         self.assertEqual(updated["state"]["score"], 72)
 
+    def test_current_profile_rank_pair_beats_stale_cached_match(self) -> None:
+        record = {
+            "state": DEFAULT_RIVALS_STATE,
+            "private": {"uid": 502565567, "sessionStartedAt": 100},
+        }
+        updated = apply_rivals_poll(
+            record,
+            player_name="iiTzMag",
+            rank_level=13,
+            rank_score=4251.905999370158,
+            matches=[
+                {
+                    "match_uid": "stale-cached-rank",
+                    "is_win": True,
+                    "timestamp": 110,
+                    "rank_level": 12,
+                    "rank_score": 4205.962459730864,
+                }
+            ],
+            now=115,
+        )
+
+        self.assertEqual(updated["state"]["tier"], "diamond")
+        self.assertEqual(updated["state"]["division"], 3)
+        self.assertEqual(updated["state"]["score"], 51.91)
+
     def test_link_reset_poll_and_remove_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "rivals.json"
