@@ -14,6 +14,7 @@ APPROVED_ICONS = (
     "kick-symbol.png",
     "kick-tile.png",
     "linkedin-tile.png",
+    "reddit-symbol.png",
     "reddit-tile.png",
     "telegram-round.png",
     "threads-symbol.png",
