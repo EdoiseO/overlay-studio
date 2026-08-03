@@ -8,8 +8,23 @@
   ];
   const PLATFORMS = {
     twitch:    { name: "Twitch", color: "#9146ff", path: "M3 3h18v10.5l-5 5h-3.5L9 21v-2.5H3zM9 7h2v5H9zm5 0h2v5h-2z" },
-    youtube:   { name: "YouTube", color: "#ff0000", scale: .94, path: "M23 12s0-3.7-.5-5.4a2.8 2.8 0 0 0-2-2C18.8 4 12 4 12 4s-6.8 0-8.5.6a2.8 2.8 0 0 0-2 2C1 8.3 1 12 1 12s0 3.7.5 5.4a2.8 2.8 0 0 0 2 2C5.2 20 12 20 12 20s6.8 0 8.5-.6a2.8 2.8 0 0 0 2-2C23 15.7 23 12 23 12zM10 15.5v-7l6 3.5z" },
-    instagram: { name: "Instagram", color: "#e1306c", scale: .93, path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm5.8-3.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z" },
+    youtube:   { name: "YouTube", color: "#ff0000", wide: true, scale: .94, path: "M23 12s0-3.7-.5-5.4a2.8 2.8 0 0 0-2-2C18.8 4 12 4 12 4s-6.8 0-8.5.6a2.8 2.8 0 0 0-2 2C1 8.3 1 12 1 12s0 3.7.5 5.4a2.8 2.8 0 0 0 2 2C5.2 20 12 20 12 20s6.8 0 8.5-.6a2.8 2.8 0 0 0 2-2C23 15.7 23 12 23 12zM10 15.5v-7l6 3.5z" },
+    instagram: {
+      name: "Instagram",
+      color: "#e1306c",
+      scale: .93,
+      path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm5.8-3.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z",
+      grouped: {
+        cssGradient: "linear-gradient(145deg,#4f5bd5 0%,#962fbf 28%,#d62976 52%,#fa7e1e 76%,#feda75 100%)",
+        gradient: [[0,"#4f5bd5"],[.28,"#962fbf"],[.52,"#d62976"],[.76,"#fa7e1e"],[1,"#feda75"]],
+        details: [
+          { d: "M8 5h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z", stroke: 1.8 },
+          { d: "M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z", stroke: 1.8 },
+          { d: "M17.25 6.35a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3z", fill: true },
+        ],
+        path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z",
+      },
+    },
     x:         { name: "X", color: "#101014", bare: "#ffffff", scale: .88, path: "M3 3h4.5l4.2 5.7L16.8 3H21l-6.8 8.2L21.4 21h-4.5l-4.6-6.2L7 21H2.8l7.2-8.6z" },
     twitter:   { name: "Twitter", color: "#1d9bf0", dx: .2, dy: .35, scale: .94, path: "M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.8-2.2c-.8.5-1.7.8-2.6 1a4 4 0 0 0-6.9 3.7A11.4 11.4 0 0 1 3.8 4.6a4 4 0 0 0 1.2 5.4c-.6 0-1.2-.2-1.8-.5a4 4 0 0 0 3.2 4 4 4 0 0 1-1.8.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1z" },
     tiktok:    { name: "TikTok", color: "#25f4ee", surface: "#f6f7fb", ink: "#101014", layers: [{ color: "#25f4ee", dx: -1.15, dy: -.7 }, { color: "#fe2c55", dx: 1.15, dy: .7 }, { color: "#101014", bareColor: "#ffffff" }], dx: -1.25, dy: .5, scale: .82, path: "M14.5 2h3.1a5.9 5.9 0 0 0 4.4 4.6v3.2a9 9 0 0 1-4.3-1.3v6a6.6 6.6 0 1 1-5.7-6.5v3.3a3.4 3.4 0 1 0 2.5 3.2z" },
@@ -30,6 +45,11 @@
     tweet: "twitter",
   };
   const FONTS = {
+    montserrat: '"Montserrat", "Segoe UI", system-ui, sans-serif',
+    poppins: '"Poppins", "Segoe UI", system-ui, sans-serif',
+    archivo: '"Archivo Black", "Segoe UI", system-ui, sans-serif',
+    nunito: '"Nunito", "Segoe UI", system-ui, sans-serif',
+    anton: '"Anton", "Bahnschrift", system-ui, sans-serif',
     sans: '"Segoe UI", system-ui, sans-serif',
     display: '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
     round: '"Fredoka", "Segoe UI", system-ui, sans-serif',
@@ -59,6 +79,10 @@
     font: new Set(Object.keys(FONTS)),
     rotatorShape: new Set(["capsule", "rounded", "square", "cut"]),
     transition: new Set(["slide", "fade", "flip"]),
+  };
+  const ACCOUNT_LIMITS = {
+    social: 8,
+    "social-rotator": 12,
   };
   const clamp = (value, minimum, maximum, fallback) => {
     const numeric = Number(value);
@@ -102,13 +126,14 @@
         icon: icon && !/^[a-z]+:/i.test(icon) && !icon.includes("..") ? icon.slice(0, 256) : "",
       });
     });
+    const limit = ACCOUNT_LIMITS[overlayType] || ORDER.length;
     let enabled = 0;
     return ORDER.map(platform => {
       const account = byPlatform.get(platform) || {
         platform, enabled: false, handle: "yourname", icon: "",
       };
       let selected = account.enabled;
-      if (overlayType === "social" && selected && enabled >= 8) selected = false;
+      if (selected && enabled >= limit) selected = false;
       if (selected) enabled += 1;
       return { ...account, enabled: selected };
     });
@@ -167,7 +192,7 @@
         if (handle !== null) accounts.push({ platform, enabled: true, handle });
       });
     }
-    if (accountChunks !== null || accounts.length) {
+    if (accounts.length) {
       result.accounts = ORDER.map(platform => (
         accounts.find(account => account.platform === platform)
         || { platform, enabled: false, handle: "yourname" }
@@ -297,11 +322,26 @@
     connect();
   }
 
-  window.OverlaySocial = Object.freeze({
+  function deepFreeze(value, seen = new WeakSet()) {
+    if (
+      value === null
+      || (typeof value !== "object" && typeof value !== "function")
+      || seen.has(value)
+    ) return value;
+    seen.add(value);
+    for (const key of Reflect.ownKeys(value)) {
+      deepFreeze(value[key], seen);
+    }
+    return Object.freeze(value);
+  }
+
+  window.OverlaySocial = deepFreeze({
     ORDER,
     PLATFORMS,
+    ALIASES,
     FONTS,
     DEFAULTS,
+    ACCOUNT_LIMITS,
     normalize,
     load,
     createGlyph,

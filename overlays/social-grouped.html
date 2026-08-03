@@ -10,11 +10,12 @@
   "description": "Groups several platform icons behind one shared handle, so accounts with the same username share a single name. Sticker outline styling for busy backgrounds.",
   "category": "branding",
   "canvas": { "w": 1200, "h": 160 },
-  "settings": ["groups", "prefix", "size", "tile", "shape", "round", "merge", "overlap", "nameGap", "textSize", "textGap", "textNudge", "letterSpacing", "equalHeight", "logoHeight", "logoOutline", "edgeWidth", "edgeColor", "brand", "color", "tileEdge", "textEdge", "textColor", "outline", "tileOutline", "gap", "align", "font", "weight", "scale", "preset", "textOutline", "textEdgeWidth", "textOutlineColor", "textEdgeColor", "textSide", "textCase", "label", "labelSize", "labelGap", "labelColor", "direction", "wrap", "padding", "join", "outlineOpacity", "shadow", "shadowX", "shadowY", "shadowBlur", "shadowColor", "shadowOpacity"],
+  "settings": ["groups", "prefix", "size", "tile", "shape", "round", "merge", "groupGap", "separate", "overlap", "nameGap", "textSize", "textGap", "textNudge", "letterSpacing", "equalHeight", "logoHeight", "logoOutline", "edgeWidth", "edgeColor", "brand", "color", "tileEdge", "textEdge", "textColor", "outline", "tileOutline", "gap", "align", "font", "weight", "scale", "preset", "textOutline", "textEdgeWidth", "textOutlineColor", "textEdgeColor", "textSide", "textCase", "label", "labelSize", "labelGap", "labelColor", "direction", "wrap", "padding", "join", "outlineOpacity", "shadow", "shadowX", "shadowY", "shadowBlur", "shadowColor", "shadowOpacity"],
   "studioView": ""
 }
 </script>
 <link rel="stylesheet" href="/assets/overlay-surface.css" />
+<script src="../assets/social-platforms.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
@@ -209,58 +210,24 @@
     return raw !== "off" && raw !== "false" && raw !== "0";
   };
 
-  /* fill-rule evenodd: inner subpaths are knockouts, not fills.
-     `ink` darkens the glyph where the brand colour is too light for white. */
-  const PLATFORMS = {
-    twitch:    { color: "#9146ff", path: "M3 3h18v10.5l-5 5h-3.5L9 21v-2.5H3zM9 7h2v5H9zm5 0h2v5h-2z" },
-    kick:      { color: "#53fc18", ink: "#101014", path: "M3 3h6v6h3V6h3V3h6v9h-3v3h3v6h-6v-3h-3v-3H9v6H3z" },
-    youtube:   { color: "#ff0000", wide: true, path: "M23 12s0-3.7-.5-5.4a2.8 2.8 0 0 0-2-2C18.8 4 12 4 12 4s-6.8 0-8.5.6a2.8 2.8 0 0 0-2 2C1 8.3 1 12 1 12s0 3.7.5 5.4a2.8 2.8 0 0 0 2 2C5.2 20 12 20 12 20s6.8 0 8.5-.6a2.8 2.8 0 0 0 2-2C23 15.7 23 12 23 12zM10 15.5v-7l6 3.5z" },
-    instagram: {
-      color: "#e1306c",
-      cssGradient: "linear-gradient(145deg,#4f5bd5 0%,#962fbf 28%,#d62976 52%,#fa7e1e 76%,#feda75 100%)",
-      gradient: [[0,"#4f5bd5"],[.28,"#962fbf"],[.52,"#d62976"],[.76,"#fa7e1e"],[1,"#feda75"]],
-      details: [
-        { d: "M8 5h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z", stroke: 1.8 },
-        { d: "M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z", stroke: 1.8 },
-        { d: "M17.25 6.35a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3z", fill: true },
-      ],
-      path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z",
-    },
-    x:         { color: "#101014", path: "M3 3h4.5l4.2 5.7L16.8 3H21l-6.8 8.2L21.4 21h-4.5l-4.6-6.2L7 21H2.8l7.2-8.6z" },
-    twitter:   { color: "#1d9bf0", path: "M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.8-2.2c-.8.5-1.7.8-2.6 1a4 4 0 0 0-6.9 3.7A11.4 11.4 0 0 1 3.8 4.6a4 4 0 0 0 1.2 5.4c-.6 0-1.2-.2-1.8-.5a4 4 0 0 0 3.2 4 4 4 0 0 1-1.8.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1z" },
-    tiktok:    { color: "#101014", surface: "#f6f7fb", layers: [{ color: "#25f4ee", dx: -1.15, dy: -.7 }, { color: "#fe2c55", dx: 1.15, dy: .7 }, { color: "#101014" }], path: "M14.5 2h3.1a5.9 5.9 0 0 0 4.4 4.6v3.2a9 9 0 0 1-4.3-1.3v6a6.6 6.6 0 1 1-5.7-6.5v3.3a3.4 3.4 0 1 0 2.5 3.2z" },
-    discord:   { color: "#5865f2", path: "M19.3 5.4A16 16 0 0 0 15.5 4l-.3.5a12 12 0 0 1 3 1.5 14 14 0 0 0-12.4 0 12 12 0 0 1 3-1.5L8.5 4a16 16 0 0 0-3.8 1.4C2.3 9 1.7 12.5 2 16a16 16 0 0 0 4.8 2.4l.9-1.4a10 10 0 0 1-1.6-.8l.4-.3a11.4 11.4 0 0 0 9 0l.4.3a10 10 0 0 1-1.6.8l.9 1.4A16 16 0 0 0 22 16c.4-4-.6-7.5-2.7-10.6zM9 14.4a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm6 0a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
-    facebook:  { color: "#1877f2", path: "M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z" },
-    snapchat:  { color: "#fffc00", ink: "#101014", path: "M12 3c2.6 0 4.4 1.9 4.4 4.4v1.9c.5.2 1-.2 1.5-.1.6.2.4 1-.2 1.4-.5.3-1.1.5-1.1.9 0 .9 2 2.6 3.3 3 .3.1.4.4.2.7-.4.6-1.6.8-2.1 1-.3.1-.3.5-.4.9-.1.3-.3.4-.7.3-.6-.1-1.5-.2-2.3.1-.7.4-1.3 1.4-2.2 1.4s-1.5-1-2.2-1.4c-.8-.3-1.7-.2-2.3-.1-.4.1-.6 0-.7-.3-.1-.4-.1-.8-.4-.9-.5-.2-1.7-.4-2.1-1-.2-.3-.1-.6.2-.7 1.3-.4 3.3-2.1 3.3-3 0-.4-.6-.6-1.1-.9-.6-.4-.8-1.2-.2-1.4.5-.1 1 .3 1.5.1V7.4C7.6 4.9 9.4 3 12 3z" },
-    telegram:  { color: "#2aabee", path: "M21.9 4.3 18.7 20c-.2 1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1L18.2 6c.4-.4-.1-.6-.6-.2L6.1 13.1l-4.9-1.5c-1-.3-1-1 .2-1.5l19.1-7.4c.9-.3 1.6.2 1.4 1.6z" },
-    whatsapp:  { color: "#25d366", path: "M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 2a8 8 0 1 1-4.2 14.8l-.3-.2-2.5.7.7-2.4-.2-.3A8 8 0 0 1 12 4zm-3 4c-.3 0-.7.1-1 .5-.4.4-1 1-1 2.3s1 2.6 1.2 2.8c.1.2 2 3.1 4.9 4.2 2.4.9 2.9.7 3.4.7.5-.1 1.6-.7 1.9-1.3.2-.7.2-1.2.1-1.3l-.6-.3-1.9-.9c-.3-.1-.5-.2-.7.1l-.9 1.1c-.2.2-.3.3-.6.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5v-.5l-.9-2.1c-.2-.5-.4-.5-.6-.5z" },
-    linkedin:  { color: "#0a66c2", path: "M4.9 3.5a2.4 2.4 0 1 1 0 4.9 2.4 2.4 0 0 1 0-4.9zM3 9.5h4v11H3zm7 0h3.8v1.5h.1a4.2 4.2 0 0 1 3.8-2c4 0 4.8 2.6 4.8 6v5.5h-4v-4.9c0-1.2 0-2.7-1.7-2.7s-2 1.3-2 2.6v5H10z" },
-    bluesky:   { color: "#0085ff", path: "M12 10.8C10.9 8.7 7.9 4.7 5.1 3 2.4 1.4 1.4 2.3 1.4 4.2c0 1.9 1 6.4 1.7 7.6.7 1.2 2.1 1.6 3.4 1.4-2 .3-3.8 1-1.5 3.6 2.5 2.9 3.5-.6 4-2.4l1-2.6 1 2.6c.5 1.8 1.5 5.3 4 2.4 2.3-2.6.5-3.3-1.5-3.6 1.3.2 2.7-.2 3.4-1.4.7-1.2 1.7-5.7 1.7-7.6 0-1.9-1-2.8-3.7-1.2-2.8 1.7-5.8 5.7-6.9 7.8z" },
-    reddit:    { color: "#ff4500", path: "M22 11.2a2.4 2.4 0 0 0-4.1-1.7 11.7 11.7 0 0 0-5.8-1.8l1-4.6 3.2.7a1.9 1.9 0 1 0 .2-1.6l-3.9-.8a.6.6 0 0 0-.7.5l-1.2 5.6a11.7 11.7 0 0 0-5.9 1.8A2.4 2.4 0 1 0 2 14.4a4 4 0 0 0 0 .8c0 3.6 4.2 6.5 9.4 6.5s9.4-2.9 9.4-6.5a4 4 0 0 0 0-.8 2.4 2.4 0 0 0 1.2-3.2zM9.1 14.9a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm7.3 2.6c-1.2 1.2-3.5 1.3-4.2 1.3s-3-.1-4.2-1.3a.5.5 0 0 1 .7-.7c.8.8 2.4 1 3.5 1s2.8-.2 3.5-1a.5.5 0 0 1 .7.7zm-1.5-2.6a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
-  };
-  const ALIASES = { ig: "instagram", yt: "youtube", tt: "tiktok", fb: "facebook", snap: "snapchat", tg: "telegram", wa: "whatsapp", li: "linkedin", tweet: "twitter" };
+  const social = window.OverlaySocial;
+  if (!social) throw new Error("Shared social platform data did not load");
+  const PLATFORMS = social.PLATFORMS;
+  const ALIASES = social.ALIASES;
+  const FONTS = social.FONTS;
 
-  /* Webfonts first (closest to the sticker-overlay look), system stacks after.
-     Each falls back to a system face if the font request fails. */
-  const FONTS = {
-    montserrat: '"Montserrat", "Segoe UI", system-ui, sans-serif',
-    poppins:    '"Poppins", "Segoe UI", system-ui, sans-serif',
-    archivo:    '"Archivo Black", "Segoe UI", system-ui, sans-serif',
-    nunito:     '"Nunito", "Segoe UI", system-ui, sans-serif',
-    anton:      '"Anton", "Bahnschrift", system-ui, sans-serif',
-    sans:       '"Segoe UI", system-ui, sans-serif',
-    display:    '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
-    round:      '"Fredoka", "Segoe UI", system-ui, sans-serif',
-    mono:       '"Cascadia Mono", Consolas, monospace',
-    serif:      'Georgia, "Times New Roman", serif',
-  };
+  function platformMeta(platform, branded) {
+    const meta = PLATFORMS[platform];
+    return branded && meta?.grouped ? { ...meta, ...meta.grouped } : meta;
+  }
 
   /* groups=twitch+youtube:dre2funtyy,tiktok+instagram:dre2funtyy
      Each group is "platform[+platform...]:handle". */
   const DEFAULTS = Object.freeze({
     groups: "twitch+youtube:yourname,tiktok+instagram:yourname",
     prefix: "@", size: "medium", tile: false, shape: "squircle",
-    round: .3, merge: 3, overlap: 20, nameGap: 6, textSize: 20,
+    round: .3, merge: 3, groupGap: -2, separate: false,
+    overlap: 20, nameGap: 6, textSize: 20,
     textGap: -3, textNudge: 0, letterSpacing: -.3, equalHeight: true,
     logoHeight: 19, logoOutline: 2, edgeWidth: 1, edgeColor: "#000000",
     brand: true, color: "#ffffff", tileEdge: "#ffffff",
@@ -279,10 +246,12 @@
     clean: {
       logoOutline: 1.25, edgeWidth: .5, textOutline: 1.25,
       textEdgeWidth: .5, merge: 1, textGap: 1, shadow: false,
+      groupGap: 0,
     },
     bold: {
       logoOutline: 3.5, edgeWidth: 1.5, textOutline: 3.5,
       textEdgeWidth: 1.5, merge: 4, textGap: -4, weight: 900,
+      groupGap: -3,
     },
     custom: {},
   });
@@ -334,6 +303,8 @@
       shape: choice(source.shape, ["squircle", "round", "square"], defaults.shape),
       round: valueNumber(source.round, defaults.round, 0, .5),
       merge: valueNumber(source.merge, defaults.merge, -12, 22),
+      groupGap: valueNumber(source.groupGap, defaults.groupGap, -20, 40),
+      separate: valueBoolean(source.separate, defaults.separate),
       overlap: valueNumber(source.overlap, defaults.overlap, -40, 60),
       nameGap: valueNumber(source.nameGap, defaults.nameGap, -20, 60),
       textSize: valueNumber(source.textSize, defaults.textSize, 6, 40),
@@ -459,7 +430,7 @@
   }
 
   function buildIcon(platform, settings) {
-    const meta = PLATFORMS[platform];
+    const meta = platformMeta(platform, settings.brand);
     const icon = document.createElement("span");
     const classes = ["icon", "tile"];
     if (settings.shape === "round") classes.push("round");
@@ -482,33 +453,35 @@
       settings.brand && Array.isArray(meta.details) ? "0 0 24 24" : "-3 -3 30 30",
     );
     svg.setAttribute("aria-hidden", "true");
+    const artwork = document.createElementNS(SVG_NS, "g");
+    artwork.setAttribute("transform", opticalTransform(meta).value);
     if (settings.brand && Array.isArray(meta.details)) {
-      appendLogoDetails(svg, meta.details);
-      icon.append(svg);
-      return icon;
-    }
-    const variants = settings.brand && Array.isArray(meta.layers)
-      ? meta.layers
-      : [{}];
-    for (const variant of variants) {
-      const path = document.createElementNS(SVG_NS, "path");
-      path.setAttribute("fill-rule", "evenodd");
-      path.setAttribute("clip-rule", "evenodd");
-      path.setAttribute("d", meta.path);
-      path.setAttribute(
-        "fill",
-        settings.brand
-          ? (variant.color || meta.ink || "#fff")
-          : "#fff",
-      );
-      if (variant.dx || variant.dy) {
+      appendLogoDetails(artwork, meta.details);
+    } else {
+      const variants = settings.brand && Array.isArray(meta.layers)
+        ? meta.layers
+        : [{}];
+      for (const variant of variants) {
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("fill-rule", "evenodd");
+        path.setAttribute("clip-rule", "evenodd");
+        path.setAttribute("d", meta.path);
         path.setAttribute(
-          "transform",
-          `translate(${variant.dx || 0} ${variant.dy || 0})`,
+          "fill",
+          settings.brand
+            ? (variant.color || meta.ink || "#fff")
+            : (variant.bareColor || meta.bare || "#fff"),
         );
+        if (variant.dx || variant.dy) {
+          path.setAttribute(
+            "transform",
+            `translate(${variant.dx || 0} ${variant.dy || 0})`,
+          );
+        }
+        artwork.append(path);
       }
-      svg.append(path);
     }
+    svg.append(artwork);
     icon.append(svg);
     return icon;
   }
@@ -522,6 +495,20 @@
       element.setAttribute(key, String(value));
     }
     return element;
+  }
+
+  function opticalTransform(meta) {
+    const dx = Number(meta?.dx) || 0;
+    const dy = Number(meta?.dy) || 0;
+    const suppliedScale = Number(meta?.scale);
+    const scale = Number.isFinite(suppliedScale) && suppliedScale > 0
+      ? suppliedScale
+      : 1;
+    return {
+      scale,
+      value: `translate(${12 + dx} ${12 + dy}) scale(${scale}) ` +
+        "translate(-12 -12)",
+    };
   }
 
   function applyOutline(element, fill, width, settings) {
@@ -552,22 +539,32 @@
     }
   }
 
-  function appendLogo(layers, meta, settings, widths, brandFill) {
+  function appendLogo(
+    layers,
+    meta,
+    settings,
+    widths,
+    brandFill,
+    groupIndex,
+  ) {
     const variants = settings.brand && Array.isArray(meta.layers)
       ? meta.layers
       : [{}];
     const hasDetails = settings.brand && Array.isArray(meta.details);
+    const optical = opticalTransform(meta);
     for (const layerName of ["out", "edge", "fills"]) {
-      const parent = variants.length > 1 || (layerName === "fills" && hasDetails)
-        ? svgElement("g", { "data-kind": "logo" })
-        : null;
+      const item = svgElement("g", {
+        "data-kind": "logo",
+        "data-group": groupIndex,
+        "data-optical-scale": optical.scale,
+      });
+      const artwork = svgElement("g", { transform: optical.value });
       for (const variant of variants) {
         const path = svgElement("path", {
           "fill-rule": "evenodd",
           "clip-rule": "evenodd",
           d: meta.path,
         });
-        if (!parent) path.dataset.kind = "logo";
         if (variant.dx || variant.dy) {
           path.setAttribute(
             "transform",
@@ -586,12 +583,13 @@
               : "rgb(var(--ink))",
           );
         }
-        (parent || layers[layerName]).append(path);
+        artwork.append(path);
       }
       if (layerName === "fills" && hasDetails) {
-        appendLogoDetails(parent, meta.details);
+        appendLogoDetails(artwork, meta.details);
       }
-      if (parent) layers[layerName].append(parent);
+      item.append(artwork);
+      layers[layerName].append(item);
     }
   }
 
@@ -621,7 +619,7 @@
     return text;
   }
 
-  function appendTextBlock(layers, handle, settings, widths) {
+  function appendTextBlock(layers, handle, settings, widths, groupIndex) {
     const label = transformText(settings.label, settings.textCase);
     const name = handle
       ? `${settings.prefix}${transformText(handle, settings.textCase)}`
@@ -646,12 +644,12 @@
           : settings.textColor;
       const stroke = layerName === "fills" ? "" : fill;
       const width = layerName === "out" ? widths.textOuter : widths.textEdge;
-      const parent = hasLabel
-        ? svgElement("g", { "data-kind": "text" })
-        : null;
-      const target = parent || layer;
+      const item = svgElement("g", {
+        "data-kind": "text",
+        "data-group": groupIndex,
+      });
       if (label) {
-        target.append(
+        item.append(
           createTextLine(
             label,
             labelY,
@@ -673,14 +671,13 @@
           width,
           settings,
         );
-        if (!parent) line.dataset.kind = "text";
-        target.append(line);
+        item.append(line);
       }
-      if (parent) layer.append(parent);
+      layer.append(item);
     }
   }
 
-  function buildMergedIcons(platforms, handle, settings) {
+  function buildMergedSticker(groups, settings) {
     const logoEdge = settings.edgeWidth * 2;
     const textEdge = settings.textEdgeWidth * 2;
     const widths = {
@@ -698,8 +695,9 @@
     const brandFills = new Map();
     const defs = svgElement("defs");
     if (settings.brand) {
+      const platforms = groups.flatMap(group => group.platforms);
       for (const platform of platforms) {
-        const meta = PLATFORMS[platform];
+        const meta = platformMeta(platform, true);
         if (!Array.isArray(meta.gradient) || brandFills.has(platform)) continue;
         const id = `social-grouped-gradient-${++gradientSequence}`;
         const gradient = svgElement("linearGradient", {
@@ -727,20 +725,33 @@
     if (defs.children.length) svg.append(defs);
     svg.append(layers.out, layers.edge, layers.fills);
 
-    const addText = () => appendTextBlock(layers, handle, settings, widths);
-    if (settings.textSide === "left") addText();
-    for (const platform of platforms) {
-      appendLogo(
+    groups.forEach((group, groupIndex) => {
+      const addText = () => appendTextBlock(
         layers,
-        PLATFORMS[platform],
+        group.handle,
         settings,
         widths,
-        brandFills.get(platform),
+        groupIndex,
       );
-    }
-    if (settings.textSide === "right") addText();
+      if (settings.textSide === "left") addText();
+      for (const platform of group.platforms) {
+        appendLogo(
+          layers,
+          platformMeta(platform, settings.brand),
+          settings,
+          widths,
+          brandFills.get(platform),
+          groupIndex,
+        );
+      }
+      if (settings.textSide === "right") addText();
+    });
     holder.append(svg);
     return holder;
+  }
+
+  function buildMergedIcons(platforms, handle, settings) {
+    return buildMergedSticker([{ platforms, handle }], settings);
   }
 
   /* Pack by each glyph's REAL bounding box. The paths have different amounts of
@@ -814,6 +825,9 @@
       const scale = !isText && settings.equalHeight && box.height > 0
         ? settings.logoHeight / box.height
         : 1;
+      const opticalScale = isText
+        ? 1
+        : valueNumber(item.dataset.opticalScale, 1, .1, 4);
       const outer = isText ? textOuter : logoOuter;
       const width = Math.max(.01, box.width * scale + outer);
       const height = Math.max(.01, box.height * scale + outer);
@@ -832,9 +846,10 @@
       const applyStroked = (element, baseWidth) => {
         if (!element) return;
         element.setAttribute("transform", shift);
-        const width = scale === 1
+        const totalScale = scale * opticalScale;
+        const width = totalScale === 1
           ? String(baseWidth)
-          : (baseWidth / scale).toFixed(3);
+          : (baseWidth / totalScale).toFixed(3);
         const stroked = element.matches("[stroke]")
           ? [element]
           : [...element.querySelectorAll("[stroke]")];
@@ -847,9 +862,12 @@
 
       const next = items[index + 1];
       const nextIsText = next?.dataset.kind === "text";
-      const spacing = index === items.length - 1
-        ? 0
-        : (isText || nextIsText ? settings.textGap : -settings.merge);
+      let spacing = 0;
+      if (next) {
+        spacing = item.dataset.group !== next.dataset.group
+          ? settings.groupGap
+          : (isText || nextIsText ? settings.textGap : -settings.merge);
+      }
       cursor += width + spacing;
       halfHeight = Math.max(halfHeight, height / 2);
     });
@@ -918,7 +936,15 @@
     const groups = parseGroups(settings.groups);
     applyAppearance(settings);
     row.replaceChildren();
-    for (const group of groups) {
+    if (!settings.tile && !settings.separate) {
+      const groupElement = document.createElement("span");
+      groupElement.className = "group continuous-group";
+      const icons = document.createElement("span");
+      icons.className = "icons";
+      icons.append(buildMergedSticker(groups, settings));
+      groupElement.append(icons);
+      row.append(groupElement);
+    } else for (const group of groups) {
       const groupElement = document.createElement("span");
       groupElement.className = "group";
 
