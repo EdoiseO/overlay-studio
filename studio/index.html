@@ -933,7 +933,10 @@
               <input id="socialGroupedLabelGap" type="range" min="-4" max="12" step="0.5">
               <output id="socialGroupedLabelGapOutput">0.0</output>
             </div>
-            <label for="socialGroupedLabelColor">Label color</label>
+            <div class="color-control-copy">
+              <label for="socialGroupedLabelColor">Label color</label>
+              <span>Colors the small eyebrow label above the handle.</span>
+            </div>
             <label class="color-field compact-color-field">
               <input id="socialGroupedLabelColor" type="color">
               <span id="socialGroupedLabelColorLabel">#FFFFFF</span>
@@ -999,7 +1002,10 @@
               <input id="socialGroupedNameGap" type="range" min="-20" max="60" step="0.5">
               <output id="socialGroupedNameGapOutput">6.0</output>
             </div>
-            <label for="socialGroupedBaseColor">Fallback tile color</label>
+            <div class="color-control-copy">
+              <label for="socialGroupedBaseColor">Fallback tile color</label>
+              <span>Used when a platform has no branded tile color.</span>
+            </div>
             <label class="color-field compact-color-field">
               <input id="socialGroupedBaseColor" type="color">
               <span id="socialGroupedBaseColorLabel">#FFFFFF</span>
@@ -1014,7 +1020,10 @@
               <input id="socialGroupedOutline" type="range" min="0" max="12" step="0.25">
               <output id="socialGroupedOutlineOutput">4.00</output>
             </div>
-            <label for="socialGroupedLegacyTextEdgeColor">Handle outline color</label>
+            <div class="color-control-copy">
+              <label for="socialGroupedLegacyTextEdgeColor">Handle outline color</label>
+              <span>Colors the border around handles in branded tile mode.</span>
+            </div>
             <label class="color-field compact-color-field">
               <input id="socialGroupedLegacyTextEdgeColor" type="color">
               <span id="socialGroupedLegacyTextEdgeColorLabel">#000000</span>
@@ -1059,44 +1068,113 @@
               <input id="socialGroupedOutlineOpacity" type="range" min="0" max="1" step="0.05">
               <output id="socialGroupedOutlineOpacityOutput">1.00</output>
             </div>
-            <span>Palette</span>
-            <div class="palette-control social-grouped-palette">
-              <label title="Outer band"><input id="socialGroupedOuterColor" type="color"><span id="socialGroupedOuterColorLabel">#FFFFFF</span></label>
-              <label title="Logo keyline"><input id="socialGroupedEdgeColor" type="color"><span id="socialGroupedEdgeColorLabel">#000000</span></label>
-              <label title="Text"><input id="socialGroupedTextColor" type="color"><span id="socialGroupedTextColorLabel">#FFFFFF</span></label>
-              <label title="Text outer band"><input id="socialGroupedTextOuterColor" type="color"><span id="socialGroupedTextOuterColorLabel">#FFFFFF</span></label>
-              <label title="Text keyline"><input id="socialGroupedTextEdgeColor" type="color"><span id="socialGroupedTextEdgeColorLabel">#000000</span></label>
-            </div>
-            <span>Drop shadow</span>
-            <div class="goal-toggle-row">
-              <label><input id="socialGroupedShadow" type="checkbox"> Enabled</label>
-            </div>
-            <label for="socialGroupedShadowBlur">Shadow blur</label>
-            <div class="range-control">
-              <input id="socialGroupedShadowBlur" type="range" min="0" max="30" step="0.5">
-              <output id="socialGroupedShadowBlurOutput">5.0</output>
-            </div>
-            <label for="socialGroupedShadowX">Shadow horizontal offset</label>
-            <div class="range-control">
-              <input id="socialGroupedShadowX" type="range" min="-30" max="30" step="0.5">
-              <output id="socialGroupedShadowXOutput">0.0</output>
-            </div>
-            <label for="socialGroupedShadowY">Shadow vertical offset</label>
-            <div class="range-control">
-              <input id="socialGroupedShadowY" type="range" min="-30" max="30" step="0.5">
-              <output id="socialGroupedShadowYOutput">3.0</output>
-            </div>
-            <label for="socialGroupedShadowColor">Shadow color</label>
-            <label class="color-field compact-color-field">
-              <input id="socialGroupedShadowColor" type="color">
-              <span id="socialGroupedShadowColorLabel">#000000</span>
-            </label>
-            <label for="socialGroupedShadowOpacity">Shadow opacity</label>
-            <div class="range-control">
-              <input id="socialGroupedShadowOpacity" type="range" min="0" max="1" step="0.05">
-              <output id="socialGroupedShadowOpacityOutput">0.45</output>
-            </div>
           </div>
+          <section class="social-color-section" aria-labelledby="socialGroupedOutlineColorsHeading">
+            <div class="social-color-section-heading">
+              <h3 id="socialGroupedOutlineColorsHeading">Sticker outline colors</h3>
+              <p>The layered bands that join the logos and handle into one sticker.</p>
+            </div>
+            <div class="social-color-list">
+              <label class="social-color-control">
+                <span class="social-color-control-copy">
+                  <strong>Outer band</strong>
+                  <span>The outside border that unifies logos and handles.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="socialGroupedOuterColor" type="color" aria-label="Outer band color">
+                  <span id="socialGroupedOuterColorLabel">#FFFFFF</span>
+                </span>
+              </label>
+              <label class="social-color-control">
+                <span class="social-color-control-copy">
+                  <strong>Logo keyline</strong>
+                  <span>The thin line between the outer band and each logo.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="socialGroupedEdgeColor" type="color" aria-label="Logo keyline color">
+                  <span id="socialGroupedEdgeColorLabel">#000000</span>
+                </span>
+              </label>
+              <label class="social-color-control">
+                <span class="social-color-control-copy">
+                  <strong>Text outer band</strong>
+                  <span>The outside border around the handle text.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="socialGroupedTextOuterColor" type="color" aria-label="Text outer band color">
+                  <span id="socialGroupedTextOuterColorLabel">#FFFFFF</span>
+                </span>
+              </label>
+              <label class="social-color-control">
+                <span class="social-color-control-copy">
+                  <strong>Text keyline</strong>
+                  <span>The thin line between the text and its outer band.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="socialGroupedTextEdgeColor" type="color" aria-label="Text keyline color">
+                  <span id="socialGroupedTextEdgeColorLabel">#000000</span>
+                </span>
+              </label>
+            </div>
+          </section>
+          <section class="social-color-section" aria-labelledby="socialGroupedTextColorHeading">
+            <div class="social-color-section-heading">
+              <h3 id="socialGroupedTextColorHeading">Text color</h3>
+              <p>The readable content inside the layered text outline.</p>
+            </div>
+            <div class="social-color-list">
+              <label class="social-color-control">
+                <span class="social-color-control-copy">
+                  <strong>Handle text</strong>
+                  <span>The main color used for each social handle.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="socialGroupedTextColor" type="color" aria-label="Handle text color">
+                  <span id="socialGroupedTextColorLabel">#FFFFFF</span>
+                </span>
+              </label>
+            </div>
+          </section>
+          <section class="social-color-section" aria-labelledby="socialGroupedShadowHeading">
+            <div class="social-color-section-heading">
+              <h3 id="socialGroupedShadowHeading">Drop shadow</h3>
+              <p>Adds separation behind the full sticker when the scene is busy.</p>
+            </div>
+            <div class="form-grid">
+              <span>Shadow</span>
+              <div class="goal-toggle-row">
+                <label><input id="socialGroupedShadow" type="checkbox"> Enabled</label>
+              </div>
+              <label for="socialGroupedShadowBlur">Shadow blur</label>
+              <div class="range-control">
+                <input id="socialGroupedShadowBlur" type="range" min="0" max="30" step="0.5">
+                <output id="socialGroupedShadowBlurOutput">5.0</output>
+              </div>
+              <label for="socialGroupedShadowX">Shadow horizontal offset</label>
+              <div class="range-control">
+                <input id="socialGroupedShadowX" type="range" min="-30" max="30" step="0.5">
+                <output id="socialGroupedShadowXOutput">0.0</output>
+              </div>
+              <label for="socialGroupedShadowY">Shadow vertical offset</label>
+              <div class="range-control">
+                <input id="socialGroupedShadowY" type="range" min="-30" max="30" step="0.5">
+                <output id="socialGroupedShadowYOutput">3.0</output>
+              </div>
+              <div class="color-control-copy">
+                <label for="socialGroupedShadowColor">Shadow color</label>
+                <span>Colors the soft effect behind the full sticker.</span>
+              </div>
+              <label class="color-field compact-color-field">
+                <input id="socialGroupedShadowColor" type="color">
+                <span id="socialGroupedShadowColorLabel">#000000</span>
+              </label>
+              <label for="socialGroupedShadowOpacity">Shadow opacity</label>
+              <div class="range-control">
+                <input id="socialGroupedShadowOpacity" type="range" min="0" max="1" step="0.05">
+                <output id="socialGroupedShadowOpacityOutput">0.45</output>
+              </div>
+            </div>
+          </section>
         </div>
         <div class="panel">
           <h2>OBS browser source</h2>

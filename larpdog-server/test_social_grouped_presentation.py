@@ -22,6 +22,9 @@ class SocialGroupedPresentationTests(unittest.TestCase):
         cls.studio_script = (
             ROOT_DIR / "studio" / "app.js"
         ).read_text(encoding="utf-8")
+        cls.studio_styles = (
+            ROOT_DIR / "studio" / "app.css"
+        ).read_text(encoding="utf-8")
 
     def test_manifest_exposes_continuous_layout_and_studio_view(self) -> None:
         self.assertIn('"groupGap"', self.source)
@@ -130,6 +133,42 @@ class SocialGroupedPresentationTests(unittest.TestCase):
             'const split = tile || byId("socialGroupedSeparate").checked',
             self.studio_script,
         )
+
+    def test_studio_explains_and_groups_social_color_controls(self) -> None:
+        color_ids = (
+            "socialGroupedOuterColor",
+            "socialGroupedEdgeColor",
+            "socialGroupedTextColor",
+            "socialGroupedTextOuterColor",
+            "socialGroupedTextEdgeColor",
+            "socialGroupedLabelColor",
+            "socialGroupedBaseColor",
+            "socialGroupedLegacyTextEdgeColor",
+            "socialGroupedShadowColor",
+        )
+
+        for control_id in color_ids:
+            with self.subTest(control_id=control_id):
+                self.assertEqual(
+                    self.studio_markup.count(f'id="{control_id}"'),
+                    1,
+                )
+
+        self.assertIn("Sticker outline colors", self.studio_markup)
+        self.assertIn(
+            "The thin line between the outer band and each logo.",
+            self.studio_markup,
+        )
+        self.assertIn(
+            "The main color used for each social handle.",
+            self.studio_markup,
+        )
+        self.assertIn(
+            "Colors the soft effect behind the full sticker.",
+            self.studio_markup,
+        )
+        self.assertIn(".social-color-section", self.studio_styles)
+        self.assertIn(".social-color-control", self.studio_styles)
 
 
 if __name__ == "__main__":

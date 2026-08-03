@@ -1300,9 +1300,10 @@ output {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: #101416;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.92);
 }
 
 .palette-control input[type="color"],
@@ -1719,12 +1720,80 @@ output {
   width: 100%;
 }
 
-.social-grouped-palette {
-  flex-wrap: wrap;
+.color-control-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
-.social-grouped-palette label {
-  min-width: 100px;
+.color-control-copy > label {
+  color: var(--muted);
+}
+
+.color-control-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.social-color-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.social-color-section-heading {
+  margin-bottom: 6px;
+}
+
+.social-color-section-heading h3 {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.social-color-section-heading p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.social-color-list {
+  display: grid;
+}
+
+.social-color-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  cursor: pointer;
+}
+
+.social-color-control:last-child {
+  border-bottom: 0;
+}
+
+.social-color-control-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.social-color-control-copy > strong {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.social-color-control-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
 }
 
 [data-social-bar-only][hidden],
