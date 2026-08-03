@@ -49,6 +49,16 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn("frame.contentWindow.postMessage", popout)
         self.assertIn('id="positionReset"', popout)
         self.assertIn('id="saveDraft"', popout)
+        self.assertRegex(
+            script,
+            r'byId\("customizerPreviewRecenterButton"\)\.addEventListener\('
+            r'\s*"click",\s*resetCustomizerPreviewViewport,\s*\);',
+        )
+        self.assertRegex(
+            popout,
+            r'document\.getElementById\("positionReset"\)\.addEventListener\('
+            r'\s*"click",\s*resetViewport,\s*\);',
+        )
         self.assertIn("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)", popout)
 
     def test_native_preview_accepts_only_the_local_overlay_server(self) -> None:

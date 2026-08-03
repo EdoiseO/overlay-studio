@@ -606,13 +606,6 @@ function resetCustomizerPreviewZoom() {
   fitCustomizerPreview();
 }
 
-function recenterCustomizerPreview() {
-  app.customizerPreviewPan = { x: 0, y: 0 };
-  app.customizerPreviewDrag = null;
-  byId("customizerPreviewStage")?.classList.remove("dragging");
-  fitCustomizerPreview();
-}
-
 function customizerDraft(instance) {
   if (!instance) return null;
   if (
@@ -3061,7 +3054,7 @@ function bindEvents() {
   );
   byId("customizerPreviewRecenterButton").addEventListener(
     "click",
-    recenterCustomizerPreview,
+    resetCustomizerPreviewViewport,
   );
   byId("customizerPreviewSaveButton").addEventListener(
     "click",

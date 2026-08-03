@@ -222,7 +222,7 @@
         <button class="icon-button" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
         </button>
-        <button class="icon-button" id="positionReset" type="button" aria-label="Recenter preview position" title="Recenter preview">
+        <button class="icon-button" id="positionReset" type="button" aria-label="Reset preview position and zoom" title="Reset preview view">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M12 2v4"></path><path d="M12 18v4"></path>
@@ -327,19 +327,13 @@
         state.zoom = 1;
         state.panX = 0;
         state.panY = 0;
+        state.drag = null;
+        stage.classList.remove("dragging");
         fit();
       }
 
       function resetZoom() {
         state.zoom = 1;
-        fit();
-      }
-
-      function recenterPreview() {
-        state.panX = 0;
-        state.panY = 0;
-        state.drag = null;
-        stage.classList.remove("dragging");
         fit();
       }
 
@@ -473,7 +467,7 @@
       readout.addEventListener("click", resetZoom);
       document.getElementById("positionReset").addEventListener(
         "click",
-        recenterPreview,
+        resetViewport,
       );
       saveButton.addEventListener("click", requestSave);
       window.addEventListener("pywebviewready", syncSaveAvailability);
