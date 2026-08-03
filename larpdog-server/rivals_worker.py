@@ -8,7 +8,11 @@ from typing import Any, Awaitable, Callable
 
 from aiohttp import ClientSession, ClientTimeout
 
-from rivals_store import linked_rivals_instances, save_rivals_poll
+from rivals_store import (
+    linked_rivals_instances,
+    save_rivals_poll,
+    save_rivals_poll_failure,
+)
 
 
 PROFILE_ENDPOINT = "https://api.rivalsdata.com/player"
@@ -128,11 +132,13 @@ class RivalsPollWorker:
                 and response.content_length > MAX_RESPONSE_BYTES
             ):
                 raise RuntimeError("Rivals Data response was too large")
-            body = await response.content.read(MAX_RESPONSE_BYTES + 1)
-            if len(body) > MAX_RESPONSE_BYTES:
-                raise RuntimeError("Rivals Data response was too large")
+            body = bytearray()
+            async for chunk in response.content.iter_chunked(64 * 1024):
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise RuntimeError("Rivals Data response was too large")
         try:
-            return json.loads(body.decode("utf-8"))
+            return json.loads(bytes(body).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise RuntimeError("Rivals Data returned invalid JSON") from exc
 
@@ -201,6 +207,13 @@ class RivalsPollWorker:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                async with self.store_lock:
+                    save_rivals_poll_failure(
+                        self.state_path,
+                        instance_id,
+                        uid,
+                        exc,
+                    )
                 self._report_error(instance_id, exc)
             else:
                 if instance_id in self._last_errors:

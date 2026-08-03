@@ -18,6 +18,7 @@ local OBS browser-source overlays.
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
+| **Rivals Rank Tracker** | Shows a linked Marvel Rivals player's rank, score, and win-loss record for the current session. |
 | **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
 | **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
 | **Social Grouped** | Combines several platform logos with shared handles in one continuous sticker or branded tiles. |
@@ -70,7 +71,8 @@ Clicking an instance preview opens a larger live preview with actions to:
 These previews render the same live pages used by OBS. The dark preview background is
 only added inside Overlay Studio; the OBS sources remain transparent.
 
-Every customization page also keeps a compact live draft preview beside its controls.
+Every customization page opens with a large live draft beside its controls on supported
+window sizes, and falls back to a compact dock on narrower windows.
 Text, number, color, layout, media, and slider changes appear there immediately without
 writing to the server. OBS and the installed library preview continue using the saved
 settings until **Save** is selected. Edited drafts are marked **Unsaved** and prompt
@@ -123,6 +125,25 @@ Its Studio page includes live progress controls plus bounded size, width, scale,
 corners, icon, font, and color settings. The fill is proportional to `current / target`,
 including a fully empty track at zero. Every Goal Pill instance stores its own progress
 and appearance.
+
+## Rivals Rank Tracker
+
+Add **Rivals Rank Tracker** from Browse overlays, then paste either a numeric Rivals
+Data player ID or a `rivalsdata.com/player/...` profile URL into its Studio customizer.
+The card shows the linked player name, tier and division, rank score, and wins and
+losses since the current session began. Use **Reset session** to zero only the session
+record; the last known rank and score stay in place.
+
+The local server checks for new matches every 45 seconds by default. Existing match
+history is baselined when an account is linked, while matches completed after linking
+or a manual reset count toward the session. The numeric player ID is stored only in the
+server's private `rivals.json` bookkeeping and is never returned by `/api/rivals` or
+sent over the overlay websocket.
+
+Rivals Data is an unofficial, undocumented fan service and is not affiliated with
+NetEase or Marvel Rivals. Its API can change, rate-limit requests, or become unavailable.
+When a check fails, Overlay Studio keeps displaying the last successful state and tries
+again on the next interval instead of clearing the source.
 
 ## Social overlays
 
@@ -215,8 +236,10 @@ http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
 http://127.0.0.1:8473/overlays/goal-bar
 http://127.0.0.1:8473/overlays/goal-pill
+http://127.0.0.1:8473/overlays/rivals-rank
 http://127.0.0.1:8473/overlays/social
 http://127.0.0.1:8473/overlays/social-rotator
+http://127.0.0.1:8473/overlays/social-grouped
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -238,6 +261,7 @@ Now Playing Flow 760 x 420
 Goal Widget      460 x 520
 Goal Bar         860 x 560
 Goal Pill        720 x 220
+Rivals Rank      620 x 190
 Social Bar      1200 x 160
 Social Rotator   640 x 200
 Social Grouped  1200 x 160
@@ -307,6 +331,14 @@ being saved.
 For compatibility with the original Goal Widget, omitting `?i=` reads or updates a
 separate legacy ring state. It does not modify any installed overlay instance. New
 automation should always include the intended instance ID.
+
+## Rivals Rank API
+
+`GET /api/rivals?i=<instance>` returns the public rank, score, session record, visual
+settings, and a `linked` flag. `POST` to the same addressed URL saves visual settings
+or accepts `{"action":"reset-session"}`. Account linking is handled by the Studio
+customizer. The private player ID is deliberately excluded from every response and
+websocket message.
 
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools

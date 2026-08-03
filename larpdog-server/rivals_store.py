@@ -74,6 +74,7 @@ MAX_STATE_FILE_BYTES = 1024 * 1024
 MAX_PLAYER_UID = 9_999_999_999_999_999_999
 MAX_SCORE = 1_000_000_000.0
 MAX_SESSION_RESULTS = 999
+POLL_STATUSES = {"unlinked", "waiting", "ok", "error"}
 
 
 def _number(
@@ -254,6 +255,12 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
     if last_seen and last_seen not in seen:
         seen.insert(0, last_seen)
         seen = seen[:MAX_SEEN_MATCHES]
+    poll_status = str(source.get("pollStatus") or "").strip().lower()
+    if poll_status not in POLL_STATUSES:
+        poll_status = "waiting" if uid is not None else "unlinked"
+    if uid is None:
+        poll_status = "unlinked"
+    poll_error = " ".join(str(source.get("lastPollError") or "").split())
     return {
         "uid": uid,
         "lastSeenMatchUid": last_seen,
@@ -261,6 +268,11 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
         "sessionStartedAt": _integer(
             source.get("sessionStartedAt"), 0, 0, 4_102_444_800
         ),
+        "pollStatus": poll_status,
+        "lastPollAt": _integer(
+            source.get("lastPollAt"), 0, 0, 4_102_444_800
+        ),
+        "lastPollError": poll_error[:180] if poll_status == "error" else "",
     }
 
 
@@ -307,20 +319,31 @@ def load_rivals_state(path: Path, instance_id: str) -> dict[str, Any]:
     return dict(load_rivals_record(path, instance_id)["state"])
 
 
-def load_rivals_states(
+def _public_poll_status(private: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": private["pollStatus"],
+        "lastAttemptAt": private["lastPollAt"],
+        "detail": private["lastPollError"],
+    }
+
+
+def load_rivals_studio_state(
     path: Path,
     instance_ids: Iterable[str],
 ) -> dict[str, dict[str, Any]]:
     document = load_rivals_document(path)
-    result: dict[str, dict[str, Any]] = {}
+    states: dict[str, dict[str, Any]] = {}
+    linked: dict[str, bool] = {}
+    polls: dict[str, dict[str, Any]] = {}
     for instance_id in instance_ids:
         candidate = str(instance_id or "")
         if not INSTANCE_ID.fullmatch(candidate):
             continue
-        result[candidate] = dict(
-            _normalize_record(document["instances"].get(candidate, {}))["state"]
-        )
-    return result
+        record = _normalize_record(document["instances"].get(candidate, {}))
+        states[candidate] = dict(record["state"])
+        linked[candidate] = record["private"]["uid"] is not None
+        polls[candidate] = _public_poll_status(record["private"])
+    return {"states": states, "linked": linked, "polls": polls}
 
 
 def rivals_status(path: Path, instance_id: str) -> dict[str, Any]:
@@ -328,6 +351,7 @@ def rivals_status(path: Path, instance_id: str) -> dict[str, Any]:
     return {
         "state": dict(record["state"]),
         "linked": record["private"]["uid"] is not None,
+        "poll": _public_poll_status(record["private"]),
     }
 
 
@@ -385,6 +409,9 @@ def update_rivals_record(
                 "lastSeenMatchUid": "",
                 "seenMatchUids": [],
                 "sessionStartedAt": timestamp,
+                "pollStatus": "waiting",
+                "lastPollAt": 0,
+                "lastPollError": "",
             }
             state = normalize_rivals_state(
                 {
@@ -417,7 +444,12 @@ def update_rivals_record(
         )
 
     _save_record(path, instance_id, {"state": state, "private": private})
-    return {"state": state, "linked": private.get("uid") is not None}
+    normalized_private = _normalize_private(private)
+    return {
+        "state": state,
+        "linked": normalized_private["uid"] is not None,
+        "poll": _public_poll_status(normalized_private),
+    }
 
 
 def _match_values(raw: Any) -> dict[str, Any] | None:
@@ -482,31 +514,43 @@ def apply_rivals_poll(
 
     prior_seen = set(private["seenMatchUids"])
     baseline = not prior_seen and not private["lastSeenMatchUid"]
-    if not baseline:
-        new_matches = [
-            match
-            for match in parsed_matches
-            if match["uid"] not in prior_seen
-            and (
-                match["timestamp"] <= 0
-                or match["timestamp"] >= private["sessionStartedAt"]
+    new_matches = [
+        match
+        for match in parsed_matches
+        if match["uid"] not in prior_seen
+        and (
+            (
+                baseline
+                and match["timestamp"] > 0
+                and match["timestamp"] >= private["sessionStartedAt"]
             )
-        ]
-        state["sessionWins"] = min(
-            MAX_SESSION_RESULTS,
-            state["sessionWins"] + sum(1 for match in new_matches if match["isWin"]),
+            or (
+                not baseline
+                and (
+                    match["timestamp"] <= 0
+                    or match["timestamp"] >= private["sessionStartedAt"]
+                )
+            )
         )
-        state["sessionLosses"] = min(
-            MAX_SESSION_RESULTS,
-            state["sessionLosses"]
-            + sum(1 for match in new_matches if not match["isWin"]),
-        )
+    ]
+    state["sessionWins"] = min(
+        MAX_SESSION_RESULTS,
+        state["sessionWins"] + sum(1 for match in new_matches if match["isWin"]),
+    )
+    state["sessionLosses"] = min(
+        MAX_SESSION_RESULTS,
+        state["sessionLosses"]
+        + sum(1 for match in new_matches if not match["isWin"]),
+    )
 
     current_ids = [match["uid"] for match in parsed_matches]
     combined = list(dict.fromkeys([*current_ids, *private["seenMatchUids"]]))
     private["seenMatchUids"] = combined[:MAX_SEEN_MATCHES]
     if current_ids:
         private["lastSeenMatchUid"] = current_ids[0]
+    private["pollStatus"] = "ok"
+    private["lastPollAt"] = timestamp
+    private["lastPollError"] = ""
     return {
         "state": normalize_rivals_state(state),
         "private": _normalize_private(private),
@@ -535,10 +579,34 @@ def save_rivals_poll(
         matches=matches,
         now=now,
     )
-    changed = updated != record
-    if changed:
+    public_changed = updated["state"] != record["state"]
+    if updated != record:
         _save_record(path, instance_id, updated)
-    return dict(updated["state"]), changed
+    return dict(updated["state"]), public_changed
+
+
+def save_rivals_poll_failure(
+    path: Path,
+    instance_id: str,
+    expected_uid: int,
+    error: Any,
+    *,
+    now: int | None = None,
+) -> bool:
+    record = load_rivals_record(path, instance_id)
+    if record["private"]["uid"] != expected_uid:
+        return False
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    private = dict(record["private"])
+    private["pollStatus"] = "error"
+    private["lastPollAt"] = timestamp
+    private["lastPollError"] = " ".join(str(error or "Unknown error").split())[:180]
+    _save_record(
+        path,
+        instance_id,
+        {"state": record["state"], "private": private},
+    )
+    return True
 
 
 def remove_rivals_instance(path: Path, instance_id: str) -> None:

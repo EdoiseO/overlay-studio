@@ -1369,6 +1369,174 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="rivalsRankView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>MARVEL RIVALS</span>
+            <h1 id="rivalsRankDetailName">Rivals Rank Tracker</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Player and session</h2></summary>
+          <div data-customizer-passive>
+            <div class="rivals-account-row">
+              <label for="rivalsUid">Rivals Data player ID or profile URL</label>
+              <div class="rivals-link-control">
+                <input
+                  id="rivalsUid"
+                  type="text"
+                  maxlength="256"
+                  autocomplete="off"
+                  placeholder="https://rivalsdata.com/player/..."
+                >
+                <button class="primary-button compact" id="linkRivalsAccountButton" type="button">Link</button>
+              </div>
+            </div>
+            <dl class="rivals-status-grid">
+              <div>
+                <dt>Account</dt>
+                <dd id="rivalsLinkStatus">No account linked</dd>
+              </div>
+              <div>
+                <dt>Current rank</dt>
+                <dd id="rivalsCurrentRank">Bronze 3 | 0 RS</dd>
+              </div>
+              <div>
+                <dt>Session record</dt>
+                <dd id="rivalsSessionRecord">0 wins | 0 losses</dd>
+              </div>
+            </dl>
+            <div class="rivals-session-actions">
+              <button class="danger-button compact" id="resetRivalsSessionButton" type="button">Reset session</button>
+              <span>Data comes from the unofficial Rivals Data service and may become unavailable.</span>
+            </div>
+          </div>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Content and layout</h2></summary>
+          <div class="form-grid">
+            <label for="rivalsLabel">Session label</label>
+            <input id="rivalsLabel" type="text" maxlength="24" autocomplete="off" placeholder="This session">
+            <span>Player name</span>
+            <label class="toggle-line" for="rivalsShowName">
+              <input id="rivalsShowName" type="checkbox">
+              Show linked player name
+            </label>
+            <label for="rivalsFont">Font</label>
+            <select id="rivalsFont">
+              <option value="display">Display</option>
+              <option value="sans">Sans serif</option>
+              <option value="montserrat">Montserrat</option>
+              <option value="poppins">Poppins</option>
+              <option value="archivo">Archivo Black</option>
+              <option value="nunito">Nunito</option>
+              <option value="anton">Anton</option>
+            </select>
+            <label for="rivalsWeight">Font weight</label>
+            <select id="rivalsWeight">
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+            <label for="rivalsScale">Scale</label>
+            <div class="range-control">
+              <input id="rivalsScale" type="range" min="0.5" max="1.6" step="0.05">
+              <output id="rivalsScaleOutput">1.00</output>
+            </div>
+            <label for="rivalsCorners">Corner radius</label>
+            <div class="range-control">
+              <input id="rivalsCorners" type="range" min="0" max="40" step="1">
+              <output id="rivalsCornersOutput">18</output>
+            </div>
+            <label for="rivalsGlow">Glow strength</label>
+            <div class="range-control">
+              <input id="rivalsGlow" type="range" min="0" max="2.5" step="0.05">
+              <output id="rivalsGlowOutput">1.00</output>
+            </div>
+          </div>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Color palette</h2></summary>
+          <section class="palette-detail-section" aria-labelledby="rivalsPaletteHeading">
+            <div class="palette-detail-heading">
+              <h3 id="rivalsPaletteHeading">Rank card colors</h3>
+              <p>Separates the card surface, readable copy, rank emphasis, wins, and losses.</p>
+            </div>
+            <div class="palette-detail-list">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Card surface</strong>
+                  <span>Colors the background behind the rank badge and session record.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="rivalsShellColor" type="color" aria-label="Rivals card surface color">
+                  <span id="rivalsShellColorLabel">#141418</span>
+                </span>
+              </label>
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Supporting text</strong>
+                  <span>Colors the player name, rank score, session label, and separators.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="rivalsTextColor" type="color" aria-label="Rivals supporting text color">
+                  <span id="rivalsTextColorLabel">#FFFFFF</span>
+                </span>
+              </label>
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Rank accent</strong>
+                  <span>Colors the tier and division and supplies the card's outer glow.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="rivalsAccentColor" type="color" aria-label="Rivals rank accent color">
+                  <span id="rivalsAccentColorLabel">#F6F7FB</span>
+                </span>
+              </label>
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Wins</strong>
+                  <span>Colors the session win count.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="rivalsWinColor" type="color" aria-label="Rivals wins color">
+                  <span id="rivalsWinColorLabel">#5FD97A</span>
+                </span>
+              </label>
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Losses</strong>
+                  <span>Colors the session loss count.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="rivalsLossColor" type="color" aria-label="Rivals losses color">
+                  <span id="rivalsLossColorLabel">#FF5F6D</span>
+                </span>
+              </label>
+            </div>
+          </section>
+        </details>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="rivalsRankSourceLabel" for="rivalsRankUrl">Rivals Rank Tracker</label>
+            <input id="rivalsRankUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetRivalsFieldsButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveRivalsSettingsButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

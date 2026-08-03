@@ -22,6 +22,7 @@ const app = {
   goalKey: "",
   goalBarKey: "",
   goalPillKey: "",
+  rivalsSettingsKey: "",
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
   customizerPreviewExpanded: false,
@@ -60,6 +61,17 @@ const GOAL_PILL_PRESETS = new Set([
   "a8d66e",
   "82b7e8",
 ]);
+const RIVALS_TIER_NAMES = Object.freeze({
+  bronze: "Bronze",
+  silver: "Silver",
+  gold: "Gold",
+  platinum: "Platinum",
+  diamond: "Diamond",
+  grandmaster: "Grandmaster",
+  celestial: "Celestial",
+  eternity: "Eternity",
+  "one-above-all": "One Above All",
+});
 const CURRENCY_OPTIONS = [
   ["US Dollar ($)", "$"],
   ["Australian Dollar (A$)", "A$"],
@@ -152,6 +164,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "socialView",
   "socialGroupedView",
   "counterView",
+  "rivalsRankView",
 ]);
 const CUSTOMIZER_SPLIT_MEDIA = window.matchMedia("(min-width: 961px)");
 
@@ -318,6 +331,13 @@ async function saveActiveCustomizer() {
   }
   if (instance.type === "goal-pill") {
     return sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  }
+  if (instance.type === "rivals-rank") {
+    return sendRivals(
+      gatherRivalsSettings(),
+      "Rivals Rank saved and applied",
+      { hydrate: true, remember: true },
+    );
   }
   if (instance.type === "win-loss") {
     return sendCounter({
@@ -764,6 +784,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "goal-pill") {
     return { state: gatherGoalPillSettings() };
+  }
+  if (instance.type === "rivals-rank") {
+    return { config: { rivals: gatherRivalsSettings() } };
   }
   if (instance.type === "win-loss") {
     const saved =
@@ -1235,6 +1258,10 @@ function renderActiveIdentity(instance) {
     byId("socialGroupedDetailName").textContent = instance.name;
     byId("socialGroupedSourceLabel").textContent = instance.name;
     byId("socialGroupedUrl").value = source;
+  } else if (instance.type === "rivals-rank") {
+    byId("rivalsRankDetailName").textContent = instance.name;
+    byId("rivalsRankSourceLabel").textContent = instance.name;
+    byId("rivalsRankUrl").value = source;
   }
 }
 
@@ -1888,6 +1915,77 @@ function renderGoalPill(goal, force = false) {
   byId("goalPillGlow").value = Number(goal.glow) || 0;
   byId("goalPillGlowOutput").value = Number(goal.glow || 0).toFixed(2);
   syncGoalPillFormat();
+}
+
+function rivalsVisualState(state) {
+  return {
+    label: state?.label || "This session",
+    showName: state?.showName !== false,
+    shellColor: state?.shellColor || "141418",
+    textColor: state?.textColor || "ffffff",
+    accentColor: state?.accentColor || "f6f7fb",
+    winColor: state?.winColor || "5fd97a",
+    lossColor: state?.lossColor || "ff5f6d",
+    font: state?.font || "display",
+    weight: Number(state?.weight) || 800,
+    scale: Number(state?.scale) || 1,
+    corners: Number.isFinite(Number(state?.corners))
+      ? Number(state.corners)
+      : 18,
+    glow: Number.isFinite(Number(state?.glow)) ? Number(state.glow) : 1,
+  };
+}
+
+function renderRivals(state, linked = false, force = false, poll = null) {
+  const resolved = state || app.state?.rivalsDefaults || {};
+  const visual = rivalsVisualState(resolved);
+  const settingsKey = JSON.stringify(visual);
+  if (force || (!app.customizerDirty && settingsKey !== app.rivalsSettingsKey)) {
+    app.rivalsSettingsKey = settingsKey;
+    byId("rivalsLabel").value = visual.label;
+    byId("rivalsShowName").checked = visual.showName;
+    setColor("rivalsShellColor", visual.shellColor);
+    setColor("rivalsTextColor", visual.textColor);
+    setColor("rivalsAccentColor", visual.accentColor);
+    setColor("rivalsWinColor", visual.winColor);
+    setColor("rivalsLossColor", visual.lossColor);
+    byId("rivalsFont").value = visual.font;
+    byId("rivalsWeight").value = String(visual.weight);
+    byId("rivalsScale").value = visual.scale;
+    byId("rivalsScaleOutput").value = visual.scale.toFixed(2);
+    byId("rivalsCorners").value = visual.corners;
+    byId("rivalsCornersOutput").value = String(visual.corners);
+    byId("rivalsGlow").value = visual.glow;
+    byId("rivalsGlowOutput").value = visual.glow.toFixed(2);
+  }
+
+  const tier = RIVALS_TIER_NAMES[resolved.tier] || "Bronze";
+  const division = ["eternity", "one-above-all"].includes(resolved.tier)
+    ? ""
+    : ` ${Math.max(1, Math.min(3, Number(resolved.division) || 3))}`;
+  const score = Math.max(0, Number(resolved.score) || 0);
+  const scoreText = Number.isInteger(score) ? String(score) : score.toFixed(2);
+  const linkStatus = byId("rivalsLinkStatus");
+  const pollStatus = String(poll?.status || "");
+  linkStatus.dataset.syncStatus = linked ? pollStatus : "unlinked";
+  linkStatus.title = pollStatus === "error" ? String(poll?.detail || "") : "";
+  if (!linked) {
+    linkStatus.textContent = "No account linked";
+  } else if (pollStatus === "error") {
+    linkStatus.textContent = "Linked; update unavailable";
+  } else if (pollStatus === "waiting") {
+    linkStatus.textContent = "Linked; waiting for update";
+  } else {
+    linkStatus.textContent =
+      `Linked${resolved.playerName ? ` as ${resolved.playerName}` : ""}`;
+  }
+  byId("rivalsCurrentRank").textContent = `${tier}${division} | ${scoreText} RS`;
+  const wins = Math.max(0, Math.round(Number(resolved.sessionWins) || 0));
+  const losses = Math.max(0, Math.round(Number(resolved.sessionLosses) || 0));
+  byId("rivalsSessionRecord").textContent =
+    `${wins} ${wins === 1 ? "win" : "wins"} | `
+    + `${losses} ${losses === 1 ? "loss" : "losses"}`;
+  byId("resetRivalsSessionButton").disabled = !linked || app.busy;
 }
 
 function renderSocialAccounts(accounts, overlayType) {
@@ -2698,6 +2796,18 @@ function renderState(state, hydrate = false) {
       ? state.goals?.[selected.id]
       : state.goalPillDefaults,
   );
+  renderRivals(
+    selected?.type === "rivals-rank"
+      ? state.rivals?.[selected.id]
+      : state.rivalsDefaults,
+    selected?.type === "rivals-rank"
+      ? state.rivalsLinked?.[selected.id] === true
+      : false,
+    false,
+    selected?.type === "rivals-rank"
+      ? state.rivalsPolls?.[selected.id]
+      : null,
+  );
   if (hydrate) {
     fillConfig(
       selected ? materializeInstanceConfig(selected) : state.config,
@@ -3021,6 +3131,83 @@ function gatherGoalPillSettings() {
   };
 }
 
+function gatherRivalsSettings() {
+  return {
+    label: byId("rivalsLabel").value,
+    showName: byId("rivalsShowName").checked,
+    shellColor: byId("rivalsShellColor").value.slice(1),
+    textColor: byId("rivalsTextColor").value.slice(1),
+    accentColor: byId("rivalsAccentColor").value.slice(1),
+    winColor: byId("rivalsWinColor").value.slice(1),
+    lossColor: byId("rivalsLossColor").value.slice(1),
+    font: byId("rivalsFont").value,
+    weight: Number(byId("rivalsWeight").value),
+    scale: Number(byId("rivalsScale").value),
+    corners: Number(byId("rivalsCorners").value),
+    glow: Number(byId("rivalsGlow").value),
+  };
+}
+
+async function sendRivals(payload, message, options = {}) {
+  const instance = activeInstance();
+  if (!instance || instance.type !== "rivals-rank" || app.busy) return false;
+  app.busy = true;
+  renderRivals(
+    app.state?.rivals?.[instance.id],
+    app.state?.rivalsLinked?.[instance.id] === true,
+    false,
+    app.state?.rivalsPolls?.[instance.id],
+  );
+  try {
+    const result = await callApi("update_rivals", payload, instance.id);
+    if (!result.ok) {
+      showToast(result.detail || "Rivals Rank update failed");
+      return false;
+    }
+    app.state.rivals = app.state.rivals || {};
+    app.state.rivalsLinked = app.state.rivalsLinked || {};
+    app.state.rivalsPolls = app.state.rivalsPolls || {};
+    app.state.rivals[instance.id] = result.rivals;
+    app.state.rivalsLinked[instance.id] = result.linked === true;
+    app.state.rivalsPolls[instance.id] = result.poll || {};
+    renderRivals(
+      result.rivals,
+      result.linked,
+      options.hydrate === true,
+      result.poll,
+    );
+    logActivity(message);
+    showToast(message);
+    if (options.remember) rememberSavedCustomizer();
+    return true;
+  } catch (error) {
+    showToast(String(error.message || error));
+    return false;
+  } finally {
+    app.busy = false;
+    renderRivals(
+      app.state?.rivals?.[instance.id],
+      app.state?.rivalsLinked?.[instance.id] === true,
+      false,
+      app.state?.rivalsPolls?.[instance.id],
+    );
+  }
+}
+
+async function linkRivalsAccount() {
+  const uid = byId("rivalsUid").value.trim();
+  if (!uid) {
+    showToast("Enter a Rivals Data player ID or profile URL");
+    byId("rivalsUid").focus();
+    return;
+  }
+  const linked = await sendRivals(
+    { uid },
+    "Rivals Data account linked",
+  );
+  if (linked) byId("rivalsUid").value = "";
+}
+
 async function sendGoal(payload, message = "Goal updated") {
   const instance = activeInstance();
   if (!instance || !isGoalOverlayType(instance.type) || app.busy) return false;
@@ -3102,6 +3289,15 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     renderGoalPill(
       app.state?.goals?.[instance.id] || app.state?.goalPillDefaults,
       true,
+    );
+  } else if (instance.type === "rivals-rank") {
+    app.rivalsSettingsKey = "";
+    byId("rivalsUid").value = "";
+    renderRivals(
+      app.state?.rivals?.[instance.id] || app.state?.rivalsDefaults,
+      app.state?.rivalsLinked?.[instance.id] === true,
+      true,
+      app.state?.rivalsPolls?.[instance.id],
     );
   } else if (
     instance.type === "social"
@@ -3420,6 +3616,17 @@ function bindEvents() {
     byId("goalPillGlowOutput").value =
       Number(byId("goalPillGlow").value).toFixed(2);
   });
+  byId("rivalsScale").addEventListener("input", () => {
+    byId("rivalsScaleOutput").value =
+      Number(byId("rivalsScale").value).toFixed(2);
+  });
+  byId("rivalsCorners").addEventListener("input", () => {
+    byId("rivalsCornersOutput").value = byId("rivalsCorners").value;
+  });
+  byId("rivalsGlow").addEventListener("input", () => {
+    byId("rivalsGlowOutput").value =
+      Number(byId("rivalsGlow").value).toFixed(2);
+  });
   byId("socialScale").addEventListener("input", () => {
     byId("socialScaleOutput").value =
       Number(byId("socialScale").value).toFixed(2);
@@ -3592,6 +3799,11 @@ function bindEvents() {
     "goalPillShellColor",
     "goalPillTrack",
     "goalPillLabelColor",
+    "rivalsShellColor",
+    "rivalsTextColor",
+    "rivalsAccentColor",
+    "rivalsWinColor",
+    "rivalsLossColor",
     "socialColor",
     "socialShellColor",
     "socialTextColor",
@@ -3629,6 +3841,25 @@ function bindEvents() {
   });
   byId("saveGoalPillSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  });
+  byId("saveRivalsSettingsButton").addEventListener("click", () => {
+    sendRivals(
+      gatherRivalsSettings(),
+      "Rivals Rank saved and applied",
+      { hydrate: true, remember: true },
+    );
+  });
+  byId("linkRivalsAccountButton").addEventListener(
+    "click",
+    linkRivalsAccount,
+  );
+  byId("rivalsUid").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    linkRivalsAccount();
+  });
+  byId("resetRivalsSessionButton").addEventListener("click", () => {
+    sendRivals({ action: "reset-session" }, "Rivals session reset");
   });
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
@@ -3698,6 +3929,20 @@ function bindEvents() {
     renderGoalPill(app.state?.goalPillDefaults, true);
     app.goalPillKey = JSON.stringify(current || {});
     logActivity("Goal Pill fields reset; save to apply");
+  });
+  byId("resetRivalsFieldsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    const current =
+      app.state?.rivals?.[instance?.id]
+      || app.state?.rivalsDefaults
+      || {};
+    renderRivals(
+      { ...current, ...rivalsVisualState(app.state?.rivalsDefaults) },
+      app.state?.rivalsLinked?.[instance?.id] === true,
+      true,
+      app.state?.rivalsPolls?.[instance?.id],
+    );
+    logActivity("Rivals Rank fields reset; save to apply");
   });
 
   document.querySelectorAll("[data-counter-action]").forEach((button) => {

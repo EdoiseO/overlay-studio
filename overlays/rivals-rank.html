@@ -320,7 +320,7 @@
     if (typeof patch.playerName === "string") state.playerName = patch.playerName.slice(0, 32);
     if (typeof patch.tier === "string" && TIERS[patch.tier]) state.tier = patch.tier;
     if (patch.division !== undefined) state.division = clamp(Number(patch.division), 0, 3);
-    if (patch.score !== undefined) state.score = clamp(Number(patch.score), 0, 999);
+    if (patch.score !== undefined) state.score = clamp(Number(patch.score), 0, 1000000000);
     if (patch.sessionWins !== undefined) state.sessionWins = clamp(Number(patch.sessionWins), 0, 999);
     if (patch.sessionLosses !== undefined) state.sessionLosses = clamp(Number(patch.sessionLosses), 0, 999);
     if (typeof patch.label === "string") state.label = patch.label.slice(0, 24);

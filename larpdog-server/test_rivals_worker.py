@@ -65,10 +65,14 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             await worker.poll_once(mock.MagicMock())
 
-            self.assertEqual(rivals_status(path, "rank-card"), before)
+            after = rivals_status(path, "rank-card")
+            self.assertEqual(after["state"], before["state"])
+            self.assertEqual(after["linked"], before["linked"])
             self.assertEqual(messages, [])
             self.assertEqual(len(logs), 1)
             self.assertIn("last known overlay state", logs[0])
+            self.assertEqual(after["poll"]["status"], "error")
+            self.assertIn("service unavailable", after["poll"]["detail"])
 
 
 if __name__ == "__main__":

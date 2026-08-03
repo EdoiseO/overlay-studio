@@ -82,9 +82,8 @@ from overlay_config import (  # noqa: E402
 from overlay_manifest import scan_overlay_manifests  # noqa: E402
 from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
-    load_rivals_states,
+    load_rivals_studio_state,
     remove_rivals_instance,
-    rivals_status,
 )
 
 
@@ -956,6 +955,10 @@ class DesktopApi:
             for instance_id, instance in config["instances"].items()
             if instance["type"] == "rivals-rank"
         }
+        rivals_runtime = load_rivals_studio_state(
+            RIVALS_STATE_PATH,
+            rivals_instances,
+        )
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
@@ -985,17 +988,9 @@ class DesktopApi:
                 },
             ),
             "rivalsDefaults": DEFAULT_RIVALS_STATE,
-            "rivals": load_rivals_states(
-                RIVALS_STATE_PATH,
-                rivals_instances,
-            ),
-            "rivalsLinked": {
-                instance_id: rivals_status(
-                    RIVALS_STATE_PATH,
-                    instance_id,
-                )["linked"]
-                for instance_id in rivals_instances
-            },
+            "rivals": rivals_runtime["states"],
+            "rivalsLinked": rivals_runtime["linked"],
+            "rivalsPolls": rivals_runtime["polls"],
             "theme": (
                 str(settings.get("theme") or "dark")
                 if str(settings.get("theme") or "dark") in {"dark", "light"}
@@ -1492,6 +1487,11 @@ class DesktopApi:
             "ok": True,
             "rivals": state,
             "linked": payload.get("linked") is True,
+            "poll": (
+                payload.get("poll")
+                if isinstance(payload.get("poll"), dict)
+                else {}
+            ),
         }
 
     def set_theme(self, theme: str) -> dict[str, Any]:

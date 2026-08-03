@@ -120,3 +120,11 @@ Use the shared `socialView` customizer for selection, colors, fonts, icon shapes
 and live drafts. Bar-specific controls choose the row layout, shared-handle mode,
 alignment, heading, and outline. Rotator-specific controls choose the shell shape,
 transition, interval, prefix, timer, and platform label.
+
+## Rivals Rank overlay
+
+`rivals-rank.html` reads public per-instance state from `/api/rivals?i=...` and listens
+only for addressed `rivals` websocket messages. Account IDs and match cursors belong in
+the server-side `rivals_store.py` record; never add them to the manifest, query string,
+customizer draft, HTTP response, or websocket payload. Eternity and One Above All share
+`assets/ranks/eternity-oaa.png` until separate approved artwork is available.

@@ -13,6 +13,7 @@ from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
     apply_rivals_poll,
     load_rivals_record,
+    load_rivals_studio_state,
     normalize_rivals_state,
     parse_player_uid,
     rank_from_level,
@@ -127,14 +128,14 @@ class RivalsStoreTests(unittest.TestCase):
                 {
                     "match_uid": "match-2",
                     "is_win": False,
-                    "timestamp": 120,
+                    "timestamp": 95,
                     "rank_level": 17,
                     "rank_score": 53.25,
                 },
                 {
                     "match_uid": "match-1",
                     "is_win": True,
-                    "timestamp": 110,
+                    "timestamp": 90,
                     "rank_level": 16,
                     "rank_score": 40,
                 },
@@ -168,7 +169,7 @@ class RivalsStoreTests(unittest.TestCase):
                 {
                     "match_uid": "match-2",
                     "is_win": False,
-                    "timestamp": 120,
+                    "timestamp": 95,
                     "rank_level": 17,
                     "rank_score": 53.25,
                 },
@@ -193,6 +194,7 @@ class RivalsStoreTests(unittest.TestCase):
                 now=100,
             )
             self.assertTrue(linked["linked"])
+            self.assertEqual(linked["poll"]["status"], "waiting")
             self.assertNotIn("uid", linked["state"])
 
             state, changed = save_rivals_poll(
@@ -213,6 +215,11 @@ class RivalsStoreTests(unittest.TestCase):
             )
             self.assertTrue(changed)
             self.assertEqual(state["playerName"], "iiTzEdo")
+            self.assertEqual(state["sessionWins"], 1)
+            self.assertEqual(
+                rivals_status(path, "rank-card")["poll"]["status"],
+                "ok",
+            )
 
             reset = update_rivals_record(
                 path,
@@ -230,6 +237,10 @@ class RivalsStoreTests(unittest.TestCase):
             serialized_public = json.dumps(rivals_status(path, "rank-card"))
             self.assertNotIn("396536339", serialized_public)
             self.assertNotIn("uid", serialized_public.lower())
+            self.assertEqual(
+                load_rivals_studio_state(path, ["rank-card"])["linked"],
+                {"rank-card": True},
+            )
             remove_rivals_instance(path, "rank-card")
             self.assertFalse(rivals_status(path, "rank-card")["linked"])
 
