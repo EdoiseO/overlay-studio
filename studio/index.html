@@ -84,8 +84,8 @@
             </div>
           </div>
         </div>
-        <div class="panel">
-          <h2>Dancing GIF settings</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Dancing GIF settings</h2></summary>
           <div class="form-grid">
             <label for="danceName">Overlay name</label>
             <input id="danceName" type="text" maxlength="48" autocomplete="off" placeholder="Dancing GIF">
@@ -126,9 +126,9 @@
               <strong>Drop dancing media</strong>
             </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Motion</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Motion</h2></summary>
           <div class="form-grid">
             <label for="sensitivity">Beat sensitivity</label>
             <div class="range-control">
@@ -138,7 +138,7 @@
             <label for="fallbackBpm">Fallback BPM</label>
             <input id="fallbackBpm" type="number" min="40" max="240" step="1">
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -160,8 +160,8 @@
           <h1 id="spotifyDetailName">Spotify Overlay</h1>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
-        <div class="panel">
-          <h2>Player appearance</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Player appearance</h2></summary>
           <div class="form-grid">
             <label for="spotifyScale">Scale</label>
             <input id="spotifyScale" type="number" min="0.5" max="2" step="0.05">
@@ -212,7 +212,7 @@
               </div>
             </section>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -237,8 +237,8 @@
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
-        <div class="panel">
-          <h2>Player appearance</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Player appearance</h2></summary>
           <div class="form-grid">
             <label for="flowName">Overlay name</label>
             <input id="flowName" type="text" maxlength="48" autocomplete="off" placeholder="Now Playing Flow">
@@ -250,7 +250,7 @@
               <output id="flowGlowOutput">1.00</output>
             </div>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -275,8 +275,8 @@
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
-        <div class="panel">
-          <h2>Goal progress</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Goal progress</h2></summary>
           <div class="form-grid">
             <label for="goalLabel">Label</label>
             <input id="goalLabel" type="text" maxlength="64" autocomplete="off" placeholder="Tip goal">
@@ -302,9 +302,9 @@
             <button class="secondary-button compact" type="button" data-goal-action="complete">Complete</button>
             <button class="danger-button compact" type="button" data-goal-action="reset">Reset</button>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Appearance</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
           <div class="form-grid">
             <section class="palette-detail-section" aria-labelledby="goalPaletteHeading">
               <div class="palette-detail-heading">
@@ -378,7 +378,7 @@
               <label><input id="goalPercent" type="checkbox"> Percentage</label>
             </div>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -403,8 +403,8 @@
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
-        <div class="panel">
-          <h2>Goal progress</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Goal progress</h2></summary>
           <div class="form-grid">
             <label for="goalBarLabel">Label</label>
             <input id="goalBarLabel" type="text" maxlength="64" autocomplete="off" placeholder="Followers">
@@ -430,9 +430,9 @@
             <button class="secondary-button compact" type="button" data-goal-bar-action="complete">Complete</button>
             <button class="danger-button compact" type="button" data-goal-bar-action="reset">Reset</button>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Layout</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Layout</h2></summary>
           <div class="form-grid">
             <label for="goalBarLayout">Orientation</label>
             <select id="goalBarLayout">
@@ -469,9 +469,9 @@
               <output id="goalBarWidthOutput">640</output>
             </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Appearance</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
           <div class="form-grid">
             <section class="palette-detail-section" aria-labelledby="goalBarPaletteHeading">
               <div class="palette-detail-heading">
@@ -560,7 +560,7 @@
               <output id="goalBarTiltYOutput">0</output>
             </div>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -585,8 +585,8 @@
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
-        <div class="panel">
-          <h2>Goal progress</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Goal progress</h2></summary>
           <div class="form-grid">
             <label for="goalPillLabel">Label</label>
             <input id="goalPillLabel" type="text" maxlength="64" autocomplete="off" placeholder="Tip goal">
@@ -612,9 +612,9 @@
             <button class="secondary-button compact" type="button" data-goal-pill-action="complete">Complete</button>
             <button class="danger-button compact" type="button" data-goal-pill-action="reset">Reset</button>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Layout</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Layout</h2></summary>
           <div class="form-grid">
             <label for="goalPillSize">Pill size</label>
             <select id="goalPillSize">
@@ -654,9 +654,9 @@
               <output id="goalPillGlowOutput">0.75</output>
             </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Appearance</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
           <div class="form-grid">
             <label for="goalPillPreset">Accent preset</label>
             <select id="goalPillPreset">
@@ -735,7 +735,7 @@
               <option value="900">Black</option>
             </select>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -786,8 +786,8 @@
           <div class="social-platform-list" id="socialPlatformGrid" aria-label="Added social accounts"></div>
           <p class="social-empty-state" id="socialEmptyState" hidden>No social accounts added.</p>
         </div>
-        <div class="panel">
-          <h2>Layout</h2>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Layout</h2></summary>
           <div class="form-grid">
             <label for="socialIconShape">Icon shape</label>
             <select id="socialIconShape">
@@ -868,9 +868,9 @@
               <label><input id="socialTimer" type="checkbox"> Timer line</label>
             </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Appearance</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
           <div class="form-grid">
             <span>Color behavior</span>
             <div class="goal-toggle-row">
@@ -933,7 +933,7 @@
               <option value="900">Black</option>
             </select>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -987,8 +987,8 @@
           </div>
           <div class="social-grouped-list" id="socialGroupedList" aria-label="Grouped social accounts"></div>
         </div>
-        <div class="panel">
-          <h2>Composition</h2>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Composition</h2></summary>
           <div class="form-grid">
             <label for="socialGroupedPreset">Preset</label>
             <select id="socialGroupedPreset">
@@ -1051,9 +1051,9 @@
               <output id="socialGroupedScaleOutput">1.00</output>
             </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Spacing</h2>
+        </details>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Spacing</h2></summary>
           <div class="form-grid">
             <label for="socialGroupedMerge">Logo merge</label>
             <div class="range-control">
@@ -1085,7 +1085,7 @@
               <label><input id="socialGroupedEqualHeight" type="checkbox"> Equal visual height</label>
             </div>
           </div>
-        </div>
+        </details>
         <details class="panel customizer-disclosure">
           <summary><h2>Typography and label</h2></summary>
           <div class="form-grid">
@@ -1208,8 +1208,8 @@
             </label>
           </div>
         </details>
-        <div class="panel">
-          <h2>Outline and color</h2>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Outline and color</h2></summary>
           <div class="form-grid">
             <span>Logo colors</span>
             <div class="goal-toggle-row">
@@ -1353,7 +1353,7 @@
               </div>
             </div>
           </section>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
@@ -1374,8 +1374,8 @@
           <button class="secondary-button library-button" type="button">Library</button>
           <h1 id="counterDetailName">Match Record</h1>
         </div>
-        <div class="panel">
-          <h2>Scoreboard</h2>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Scoreboard</h2></summary>
           <div class="counter-settings">
             <label for="counterTitle">Title</label>
             <input id="counterTitle" type="text" maxlength="48" autocomplete="off">
@@ -1422,7 +1422,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </details>
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">

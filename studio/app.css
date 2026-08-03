@@ -784,18 +784,33 @@ body.server-running .customizer-preview-offline {
   list-style: none;
 }
 
+.customizer-disclosure:not([open]) {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .customizer-disclosure > summary::-webkit-details-marker {
   display: none;
 }
 
 .customizer-disclosure > summary::after {
   width: 24px;
+  height: 24px;
   flex: 0 0 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
   color: var(--muted);
   content: "+";
-  font-size: 20px;
-  line-height: 24px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
   text-align: center;
+}
+
+.customizer-disclosure > summary:hover::after {
+  border-color: var(--accent);
+  color: var(--ink);
 }
 
 .customizer-disclosure[open] > summary::after {
