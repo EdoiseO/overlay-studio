@@ -89,7 +89,7 @@ class SocialIconAssetTests(unittest.TestCase):
         self.assertIn('"brand"', self.grouped)
         self.assertIn('["squircle", "round", "square"]', self.grouped)
 
-    def test_rotator_guards_logo_contrast_without_recoloring_brand(self) -> None:
+    def test_rotator_guards_logo_and_accent_contrast(self) -> None:
         self.assertIn("const ensureContrast =", self.shared)
         self.assertIn("ensureContrast,", self.shared)
         self.assertIn(
@@ -105,8 +105,10 @@ class SocialIconAssetTests(unittest.TestCase):
             "social.ensureContrast(bareGlyph, shell, meta?.bare)",
             self.rotator,
         )
-        self.assertIn('rotator.style.setProperty("--brand", brand)', self.rotator)
-        self.assertNotIn("const accentColor", self.rotator)
+        self.assertIn(
+            "social.ensureContrast(brand, shell, meta?.bare)",
+            self.rotator,
+        )
         self.assertIn("color: var(--glyph-color, #ffffff);", self.rotator)
         self.assertIn("fill: currentColor;", self.rotator)
 
