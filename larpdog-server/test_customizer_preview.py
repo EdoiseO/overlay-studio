@@ -240,6 +240,17 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertNotIn("scheduleCustomizerDraft()", preview_function)
         self.assertIn("if (nextKey === settingsKey) return", rotator)
 
+    def test_now_playing_flow_catalog_preview_uses_demo_track(self) -> None:
+        flow = (
+            ROOT_DIR / "overlays" / "now-playing-flow.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('query.get("catalog") === "1"', flow)
+        self.assertIn('title: "Midnight Drive"', flow)
+        self.assertIn('artist: "Your Artist"', flow)
+        self.assertIn("if (catalogMode) applyTrack(CATALOG_TRACK);", flow)
+        self.assertIn("else connect();", flow)
+
     def test_tiktok_brand_colors_are_readable_on_dark_shell(self) -> None:
         shared = (
             ROOT_DIR / "assets" / "social-platforms.js"

@@ -263,6 +263,7 @@
   const query = new URLSearchParams(location.search);
   const instanceId = query.get("i") || "";
   const customizerMode = query.get("customizer") === "1";
+  const catalogMode = query.get("catalog") === "1";
   const previewMode =
     query.get("preview") === "studio" ||
     location.protocol === "file:";
@@ -275,6 +276,13 @@
   const previewEmpty = document.getElementById("previewEmpty");
   const CODE_BARS = 44;
   const MAX_MESSAGE_BYTES = 2 * 1024 * 1024;
+  const CATALOG_TRACK = Object.freeze({
+    trackId: "overlay-studio-catalog-demo",
+    title: "Midnight Drive",
+    artist: "Your Artist",
+    progressMs: 118000,
+    durationMs: 224000,
+  });
   let codeBars = [];
   let currentTrack = null;
   let audioLevel = 0;
@@ -666,7 +674,8 @@
   fitOverlay();
   buildCode("overlay-studio");
   loadFlowSettings();
-  connect();
+  if (catalogMode) applyTrack(CATALOG_TRACK);
+  else connect();
   requestAnimationFrame(animate);
 })();
 </script>
