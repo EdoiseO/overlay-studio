@@ -276,7 +276,7 @@
   const previewEmpty = document.getElementById("previewEmpty");
   const CODE_BARS = 44;
   const MAX_MESSAGE_BYTES = 2 * 1024 * 1024;
-  const CATALOG_TRACK = Object.freeze({
+  const PREVIEW_FALLBACK_TRACK = Object.freeze({
     trackId: "overlay-studio-catalog-demo",
     title: "Midnight Drive",
     artist: "Your Artist",
@@ -581,6 +581,10 @@
   }
 
   function setIdle() {
+    if (previewMode) {
+      applyTrack(PREVIEW_FALLBACK_TRACK);
+      return;
+    }
     playback.playing = false;
     document.body.classList.remove("has-track");
     setPreviewStatus("Waiting for media");
@@ -674,8 +678,8 @@
   fitOverlay();
   buildCode("overlay-studio");
   loadFlowSettings();
-  if (catalogMode) applyTrack(CATALOG_TRACK);
-  else connect();
+  if (previewMode) applyTrack(PREVIEW_FALLBACK_TRACK);
+  if (!catalogMode) connect();
   requestAnimationFrame(animate);
 })();
 </script>
