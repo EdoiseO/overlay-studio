@@ -167,8 +167,8 @@ class SocialGroupedPresentationTests(unittest.TestCase):
             "Colors the soft effect behind the full sticker.",
             self.studio_markup,
         )
-        self.assertIn(".social-color-section", self.studio_styles)
-        self.assertIn(".social-color-control", self.studio_styles)
+        self.assertIn(".palette-detail-section", self.studio_styles)
+        self.assertIn(".palette-detail-control", self.studio_styles)
 
 
 if __name__ == "__main__":

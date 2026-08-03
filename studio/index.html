@@ -173,12 +173,44 @@
               <option value="fixed">Fixed colors</option>
               <option value="art">Artwork with fallback</option>
             </select>
-            <span>Palette</span>
-            <div class="palette-control">
-              <label><input id="colorA" type="color"><span id="colorALabel">#FF4D9D</span></label>
-              <label><input id="colorB" type="color"><span id="colorBLabel">#FFD24A</span></label>
-              <label><input id="colorC" type="color"><span id="colorCLabel">#5EE0FF</span></label>
-            </div>
+            <section class="palette-detail-section" aria-labelledby="spotifyPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="spotifyPaletteHeading">Fallback palette</h3>
+                <p>Used in Fixed colors mode and whenever artwork cannot provide a usable palette.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Primary accent</strong>
+                    <span>Colors the progress line, active details, and player glow.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="colorA" type="color" aria-label="Spotify primary accent color">
+                    <span id="colorALabel">#FF4D9D</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Supporting tone</strong>
+                    <span>Stores the middle tone used by the player&apos;s three-color palette.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="colorB" type="color" aria-label="Spotify supporting palette color">
+                    <span id="colorBLabel">#FFD24A</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Highlight</strong>
+                    <span>Completes the artwork border gradient and secondary highlights.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="colorC" type="color" aria-label="Spotify highlight color">
+                    <span id="colorCLabel">#5EE0FF</span>
+                  </span>
+                </label>
+              </div>
+            </section>
           </div>
         </div>
         <div class="panel">
@@ -274,12 +306,44 @@
         <div class="panel">
           <h2>Appearance</h2>
           <div class="form-grid">
-            <span>Palette</span>
-            <div class="palette-control goal-palette">
-              <label title="Ring color"><input id="goalColor" type="color"><span id="goalColorLabel">#FFE2A0</span></label>
-              <label title="Track color"><input id="goalTrack" type="color"><span id="goalTrackLabel">#3C3028</span></label>
-              <label title="Label color"><input id="goalLabelColor" type="color"><span id="goalLabelColorLabel">#F5E3BE</span></label>
-            </div>
+            <section class="palette-detail-section" aria-labelledby="goalPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="goalPaletteHeading">Goal colors</h3>
+                <p>Separates completed progress, remaining progress, and the goal title.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Progress arc</strong>
+                    <span>Fills clockwise and colors the percentage as the goal advances.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalColor" type="color" aria-label="Goal progress arc color">
+                    <span id="goalColorLabel">#FFE2A0</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Empty track</strong>
+                    <span>Shows the unfilled part of the ring behind the progress arc.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalTrack" type="color" aria-label="Goal empty track color">
+                    <span id="goalTrackLabel">#3C3028</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Goal title</strong>
+                    <span>Colors the label displayed beneath the circular progress ring.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalLabelColor" type="color" aria-label="Goal title color">
+                    <span id="goalLabelColorLabel">#F5E3BE</span>
+                  </span>
+                </label>
+              </div>
+            </section>
             <label for="goalFont">Font</label>
             <select id="goalFont">
               <option value="serif">Serif</option>
@@ -409,13 +473,54 @@
         <div class="panel">
           <h2>Appearance</h2>
           <div class="form-grid">
-            <span>Palette</span>
-            <div class="palette-control goal-palette goal-bar-palette">
-              <label title="Fill color"><input id="goalBarColor" type="color"><span id="goalBarColorLabel">#C8F57A</span></label>
-              <label title="Shell color"><input id="goalBarShellColor" type="color"><span id="goalBarShellColorLabel">#18181B</span></label>
-              <label title="Track color"><input id="goalBarTrack" type="color"><span id="goalBarTrackLabel">#0A0A0C</span></label>
-              <label title="Text color"><input id="goalBarLabelColor" type="color"><span id="goalBarLabelColorLabel">#F4F6F2</span></label>
-            </div>
+            <section class="palette-detail-section" aria-labelledby="goalBarPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="goalBarPaletteHeading">Bar colors</h3>
+                <p>Controls the filled amount, outer shell, empty track, and readable content.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Progress fill</strong>
+                    <span>Fills the bar and colors its icon and completion glow.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalBarColor" type="color" aria-label="Goal bar progress fill color">
+                    <span id="goalBarColorLabel">#C8F57A</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Outer shell</strong>
+                    <span>Colors the background container around the complete goal bar.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalBarShellColor" type="color" aria-label="Goal bar outer shell color">
+                    <span id="goalBarShellColorLabel">#18181B</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Empty track</strong>
+                    <span>Shows the part of the progress channel that is not filled yet.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalBarTrack" type="color" aria-label="Goal bar empty track color">
+                    <span id="goalBarTrackLabel">#0A0A0C</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Text</strong>
+                    <span>Colors the goal name and the current and target amounts.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalBarLabelColor" type="color" aria-label="Goal bar text color">
+                    <span id="goalBarLabelColorLabel">#F4F6F2</span>
+                  </span>
+                </label>
+              </div>
+            </section>
             <label for="goalBarFont">Font</label>
             <select id="goalBarFont">
               <option value="sans">Sans serif</option>
@@ -563,13 +668,54 @@
               <option value="82b7e8">Ice</option>
               <option value="custom">Custom</option>
             </select>
-            <span>Palette</span>
-            <div class="palette-control goal-palette goal-bar-palette">
-              <label title="Accent color"><input id="goalPillColor" type="color"><span id="goalPillColorLabel">#F0B04A</span></label>
-              <label title="Pill color"><input id="goalPillShellColor" type="color"><span id="goalPillShellColorLabel">#1A1F2C</span></label>
-              <label title="Track color"><input id="goalPillTrack" type="color"><span id="goalPillTrackLabel">#0F131C</span></label>
-              <label title="Text color"><input id="goalPillLabelColor" type="color"><span id="goalPillLabelColorLabel">#F0F4FA</span></label>
-            </div>
+            <section class="palette-detail-section" aria-labelledby="goalPillPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="goalPillPaletteHeading">Pill colors</h3>
+                <p>Defines the highlight, pill body, empty progress channel, and text.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Accent and fill</strong>
+                    <span>Colors the icon, label chip, completed progress, and glow.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalPillColor" type="color" aria-label="Goal pill accent and fill color">
+                    <span id="goalPillColorLabel">#F0B04A</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Pill body</strong>
+                    <span>Colors the main background behind the goal content.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalPillShellColor" type="color" aria-label="Goal pill body color">
+                    <span id="goalPillShellColorLabel">#1A1F2C</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Empty track</strong>
+                    <span>Colors the unfilled progress channel inside the pill.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalPillTrack" type="color" aria-label="Goal pill empty track color">
+                    <span id="goalPillTrackLabel">#0F131C</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Text</strong>
+                    <span>Colors the current amount and supporting goal text.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="goalPillLabelColor" type="color" aria-label="Goal pill text color">
+                    <span id="goalPillLabelColorLabel">#F0F4FA</span>
+                  </span>
+                </label>
+              </div>
+            </section>
             <label for="goalPillFont">Font</label>
             <select id="goalPillFont">
               <option value="sans">Sans serif</option>
@@ -730,12 +876,44 @@
             <div class="goal-toggle-row">
               <label><input id="socialBrand" type="checkbox"> Use platform brand colors</label>
             </div>
-            <span>Palette</span>
-            <div class="palette-control goal-bar-palette">
-              <label title="Accent color"><input id="socialColor" type="color"><span id="socialColorLabel">#F6F7FB</span></label>
-              <label title="Shell color"><input id="socialShellColor" type="color"><span id="socialShellColorLabel">#141418</span></label>
-              <label title="Text color"><input id="socialTextColor" type="color"><span id="socialTextColorLabel">#FFFFFF</span></label>
-            </div>
+            <section class="palette-detail-section" aria-labelledby="socialPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="socialPaletteHeading">Social colors</h3>
+                <p>The accent is a fallback when brand colors are off; shell and text always shape readability.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Icon accent</strong>
+                    <span>Colors social icons when platform brand colors are disabled.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="socialColor" type="color" aria-label="Social icon accent color">
+                    <span id="socialColorLabel">#F6F7FB</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Shell</strong>
+                    <span>Colors the bar, capsule, or rotator body behind each account.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="socialShellColor" type="color" aria-label="Social shell color">
+                    <span id="socialShellColorLabel">#141418</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Text</strong>
+                    <span>Colors handles, headings, and platform labels.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="socialTextColor" type="color" aria-label="Social text color">
+                    <span id="socialTextColorLabel">#FFFFFF</span>
+                  </span>
+                </label>
+              </div>
+            </section>
             <label for="socialFont">Font</label>
             <select id="socialFont">
               <option value="sans">Sans serif</option>
@@ -938,7 +1116,7 @@
               <span>Colors the small eyebrow label above the handle.</span>
             </div>
             <label class="color-field compact-color-field">
-              <input id="socialGroupedLabelColor" type="color">
+              <input id="socialGroupedLabelColor" type="color" aria-label="Social Grouped eyebrow label color">
               <span id="socialGroupedLabelColorLabel">#FFFFFF</span>
             </label>
           </div>
@@ -1007,7 +1185,7 @@
               <span>Used when a platform has no branded tile color.</span>
             </div>
             <label class="color-field compact-color-field">
-              <input id="socialGroupedBaseColor" type="color">
+              <input id="socialGroupedBaseColor" type="color" aria-label="Social Grouped fallback tile color">
               <span id="socialGroupedBaseColorLabel">#FFFFFF</span>
             </label>
             <label for="socialGroupedTileOutline">Tile outer band</label>
@@ -1025,7 +1203,7 @@
               <span>Colors the border around handles in branded tile mode.</span>
             </div>
             <label class="color-field compact-color-field">
-              <input id="socialGroupedLegacyTextEdgeColor" type="color">
+              <input id="socialGroupedLegacyTextEdgeColor" type="color" aria-label="Social Grouped handle outline color">
               <span id="socialGroupedLegacyTextEdgeColorLabel">#000000</span>
             </label>
           </div>
@@ -1069,14 +1247,14 @@
               <output id="socialGroupedOutlineOpacityOutput">1.00</output>
             </div>
           </div>
-          <section class="social-color-section" aria-labelledby="socialGroupedOutlineColorsHeading">
-            <div class="social-color-section-heading">
+          <section class="palette-detail-section" aria-labelledby="socialGroupedOutlineColorsHeading">
+            <div class="palette-detail-heading">
               <h3 id="socialGroupedOutlineColorsHeading">Sticker outline colors</h3>
               <p>The layered bands that join the logos and handle into one sticker.</p>
             </div>
-            <div class="social-color-list">
-              <label class="social-color-control">
-                <span class="social-color-control-copy">
+            <div class="palette-detail-list">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
                   <strong>Outer band</strong>
                   <span>The outside border that unifies logos and handles.</span>
                 </span>
@@ -1085,8 +1263,8 @@
                   <span id="socialGroupedOuterColorLabel">#FFFFFF</span>
                 </span>
               </label>
-              <label class="social-color-control">
-                <span class="social-color-control-copy">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
                   <strong>Logo keyline</strong>
                   <span>The thin line between the outer band and each logo.</span>
                 </span>
@@ -1095,8 +1273,8 @@
                   <span id="socialGroupedEdgeColorLabel">#000000</span>
                 </span>
               </label>
-              <label class="social-color-control">
-                <span class="social-color-control-copy">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
                   <strong>Text outer band</strong>
                   <span>The outside border around the handle text.</span>
                 </span>
@@ -1105,8 +1283,8 @@
                   <span id="socialGroupedTextOuterColorLabel">#FFFFFF</span>
                 </span>
               </label>
-              <label class="social-color-control">
-                <span class="social-color-control-copy">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
                   <strong>Text keyline</strong>
                   <span>The thin line between the text and its outer band.</span>
                 </span>
@@ -1117,14 +1295,14 @@
               </label>
             </div>
           </section>
-          <section class="social-color-section" aria-labelledby="socialGroupedTextColorHeading">
-            <div class="social-color-section-heading">
+          <section class="palette-detail-section" aria-labelledby="socialGroupedTextColorHeading">
+            <div class="palette-detail-heading">
               <h3 id="socialGroupedTextColorHeading">Text color</h3>
               <p>The readable content inside the layered text outline.</p>
             </div>
-            <div class="social-color-list">
-              <label class="social-color-control">
-                <span class="social-color-control-copy">
+            <div class="palette-detail-list">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
                   <strong>Handle text</strong>
                   <span>The main color used for each social handle.</span>
                 </span>
@@ -1135,8 +1313,8 @@
               </label>
             </div>
           </section>
-          <section class="social-color-section" aria-labelledby="socialGroupedShadowHeading">
-            <div class="social-color-section-heading">
+          <section class="palette-detail-section" aria-labelledby="socialGroupedShadowHeading">
+            <div class="palette-detail-heading">
               <h3 id="socialGroupedShadowHeading">Drop shadow</h3>
               <p>Adds separation behind the full sticker when the scene is busy.</p>
             </div>
@@ -1165,7 +1343,7 @@
                 <span>Colors the soft effect behind the full sticker.</span>
               </div>
               <label class="color-field compact-color-field">
-                <input id="socialGroupedShadowColor" type="color">
+                <input id="socialGroupedShadowColor" type="color" aria-label="Social Grouped shadow color">
                 <span id="socialGroupedShadowColorLabel">#000000</span>
               </label>
               <label for="socialGroupedShadowOpacity">Shadow opacity</label>
@@ -1201,11 +1379,27 @@
           <div class="counter-settings">
             <label for="counterTitle">Title</label>
             <input id="counterTitle" type="text" maxlength="48" autocomplete="off">
-            <label class="color-field">
-              <input id="counterAccent" type="color">
-              <span id="counterAccentLabel">#D7FF45</span>
-            </label>
-            <button class="secondary-button compact" id="saveCounterSettings" type="button">Save</button>
+          </div>
+          <section class="palette-detail-section" aria-labelledby="counterPaletteHeading">
+            <div class="palette-detail-heading">
+              <h3 id="counterPaletteHeading">Scoreboard color</h3>
+              <p>One accent ties the live indicator, divider, scores, and edge highlight together.</p>
+            </div>
+            <div class="palette-detail-list">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy">
+                  <strong>Accent</strong>
+                  <span>Colors the top rule, live dot, score numbers, and active details.</span>
+                </span>
+                <span class="color-field compact-color-field">
+                  <input id="counterAccent" type="color" aria-label="Scoreboard accent color">
+                  <span id="counterAccentLabel">#D7FF45</span>
+                </span>
+              </label>
+            </div>
+          </section>
+          <div class="counter-settings-actions">
+            <button class="secondary-button compact" id="saveCounterSettings" type="button">Save changes</button>
           </div>
           <div class="scoreboard">
             <div class="score-block">
