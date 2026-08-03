@@ -132,10 +132,35 @@ class CustomizerPreviewContractTests(unittest.TestCase):
 
     def test_customizer_scroll_and_expansion_have_separate_layouts(self) -> None:
         styles = (ROOT_DIR / "studio" / "app.css").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("width: calc(100% - 324px)", styles)
         self.assertIn("scrollbar-gutter: stable", styles)
         self.assertIn(".customizer-preview-dock.expanded", styles)
+        self.assertIn("@media (min-width: 961px)", styles)
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) minmax(360px, 440px)",
+            styles,
+        )
+        self.assertIn(
+            "body.customizer-preview-expanded main",
+            styles,
+        )
+        self.assertIn(
+            ".detail-view.active.has-customizer-preview",
+            styles,
+        )
+        self.assertIn("@media (max-width: 960px)", styles)
+        self.assertRegex(
+            styles,
+            r"@media \(max-width: 960px\) \{[\s\S]*?"
+            r"\.customizer-preview-dock\.expanded \{[\s\S]*?"
+            r"position: fixed;",
+        )
+        self.assertIn(
+            'document.body.classList.toggle("customizer-preview-expanded", next)',
+            script,
+        )
 
     def test_goal_currency_fields_use_shared_typeahead_selects(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")

@@ -823,6 +823,7 @@ function setCustomizerPreviewExpanded(expanded) {
   const button = byId("customizerPreviewExpandButton");
   const next = Boolean(expanded && !dock.hidden);
   app.customizerPreviewExpanded = next;
+  document.body.classList.toggle("customizer-preview-expanded", next);
   dock.classList.toggle("expanded", next);
   button.setAttribute("aria-expanded", String(next));
   button.setAttribute(

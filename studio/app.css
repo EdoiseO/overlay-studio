@@ -626,17 +626,50 @@ body.server-running
   cursor: grabbing;
 }
 
-.customizer-preview-dock.expanded {
-  inset: 24px;
-  width: auto;
-  z-index: 30;
-  box-shadow:
-    0 18px 52px rgba(0, 0, 0, 0.55),
-    0 0 0 100vmax rgba(6, 9, 11, 0.72);
-}
-
 .customizer-preview-dock.expanded .customizer-preview-stage {
   height: calc(100% - 94px);
+}
+
+@media (min-width: 961px) {
+  body.customizer-preview-expanded .app-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    grid-template-rows: 76px minmax(0, 1fr);
+    column-gap: 16px;
+  }
+
+  body.customizer-preview-expanded .topbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  body.customizer-preview-expanded main {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  body.customizer-preview-expanded
+    .detail-view.active.has-customizer-preview {
+    width: 100%;
+    padding-right: 2px;
+  }
+
+  body.customizer-preview-expanded .customizer-preview-dock.expanded {
+    position: relative;
+    inset: auto;
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    z-index: 8;
+    box-shadow: 0 14px 32px var(--shadow);
+  }
 }
 
 .customizer-preview-stage iframe {
@@ -2307,5 +2340,18 @@ dialog .primary-button {
 
   .social-grouped-row-heading {
     grid-column: 1;
+  }
+}
+
+@media (max-width: 960px) {
+  .customizer-preview-dock.expanded {
+    position: fixed;
+    inset: 24px;
+    width: auto;
+    height: auto;
+    z-index: 30;
+    box-shadow:
+      0 18px 52px rgba(0, 0, 0, 0.55),
+      0 0 0 100vmax rgba(6, 9, 11, 0.72);
   }
 }
