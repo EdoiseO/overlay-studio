@@ -12,10 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
     apply_rivals_poll,
+    is_competitive_match,
     load_rivals_record,
     load_rivals_studio_state,
     normalize_rivals_state,
     parse_player_uid,
+    rank_progress_score,
     rank_from_level,
     remove_rivals_instance,
     rivals_status,
@@ -55,6 +57,19 @@ class RivalsStoreTests(unittest.TestCase):
             [rank_from_level(level) for level in range(1, 24)],
             expected,
         )
+
+    def test_identifies_competitive_matches_and_normalizes_rank_score(self) -> None:
+        self.assertTrue(is_competitive_match({"game_mode_id": 2}))
+        self.assertTrue(is_competitive_match({"game_play_mode_id": "200"}))
+        self.assertTrue(is_competitive_match({"match_uid": "legacy-shape"}))
+        self.assertFalse(
+            is_competitive_match(
+                {"game_mode_id": 1, "game_play_mode_id": 100}
+            )
+        )
+        self.assertEqual(rank_progress_score(4653.152, 17), 53.15)
+        self.assertEqual(rank_progress_score(5340.41, 23), 240.41)
+        self.assertEqual(rank_progress_score(56, 17), 56)
 
     def test_parses_only_numeric_ids_and_rivals_data_profile_urls(self) -> None:
         self.assertEqual(parse_player_uid("396536339"), 396536339)

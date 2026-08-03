@@ -75,6 +75,11 @@ MAX_PLAYER_UID = 9_999_999_999_999_999_999
 MAX_SCORE = 1_000_000_000.0
 MAX_SESSION_RESULTS = 999
 POLL_STATUSES = {"unlinked", "waiting", "ok", "error"}
+COMPETITIVE_GAME_MODE_ID = 2
+COMPETITIVE_PLAY_MODE_ID = 200
+RANK_SCORE_BASE = 3000.0
+RANK_SCORE_STEP = 100.0
+RANK_SCORE_CAP_LEVEL = 22
 
 
 def _number(
@@ -127,6 +132,43 @@ def rank_from_level(value: Any) -> tuple[str, int]:
     if level == 22:
         return "eternity", 0
     return "one-above-all", 0
+
+
+def is_competitive_match(raw: Any) -> bool:
+    """Accept ranked matches while preserving compatibility with older payloads."""
+    if not isinstance(raw, dict):
+        return False
+
+    supplied_modes: list[int] = []
+    for value in (
+        raw.get("game_mode_id", raw.get("gameModeId")),
+        raw.get("game_play_mode_id", raw.get("gamePlayModeId")),
+    ):
+        if value is None:
+            continue
+        try:
+            supplied_modes.append(int(value))
+        except (TypeError, ValueError):
+            supplied_modes.append(-1)
+
+    if not supplied_modes:
+        return True
+    return (
+        COMPETITIVE_GAME_MODE_ID in supplied_modes
+        or COMPETITIVE_PLAY_MODE_ID in supplied_modes
+    )
+
+
+def rank_progress_score(value: Any, rank_level: Any) -> float:
+    """Convert Rivals Data's season-scale score into the displayed RS value."""
+    score = _number(value, 0, 0, MAX_SCORE)
+    if score < RANK_SCORE_BASE or rank_level is None:
+        return round(score, 2)
+
+    level = _integer(rank_level, 1, 1, 23)
+    threshold_level = min(level, RANK_SCORE_CAP_LEVEL)
+    threshold = RANK_SCORE_BASE + ((threshold_level - 1) * RANK_SCORE_STEP)
+    return round(max(0.0, score - threshold), 2)
 
 
 def normalize_rivals_state(raw: Any) -> dict[str, Any]:
@@ -453,7 +495,7 @@ def update_rivals_record(
 
 
 def _match_values(raw: Any) -> dict[str, Any] | None:
-    if not isinstance(raw, dict):
+    if not isinstance(raw, dict) or not is_competitive_match(raw):
         return None
     match_uid = _normalize_match_uid(raw.get("match_uid", raw.get("matchUid")))
     if not match_uid:
@@ -504,9 +546,7 @@ def apply_rivals_poll(
     if effective_level is not None:
         state["tier"], state["division"] = rank_from_level(effective_level)
     if effective_score is not None:
-        state["score"] = round(
-            _number(effective_score, state["score"], 0, MAX_SCORE), 2
-        )
+        state["score"] = rank_progress_score(effective_score, effective_level)
     if str(player_name or "").strip():
         state["playerName"] = _text(
             player_name, state["playerName"], 32

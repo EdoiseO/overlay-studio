@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable
 from aiohttp import ClientSession, ClientTimeout
 
 from rivals_store import (
+    is_competitive_match,
     linked_rivals_instances,
     save_rivals_poll,
     save_rivals_poll_failure,
@@ -162,7 +163,11 @@ class RivalsPollWorker:
             MATCHES_ENDPOINT,
             uid,
         )
-        matches = extract_matches(matches_payload)
+        matches = [
+            match
+            for match in extract_matches(matches_payload)
+            if is_competitive_match(match)
+        ]
         player_name, rank_level, rank_score = extract_profile_snapshot(profile)
         if matches:
             newest = matches[0]
