@@ -96,11 +96,13 @@ images can be `png`, `jpg`, `jpeg`, `gif`, `webp`, or `apng`.
 ## Rivals Rank data
 
 The Rivals Rank Tracker links a numeric Rivals Data player ID server-side and polls the
-unofficial profile and cached-match endpoints at a bounded 30-to-60-second interval.
-The default is 45 seconds. New match IDs update the per-instance session record; a
-failed or malformed response is logged and leaves the last successful public state
-unchanged. The private player ID and match cursor are stored in `rivals.json` and are
-never included in `/api/rivals` responses or websocket messages.
+unofficial profile and match endpoints at a bounded 30-to-60-second interval. Live
+match-history refreshes are limited to once per minute per overlay instance and fall
+back to cached history when live data is unavailable or private. New match IDs update
+the per-instance session record; a failed or malformed response leaves the last
+successful public state unchanged. The private player ID and match cursor are stored
+in `rivals.json` and are never included in `/api/rivals` responses or websocket
+messages.
 
 Rivals Data is an undocumented fan service, not an official NetEase or Marvel Rivals
 API. Treat availability and response shape as best effort.
@@ -133,6 +135,7 @@ http://127.0.0.1:8473/overlays/spotify?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9
 - `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
 - `rivals.enabled`: enables or disables Rivals Data polling.
 - `rivals.poll_seconds`: polling interval, clamped to 30 through 60 seconds; default is 45.
+- `rivals.live_refresh_seconds`: live match-history refresh interval, clamped to 60 through 300 seconds; default is 60.
 - `rivals.timeout_seconds`: per-request timeout, clamped to 3 through 30 seconds.
 
 ## Optional EXE build

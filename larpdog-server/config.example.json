@@ -22,6 +22,7 @@
   "rivals": {
     "enabled": true,
     "poll_seconds": 45,
+    "live_refresh_seconds": 60,
     "timeout_seconds": 12
   }
 }

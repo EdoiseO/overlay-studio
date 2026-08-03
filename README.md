@@ -136,11 +136,13 @@ The card shows the linked player name, tier and division, rank score, and wins a
 losses since the current session began. Use **Reset session** to zero only the session
 record; the last known rank and score stay in place.
 
-The local server checks for new matches every 45 seconds by default. Existing match
-history is baselined when an account is linked, while matches completed after linking
-or a manual reset count toward the session. The numeric player ID is stored only in the
-server's private `rivals.json` bookkeeping and is never returned by `/api/rivals` or
-sent over the overlay websocket.
+The local server checks for new matches every 45 seconds by default and requests a live
+match-history refresh no more than once per minute per linked overlay. It falls back to
+Rivals Data's cached history when live history is unavailable or private. Existing
+match history is baselined when an account is linked, while matches completed after
+linking or a manual reset count toward the session. The numeric player ID is stored
+only in the server's private `rivals.json` bookkeeping and is never returned by
+`/api/rivals` or sent over the overlay websocket.
 
 Rivals Data is an unofficial, undocumented fan service and is not affiliated with
 NetEase or Marvel Rivals. Its API can change, rate-limit requests, or become unavailable.

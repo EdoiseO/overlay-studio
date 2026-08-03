@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -18,8 +20,12 @@ from rivals_store import (
 
 PROFILE_ENDPOINT = "https://api.rivalsdata.com/player"
 MATCHES_ENDPOINT = "https://api.rivalsdata.com/player/matches/cached"
+MATCHES_REFRESH_ENDPOINT = "https://api.rivalsdata.com/player/matches"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_MATCHES = 64
+DEFAULT_LIVE_REFRESH_SECONDS = 60.0
+MIN_LIVE_REFRESH_SECONDS = 60.0
+MAX_LIVE_REFRESH_SECONDS = 300.0
 
 
 def _walk_dicts(value: Any, maximum: int = 512) -> list[dict[str, Any]]:
@@ -144,6 +150,19 @@ class RivalsPollWorker:
         self.logger = logger
         self.task: asyncio.Task[None] | None = None
         self._last_errors: dict[str, str] = {}
+        try:
+            live_refresh_seconds = float(
+                config.get("live_refresh_seconds", DEFAULT_LIVE_REFRESH_SECONDS)
+            )
+        except (TypeError, ValueError):
+            live_refresh_seconds = DEFAULT_LIVE_REFRESH_SECONDS
+        if not math.isfinite(live_refresh_seconds):
+            live_refresh_seconds = DEFAULT_LIVE_REFRESH_SECONDS
+        self.live_refresh_seconds = max(
+            MIN_LIVE_REFRESH_SECONDS,
+            min(MAX_LIVE_REFRESH_SECONDS, live_refresh_seconds),
+        )
+        self._last_live_refresh_at: dict[str, float] = {}
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
@@ -167,8 +186,12 @@ class RivalsPollWorker:
         session: ClientSession,
         endpoint: str,
         uid: int,
+        payload: dict[str, Any] | None = None,
     ) -> Any:
-        async with session.post(endpoint, json={"uid": uid}) as response:
+        request_body: dict[str, Any] = {"uid": uid}
+        if payload:
+            request_body.update(payload)
+        async with session.post(endpoint, json=request_body) as response:
             if response.status < 200 or response.status >= 300:
                 raise RuntimeError(f"Rivals Data returned HTTP {response.status}")
             if (
@@ -186,6 +209,43 @@ class RivalsPollWorker:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise RuntimeError("Rivals Data returned invalid JSON") from exc
 
+    def _should_refresh_live_matches(self, instance_id: str) -> bool:
+        now = time.monotonic()
+        previous = self._last_live_refresh_at.get(instance_id)
+        if previous is not None and now - previous < self.live_refresh_seconds:
+            return False
+        self._last_live_refresh_at[instance_id] = now
+        return True
+
+    async def _load_matches_payload(
+        self,
+        session: ClientSession,
+        instance_id: str,
+        uid: int,
+        profile_season: int | None,
+    ) -> Any:
+        if self._should_refresh_live_matches(instance_id):
+            refresh_payload: dict[str, Any] = {"cursor": None}
+            if profile_season is not None:
+                refresh_payload["season"] = profile_season
+            try:
+                live_payload = await self._request_json(
+                    session,
+                    MATCHES_REFRESH_ENDPOINT,
+                    uid,
+                    refresh_payload,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                live_payload = None
+            if any(
+                is_competitive_match(match)
+                for match in extract_matches(live_payload)
+            ):
+                return live_payload
+        return await self._request_json(session, MATCHES_ENDPOINT, uid)
+
     async def _poll_instance(
         self,
         session: ClientSession,
@@ -201,18 +261,16 @@ class RivalsPollWorker:
             # Match history is the essential endpoint; a profile outage should
             # not stop rank/session updates for an already named account.
             profile = {}
-        matches_payload = await self._request_json(
-            session,
-            MATCHES_ENDPOINT,
-            uid,
+        player_name, rank_level, rank_score = extract_profile_snapshot(profile)
+        profile_season, _profile_rank = _latest_rank_season(profile)
+        matches_payload = await self._load_matches_payload(
+            session, instance_id, uid, profile_season
         )
         matches = [
             match
             for match in extract_matches(matches_payload)
             if is_competitive_match(match)
         ]
-        player_name, rank_level, rank_score = extract_profile_snapshot(profile)
-        profile_season, _profile_rank = _latest_rank_season(profile)
         if matches:
             # Profile scores are current while the cached match list can lag.
             # Keep a complete profile rank pair together; otherwise use the

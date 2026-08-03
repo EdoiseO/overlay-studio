@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from rivals_store import rivals_status, update_rivals_record  # noqa: E402
 from rivals_worker import (  # noqa: E402
+    MATCHES_ENDPOINT,
+    MATCHES_REFRESH_ENDPOINT,
     RivalsPollWorker,
     extract_matches,
     extract_profile_snapshot,
@@ -57,6 +59,22 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             ),
             ("iiTzEdo", 13, 4656.718),
         )
+
+    def test_live_match_refresh_is_rate_limited_per_instance(self) -> None:
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {"live_refresh_seconds": 60},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        with mock.patch(
+            "rivals_worker.time.monotonic",
+            side_effect=[100.0, 130.0, 160.0],
+        ):
+            self.assertTrue(worker._should_refresh_live_matches("rank-card"))
+            self.assertFalse(worker._should_refresh_live_matches("rank-card"))
+            self.assertTrue(worker._should_refresh_live_matches("rank-card"))
 
     async def test_poll_failure_keeps_last_known_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -166,6 +184,71 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["state"]["sessionWins"], 1)
             self.assertEqual(result["state"]["sessionLosses"], 0)
             self.assertEqual(len(messages), 1)
+            self.assertEqual(
+                worker._request_json.await_args_list[1].args[1],
+                MATCHES_REFRESH_ENDPOINT,
+            )
+
+    async def test_poll_falls_back_when_live_match_refresh_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(
+                path,
+                "rank-card",
+                {"uid": "396536339"},
+                now=100,
+            )
+
+            async def broadcast(_message: dict[str, object]) -> None:
+                return None
+
+            worker = RivalsPollWorker(
+                path,
+                broadcast,
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            worker._request_json = mock.AsyncMock(  # type: ignore[method-assign]
+                side_effect=[
+                    {
+                        "name": "iiTzEdo",
+                        "rank_game_season": {
+                            "1001018": {
+                                "rank_game_id": 18,
+                                "level": 17,
+                                "rank_score": 4656.718,
+                            }
+                        },
+                    },
+                    RuntimeError("live history unavailable"),
+                    {
+                        "matches": [
+                            {
+                                "match_uid": "cached-ranked-match",
+                                "is_win": True,
+                                "timestamp": 110,
+                                "season": 18,
+                                "rank_level": 17,
+                                "rank_score": 4653.152,
+                                "game_mode_id": 2,
+                                "game_play_mode_id": 200,
+                            }
+                        ]
+                    },
+                ]
+            )
+
+            await worker._poll_instance(mock.MagicMock(), "rank-card", 396536339)
+
+            result = rivals_status(path, "rank-card")
+            self.assertEqual(result["state"]["tier"], "grandmaster")
+            self.assertEqual(result["state"]["division"], 2)
+            self.assertEqual(result["state"]["score"], 56.72)
+            self.assertEqual(
+                worker._request_json.await_args_list[2].args[1],
+                MATCHES_ENDPOINT,
+            )
 
     async def test_poll_keeps_current_profile_rank_pair_together(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
