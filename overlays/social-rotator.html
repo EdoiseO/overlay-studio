@@ -133,7 +133,8 @@
     height: 60%;
     display: block;
     overflow: visible;
-    fill: var(--glyph-color, #ffffff);
+    color: var(--glyph-color, #ffffff);
+    fill: currentColor;
   }
   .icon.shape-circle { border-radius: 50%; }
   .icon.shape-square { border-radius: 6px; }
@@ -219,7 +220,7 @@
     </div>
   </main>
 
-<script src="/assets/social-platforms.js"></script>
+<script src="/assets/social-platforms.js?v=2"></script>
 <script>
 (() => {
   "use strict";
@@ -277,14 +278,20 @@
   function paint() {
     const account = accounts[index];
     const meta = social.PLATFORMS[account.platform];
+    const shell = `#${settings.shellColor}`;
     const brand = settings.brand && meta ? meta.color : `#${settings.color}`;
     const iconSurface = settings.brand && meta?.surface
       ? meta.surface
       : brand;
+    const bareGlyph = settings.brand && meta ? meta.bare || meta.color : brand;
     const glyphColor = settings.iconBackground
-      ? (settings.brand && meta?.ink ? meta.ink : social.contrast(iconSurface))
-      : (settings.brand && meta ? meta.bare || meta.color : brand);
-    rotator.style.setProperty("--brand", brand);
+      ? social.ensureContrast(
+        settings.brand && meta?.ink ? meta.ink : social.contrast(iconSurface),
+        iconSurface,
+      )
+      : social.ensureContrast(bareGlyph, shell, meta?.bare);
+    const accentColor = social.ensureContrast(brand, shell, meta?.bare);
+    rotator.style.setProperty("--brand", accentColor);
     icon.style.setProperty("--brand", iconSurface);
     icon.style.setProperty(
       "--glyph-color",

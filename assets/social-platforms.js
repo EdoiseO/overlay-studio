@@ -111,6 +111,38 @@
     const luminance = channels[0] * .299 + channels[1] * .587 + channels[2] * .114;
     return luminance > 165 ? "#101014" : "#ffffff";
   };
+  const colorChannels = value => {
+    const candidate = String(value || "").trim().replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(candidate)) return null;
+    return [0, 2, 4].map(offset => (
+      parseInt(candidate.slice(offset, offset + 2), 16) / 255
+    ));
+  };
+  const relativeLuminance = value => {
+    const channels = colorChannels(value);
+    if (!channels) return null;
+    const linear = channels.map(channel => (
+      channel <= .04045
+        ? channel / 12.92
+        : ((channel + .055) / 1.055) ** 2.4
+    ));
+    return linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+  };
+  const contrastRatio = (foreground, background) => {
+    const first = relativeLuminance(foreground);
+    const second = relativeLuminance(background);
+    if (first === null || second === null) return 0;
+    return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+  };
+  const ensureContrast = (foreground, background, fallback, minimum = 4.5) => {
+    const candidate = String(foreground || "").trim();
+    if (contrastRatio(candidate, background) >= minimum) return candidate;
+    const safeFallback = String(fallback || contrast(background)).trim();
+    if (contrastRatio(safeFallback, background) >= minimum) return safeFallback;
+    return contrastRatio("#ffffff", background) >= contrastRatio("#101014", background)
+      ? "#ffffff"
+      : "#101014";
+  };
 
   function normalizeAccounts(raw, overlayType) {
     const supplied = Array.isArray(raw) ? raw : DEFAULTS.accounts;
@@ -248,6 +280,7 @@
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("fill", "currentColor");
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     const dx = Number(meta.dx) || 0;
     const dy = Number(meta.dy) || 0;
@@ -352,6 +385,7 @@
     load,
     createGlyph,
     contrast,
+    ensureContrast,
     listen,
   });
 })();

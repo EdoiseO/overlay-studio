@@ -49,6 +49,9 @@ class SocialIconAssetTests(unittest.TestCase):
     def test_builtin_renderers_only_use_inline_vectors(self) -> None:
         self.assertIn("function createVectorGlyph", self.shared)
         self.assertIn("return createVectorGlyph(meta, branded, bare);", self.shared)
+        self.assertIn('svg.setAttribute("fill", "currentColor")', self.shared)
+        for page in (self.bar, self.rotator, self.grouped):
+            self.assertIn("social-platforms.js?v=2", page)
         self.assertNotIn("data-social-asset-kind", self.bar)
         self.assertNotIn("data-social-asset-kind", self.rotator)
         self.assertNotIn("asset-tile", self.bar)
@@ -85,6 +88,29 @@ class SocialIconAssetTests(unittest.TestCase):
         self.assertIn('"shape"', self.grouped)
         self.assertIn('"brand"', self.grouped)
         self.assertIn('["squircle", "round", "square"]', self.grouped)
+
+    def test_rotator_guards_logo_and_accent_contrast(self) -> None:
+        self.assertIn("const ensureContrast =", self.shared)
+        self.assertIn("ensureContrast,", self.shared)
+        self.assertIn(
+            'contrastRatio("#ffffff", background) >= '
+            'contrastRatio("#101014", background)',
+            self.shared,
+        )
+        self.assertIn(
+            'x:         { name: "X", color: "#101014", bare: "#ffffff"',
+            self.shared,
+        )
+        self.assertIn(
+            "social.ensureContrast(bareGlyph, shell, meta?.bare)",
+            self.rotator,
+        )
+        self.assertIn(
+            "social.ensureContrast(brand, shell, meta?.bare)",
+            self.rotator,
+        )
+        self.assertIn("color: var(--glyph-color, #ffffff);", self.rotator)
+        self.assertIn("fill: currentColor;", self.rotator)
 
 
 if __name__ == "__main__":
