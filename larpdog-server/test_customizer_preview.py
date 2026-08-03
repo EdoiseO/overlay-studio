@@ -47,6 +47,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "win-loss": ROOT_DIR / "overlays" / "win-loss.html",
             "social": ROOT_DIR / "overlays" / "social.html",
             "social-rotator": ROOT_DIR / "overlays" / "social-rotator.html",
+            "social-grouped": ROOT_DIR / "overlays" / "social-grouped.html",
         }
         shared_social = (
             ROOT_DIR / "assets" / "social-platforms.js"
@@ -55,7 +56,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         for overlay_type, path in overlay_sources.items():
             with self.subTest(overlay_type=overlay_type):
                 source = path.read_text(encoding="utf-8")
-                if overlay_type in {"social", "social-rotator"}:
+                if overlay_type in {"social", "social-rotator", "social-grouped"}:
                     source += shared_social
                 self.assertIn("overlay-studio-draft", source)
                 self.assertIn(overlay_type, source)
@@ -73,7 +74,8 @@ class CustomizerPreviewContractTests(unittest.TestCase):
 
         self.assertIn('"threads"', shared)
         self.assertIn('"bluesky"', shared)
-        self.assertIn("enabled >= 8", shared)
+        self.assertIn("enabled >= limit", shared)
+        self.assertIn('"social-rotator": 12', shared)
         self.assertIn('get("customizer") === "1"', shared)
         self.assertIn("event.source !== window.parent", shared)
         self.assertNotIn("event.origin !== location.origin", shared)
@@ -86,6 +88,22 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn("content.hidden = accounts.length === 0", rotator)
         self.assertIn('studioView": "socialView"', bar)
         self.assertIn('studioView": "socialView"', rotator)
+
+    def test_grouped_social_customizer_uses_compact_group_editor(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        styles = (ROOT_DIR / "studio" / "app.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="socialGroupedView"', markup)
+        self.assertIn('id="socialGroupedList"', markup)
+        self.assertIn('id="socialGroupedTile"', markup)
+        self.assertIn('id="socialGroupedShape"', markup)
+        self.assertIn("function renderSocialGrouped(socialGrouped)", script)
+        self.assertIn("function gatherSocialGroupedSettings()", script)
+        self.assertIn("SOCIAL_GROUPED_LIMITS", script)
+        self.assertIn("socialGroupedGroupsFromEditor", script)
+        self.assertIn(".social-grouped-chip", styles)
+        self.assertIn(".social-grouped-row", styles)
 
     def test_social_customizer_uses_compact_account_picker(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")

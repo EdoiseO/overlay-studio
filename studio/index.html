@@ -771,6 +771,207 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="socialGroupedView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>SOCIAL GROUPED</span>
+            <h1 id="socialGroupedDetailName">Social Grouped</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <div class="social-panel-heading">
+            <div>
+              <h2>Account groups</h2>
+              <span id="socialGroupedCount">2 groups</span>
+            </div>
+            <button class="secondary-button compact" id="addSocialGroupButton" type="button">Add group</button>
+          </div>
+          <div class="social-grouped-list" id="socialGroupedList" aria-label="Grouped social accounts"></div>
+        </div>
+        <div class="panel">
+          <h2>Composition</h2>
+          <div class="form-grid">
+            <label for="socialGroupedPreset">Preset</label>
+            <select id="socialGroupedPreset">
+              <option value="sticker">Sticker</option>
+              <option value="clean">Clean</option>
+              <option value="bold">Bold</option>
+              <option value="custom">Custom</option>
+            </select>
+            <span>Group treatment</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialGroupedSeparate" type="checkbox"> Separate groups</label>
+            </div>
+            <span>Icon presentation</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialGroupedTile" type="checkbox"> Branded tiles</label>
+            </div>
+            <label for="socialGroupedShape">Tile shape</label>
+            <select id="socialGroupedShape">
+              <option value="squircle">Rounded</option>
+              <option value="round">Circle</option>
+              <option value="square">Square</option>
+            </select>
+            <label for="socialGroupedTextSide">Text position</label>
+            <select id="socialGroupedTextSide">
+              <option value="right">After logos</option>
+              <option value="left">Before logos</option>
+            </select>
+            <label for="socialGroupedTextCase">Text case</label>
+            <select id="socialGroupedTextCase">
+              <option value="none">As entered</option>
+              <option value="upper">Uppercase</option>
+              <option value="lower">Lowercase</option>
+            </select>
+            <label for="socialGroupedPrefix">Handle prefix</label>
+            <input id="socialGroupedPrefix" type="text" maxlength="8" autocomplete="off" placeholder="@">
+            <label for="socialGroupedFont">Font</label>
+            <select id="socialGroupedFont">
+              <option value="montserrat">Montserrat</option>
+              <option value="poppins">Poppins</option>
+              <option value="archivo">Archivo Black</option>
+              <option value="nunito">Nunito</option>
+              <option value="anton">Anton</option>
+              <option value="sans">Sans serif</option>
+              <option value="display">Display</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="serif">Serif</option>
+            </select>
+            <label for="socialGroupedWeight">Font weight</label>
+            <select id="socialGroupedWeight">
+              <option value="400">Regular</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+              <option value="800">Extra bold</option>
+              <option value="900">Black</option>
+            </select>
+            <label for="socialGroupedSize">Base size</label>
+            <select id="socialGroupedSize">
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+            <label for="socialGroupedScale">Scale</label>
+            <div class="range-control">
+              <input id="socialGroupedScale" type="range" min="0.3" max="3" step="0.05">
+              <output id="socialGroupedScaleOutput">1.00</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Spacing</h2>
+          <div class="form-grid">
+            <label for="socialGroupedMerge">Logo merge</label>
+            <div class="range-control">
+              <input id="socialGroupedMerge" type="range" min="-12" max="22" step="0.5">
+              <output id="socialGroupedMergeOutput">3.0</output>
+            </div>
+            <label for="socialGroupedTextGap">Handle gap</label>
+            <div class="range-control">
+              <input id="socialGroupedTextGap" type="range" min="-14" max="30" step="0.5">
+              <output id="socialGroupedTextGapOutput">-3.0</output>
+            </div>
+            <label for="socialGroupedGroupGap">Group gap</label>
+            <div class="range-control">
+              <input id="socialGroupedGroupGap" type="range" min="-20" max="40" step="0.5">
+              <output id="socialGroupedGroupGapOutput">-2.0</output>
+            </div>
+            <label for="socialGroupedLogoHeight">Logo height</label>
+            <div class="range-control">
+              <input id="socialGroupedLogoHeight" type="range" min="6" max="24" step="0.5">
+              <output id="socialGroupedLogoHeightOutput">19.0</output>
+            </div>
+            <label for="socialGroupedTextSize">Text size</label>
+            <div class="range-control">
+              <input id="socialGroupedTextSize" type="range" min="6" max="40" step="0.5">
+              <output id="socialGroupedTextSizeOutput">20.0</output>
+            </div>
+            <span>Logo sizing</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialGroupedEqualHeight" type="checkbox"> Equal visual height</label>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Outline and color</h2>
+          <div class="form-grid">
+            <span>Logo colors</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialGroupedBrand" type="checkbox"> Platform brand colors</label>
+            </div>
+            <label for="socialGroupedLogoOutline">Logo outer band</label>
+            <div class="range-control">
+              <input id="socialGroupedLogoOutline" type="range" min="0" max="10" step="0.25">
+              <output id="socialGroupedLogoOutlineOutput">2.00</output>
+            </div>
+            <label for="socialGroupedTextOutline">Text outer band</label>
+            <div class="range-control">
+              <input id="socialGroupedTextOutline" type="range" min="0" max="10" step="0.25">
+              <output id="socialGroupedTextOutlineOutput">2.00</output>
+            </div>
+            <label for="socialGroupedEdgeWidth">Logo keyline</label>
+            <div class="range-control">
+              <input id="socialGroupedEdgeWidth" type="range" min="0" max="6" step="0.25">
+              <output id="socialGroupedEdgeWidthOutput">1.00</output>
+            </div>
+            <label for="socialGroupedTextEdgeWidth">Text keyline</label>
+            <div class="range-control">
+              <input id="socialGroupedTextEdgeWidth" type="range" min="0" max="6" step="0.25">
+              <output id="socialGroupedTextEdgeWidthOutput">1.00</output>
+            </div>
+            <label for="socialGroupedJoin">Corner join</label>
+            <select id="socialGroupedJoin">
+              <option value="round">Round</option>
+              <option value="miter">Miter</option>
+              <option value="bevel">Bevel</option>
+            </select>
+            <label for="socialGroupedOutlineOpacity">Outline opacity</label>
+            <div class="range-control">
+              <input id="socialGroupedOutlineOpacity" type="range" min="0" max="1" step="0.05">
+              <output id="socialGroupedOutlineOpacityOutput">1.00</output>
+            </div>
+            <span>Palette</span>
+            <div class="palette-control social-grouped-palette">
+              <label title="Outer band"><input id="socialGroupedOuterColor" type="color"><span id="socialGroupedOuterColorLabel">#FFFFFF</span></label>
+              <label title="Logo keyline"><input id="socialGroupedEdgeColor" type="color"><span id="socialGroupedEdgeColorLabel">#000000</span></label>
+              <label title="Text"><input id="socialGroupedTextColor" type="color"><span id="socialGroupedTextColorLabel">#FFFFFF</span></label>
+              <label title="Text outer band"><input id="socialGroupedTextOuterColor" type="color"><span id="socialGroupedTextOuterColorLabel">#FFFFFF</span></label>
+              <label title="Text keyline"><input id="socialGroupedTextEdgeColor" type="color"><span id="socialGroupedTextEdgeColorLabel">#000000</span></label>
+            </div>
+            <span>Drop shadow</span>
+            <div class="goal-toggle-row">
+              <label><input id="socialGroupedShadow" type="checkbox"> Enabled</label>
+            </div>
+            <label for="socialGroupedShadowBlur">Shadow blur</label>
+            <div class="range-control">
+              <input id="socialGroupedShadowBlur" type="range" min="0" max="30" step="0.5">
+              <output id="socialGroupedShadowBlurOutput">5.0</output>
+            </div>
+            <label for="socialGroupedShadowOpacity">Shadow opacity</label>
+            <div class="range-control">
+              <input id="socialGroupedShadowOpacity" type="range" min="0" max="1" step="0.05">
+              <output id="socialGroupedShadowOpacityOutput">0.45</output>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="socialGroupedSourceLabel" for="socialGroupedUrl">Social Grouped</label>
+            <input id="socialGroupedUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetSocialGroupedButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveSocialGroupedButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="counterView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

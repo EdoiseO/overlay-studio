@@ -31,6 +31,7 @@ const app = {
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
+  socialGroupedBase: null,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -93,6 +94,42 @@ const SOCIAL_PLATFORMS = [
   { id: "bluesky", name: "Bluesky", mark: "BS", color: "#0085FF" },
   { id: "reddit", name: "Reddit", mark: "R", color: "#FF4500" },
 ];
+const SOCIAL_GROUPED_LIMITS = Object.freeze({ groups: 6, platforms: 6 });
+const SOCIAL_GROUPED_PRESETS = Object.freeze({
+  sticker: Object.freeze({
+    logoOutline: 2,
+    edgeWidth: 1,
+    textOutline: 2,
+    textEdgeWidth: 1,
+    merge: 3,
+    textGap: -3,
+    groupGap: -2,
+    weight: 800,
+    shadow: true,
+  }),
+  clean: Object.freeze({
+    logoOutline: 1.25,
+    edgeWidth: 0.5,
+    textOutline: 1.25,
+    textEdgeWidth: 0.5,
+    merge: 1,
+    textGap: 1,
+    groupGap: 0,
+    weight: 800,
+    shadow: false,
+  }),
+  bold: Object.freeze({
+    logoOutline: 3.5,
+    edgeWidth: 1.5,
+    textOutline: 3.5,
+    textEdgeWidth: 1.5,
+    merge: 4,
+    textGap: -4,
+    groupGap: -3,
+    weight: 900,
+    shadow: true,
+  }),
+});
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
@@ -101,6 +138,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "goalBarView",
   "goalPillView",
   "socialView",
+  "socialGroupedView",
   "counterView",
 ]);
 
@@ -253,6 +291,7 @@ async function saveActiveCustomizer() {
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
+    || instance.type === "social-grouped"
   ) {
     return saveOverlaySettings();
   }
@@ -404,7 +443,15 @@ function catalogPreviewUrl(manifest) {
 function materializeInstanceConfig(instance) {
   const root = app.state?.config || {};
   const materialized = {};
-  ["dance", "spotify", "flow", "audio", "nowPlaying", "social"].forEach((key) => {
+  [
+    "dance",
+    "spotify",
+    "flow",
+    "audio",
+    "nowPlaying",
+    "social",
+    "socialGrouped",
+  ].forEach((key) => {
     materialized[key] = structuredClone(root[key] || {});
   });
   Object.entries(instance?.config || {}).forEach(([key, value]) => {
@@ -447,6 +494,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "social" || instance.type === "social-rotator") {
     return { config: { social: gatherSocialSettings() } };
+  }
+  if (instance.type === "social-grouped") {
+    return { config: { socialGrouped: gatherSocialGroupedSettings() } };
   }
   if (instance.type === "goal") {
     return { state: gatherGoalSettings() };
@@ -834,6 +884,10 @@ function renderActiveIdentity(instance) {
     byId("socialDetailName").textContent = instance.name;
     byId("socialSourceLabel").textContent = instance.name;
     byId("socialUrl").value = source;
+  } else if (instance.type === "social-grouped") {
+    byId("socialGroupedDetailName").textContent = instance.name;
+    byId("socialGroupedSourceLabel").textContent = instance.name;
+    byId("socialGroupedUrl").value = source;
   }
 }
 
@@ -1738,6 +1792,297 @@ function gatherSocialSettings() {
   };
 }
 
+function parseSocialGroupedGroups(value) {
+  const groups = [];
+  String(value || "")
+    .split(",")
+    .slice(0, SOCIAL_GROUPED_LIMITS.groups)
+    .forEach((chunk) => {
+      const separator = chunk.indexOf(":");
+      const platformText = separator >= 0 ? chunk.slice(0, separator) : chunk;
+      const handle = separator >= 0 ? chunk.slice(separator + 1) : "";
+      const platforms = [];
+      platformText.split(/[+|]/).forEach((id) => {
+        const platformId = id.trim().toLowerCase();
+        if (
+          SOCIAL_PLATFORMS.some((platform) => platform.id === platformId)
+          && !platforms.includes(platformId)
+          && platforms.length < SOCIAL_GROUPED_LIMITS.platforms
+        ) {
+          platforms.push(platformId);
+        }
+      });
+      if (platforms.length) {
+        groups.push({ platforms, handle: handle.trim().slice(0, 128) });
+      }
+    });
+  return groups.length
+    ? groups
+    : [{ platforms: ["twitch", "youtube"], handle: "yourname" }];
+}
+
+function socialGroupedGroupsFromEditor() {
+  return [...byId("socialGroupedList").querySelectorAll(
+    "[data-social-grouped-row]",
+  )].map((row) => ({
+    platforms: [...row.querySelectorAll("[data-social-grouped-platform]")]
+      .map((chip) => chip.dataset.socialGroupedPlatform)
+      .filter(Boolean)
+      .slice(0, SOCIAL_GROUPED_LIMITS.platforms),
+    handle: String(
+      row.querySelector("[data-social-grouped-handle]")?.value || "",
+    ).slice(0, 128),
+  })).filter((group) => group.platforms.length);
+}
+
+function createSocialGroupedMark(platform) {
+  const mark = document.createElement("span");
+  mark.className = "social-grouped-platform-mark";
+  mark.textContent = platform.mark;
+  mark.style.setProperty(
+    "--platform-color",
+    platform.surface || platform.color,
+  );
+  if (platform.ink) mark.style.setProperty("--platform-ink", platform.ink);
+  if (platform.shadow) {
+    mark.style.setProperty("--platform-shadow", platform.shadow);
+  }
+  return mark;
+}
+
+function renderSocialGroupedGroups(groups) {
+  const normalized = (Array.isArray(groups) ? groups : [])
+    .slice(0, SOCIAL_GROUPED_LIMITS.groups);
+  if (!normalized.length) {
+    normalized.push({ platforms: ["twitch", "youtube"], handle: "yourname" });
+  }
+  const list = byId("socialGroupedList");
+  list.replaceChildren();
+
+  normalized.forEach((group, index) => {
+    const platforms = group.platforms
+      .map((id) => SOCIAL_PLATFORMS.find((platform) => platform.id === id))
+      .filter(Boolean)
+      .slice(0, SOCIAL_GROUPED_LIMITS.platforms);
+    if (!platforms.length) return;
+
+    const row = document.createElement("section");
+    row.className = "social-grouped-row";
+    row.dataset.socialGroupedRow = String(index);
+
+    const heading = document.createElement("div");
+    heading.className = "social-grouped-row-heading";
+    const title = document.createElement("strong");
+    title.textContent = `Group ${index + 1}`;
+    const summary = document.createElement("span");
+    summary.textContent = `${platforms.length} platform${platforms.length === 1 ? "" : "s"}`;
+    const removeGroup = document.createElement("button");
+    removeGroup.type = "button";
+    removeGroup.className = "social-grouped-delete";
+    removeGroup.dataset.socialGroupedRemoveGroup = String(index);
+    removeGroup.disabled = normalized.length === 1;
+    removeGroup.setAttribute("aria-label", `Delete group ${index + 1}`);
+    removeGroup.title = normalized.length === 1
+      ? "At least one group is required"
+      : `Delete group ${index + 1}`;
+    removeGroup.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6h18"></path>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+        <path d="M10 11v6"></path>
+        <path d="M14 11v6"></path>
+      </svg>
+    `;
+    heading.append(title, summary, removeGroup);
+
+    const platformArea = document.createElement("div");
+    platformArea.className = "social-grouped-platform-area";
+    const chips = document.createElement("div");
+    chips.className = "social-grouped-platforms";
+    platforms.forEach((platform) => {
+      const chip = document.createElement("span");
+      chip.className = "social-grouped-chip";
+      chip.dataset.socialGroupedPlatform = platform.id;
+      const name = document.createElement("span");
+      name.textContent = platform.name;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.socialGroupedRemovePlatform = platform.id;
+      remove.disabled = platforms.length === 1;
+      remove.textContent = "\u00d7";
+      remove.setAttribute("aria-label", `Remove ${platform.name} from group ${index + 1}`);
+      remove.title = platforms.length === 1
+        ? "A group needs at least one platform"
+        : `Remove ${platform.name}`;
+      chip.append(createSocialGroupedMark(platform), name, remove);
+      chips.append(chip);
+    });
+
+    const addPlatform = document.createElement("select");
+    addPlatform.dataset.socialGroupedAddPlatform = String(index);
+    addPlatform.setAttribute("aria-label", `Add platform to group ${index + 1}`);
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = platforms.length >= SOCIAL_GROUPED_LIMITS.platforms
+      ? "Platform limit reached"
+      : "Add platform...";
+    addPlatform.append(placeholder);
+    const selected = new Set(platforms.map((platform) => platform.id));
+    SOCIAL_PLATFORMS
+      .filter((platform) => !selected.has(platform.id))
+      .forEach((platform) => {
+        const option = document.createElement("option");
+        option.value = platform.id;
+        option.textContent = platform.name;
+        addPlatform.append(option);
+      });
+    addPlatform.disabled = platforms.length >= SOCIAL_GROUPED_LIMITS.platforms;
+    platformArea.append(chips, addPlatform);
+
+    const handleLabel = document.createElement("label");
+    handleLabel.className = "social-grouped-handle";
+    const handleTitle = document.createElement("span");
+    handleTitle.textContent = "Shared handle";
+    const handle = document.createElement("input");
+    handle.type = "text";
+    handle.value = String(group.handle || "").slice(0, 128);
+    handle.maxLength = 128;
+    handle.autocomplete = "off";
+    handle.placeholder = "yourname";
+    handle.dataset.socialGroupedHandle = String(index);
+    handleLabel.append(handleTitle, handle);
+
+    row.append(heading, platformArea, handleLabel);
+    list.append(row);
+  });
+
+  const count = list.querySelectorAll("[data-social-grouped-row]").length;
+  byId("socialGroupedCount").textContent =
+    `${count} group${count === 1 ? "" : "s"}`;
+  byId("addSocialGroupButton").disabled =
+    count >= SOCIAL_GROUPED_LIMITS.groups;
+}
+
+function setSocialGroupedRange(name, value, precision = 2) {
+  const input = byId(`socialGrouped${name}`);
+  const output = byId(`socialGrouped${name}Output`);
+  const numeric = Number(value);
+  input.value = Number.isFinite(numeric) ? numeric : input.min || 0;
+  output.value = Number(input.value).toFixed(precision);
+}
+
+function syncSocialGroupedTileControls() {
+  byId("socialGroupedShape").disabled = !byId("socialGroupedTile").checked;
+}
+
+function renderSocialGrouped(socialGrouped) {
+  const defaults = app.state?.defaults?.socialGrouped || {};
+  const config = { ...defaults, ...(socialGrouped || {}) };
+  app.socialGroupedBase = structuredClone(config);
+  renderSocialGroupedGroups(parseSocialGroupedGroups(config.groups));
+  byId("socialGroupedPreset").value = config.preset || "sticker";
+  byId("socialGroupedSeparate").checked = config.separate === true;
+  byId("socialGroupedTile").checked = config.tile === true;
+  byId("socialGroupedShape").value = config.shape || "squircle";
+  byId("socialGroupedTextSide").value = config.textSide || "right";
+  byId("socialGroupedTextCase").value = config.textCase || "none";
+  byId("socialGroupedPrefix").value = config.prefix ?? "@";
+  byId("socialGroupedFont").value = config.font || "montserrat";
+  byId("socialGroupedWeight").value = String(config.weight || 800);
+  byId("socialGroupedSize").value = config.size || "medium";
+  byId("socialGroupedEqualHeight").checked = config.equalHeight !== false;
+  byId("socialGroupedBrand").checked = config.brand !== false;
+  byId("socialGroupedJoin").value = config.join || "round";
+  byId("socialGroupedShadow").checked = config.shadow !== false;
+  setSocialGroupedRange("Scale", config.scale ?? 1);
+  setSocialGroupedRange("Merge", config.merge ?? 3, 1);
+  setSocialGroupedRange("TextGap", config.textGap ?? -3, 1);
+  setSocialGroupedRange("GroupGap", config.groupGap ?? -2, 1);
+  setSocialGroupedRange("LogoHeight", config.logoHeight ?? 19, 1);
+  setSocialGroupedRange("TextSize", config.textSize ?? 20, 1);
+  setSocialGroupedRange("LogoOutline", config.logoOutline ?? 2);
+  setSocialGroupedRange("TextOutline", config.textOutline ?? 2);
+  setSocialGroupedRange("EdgeWidth", config.edgeWidth ?? 1);
+  setSocialGroupedRange("TextEdgeWidth", config.textEdgeWidth ?? 1);
+  setSocialGroupedRange("OutlineOpacity", config.outlineOpacity ?? 1);
+  setSocialGroupedRange("ShadowBlur", config.shadowBlur ?? 5, 1);
+  setSocialGroupedRange("ShadowOpacity", config.shadowOpacity ?? 0.45);
+  setColor("socialGroupedOuterColor", config.tileEdge || "ffffff");
+  setColor("socialGroupedEdgeColor", config.edgeColor || "000000");
+  setColor("socialGroupedTextColor", config.textColor || "ffffff");
+  setColor(
+    "socialGroupedTextOuterColor",
+    config.textOutlineColor || config.tileEdge || "ffffff",
+  );
+  setColor(
+    "socialGroupedTextEdgeColor",
+    config.textEdgeColor || config.edgeColor || "000000",
+  );
+  syncSocialGroupedTileControls();
+}
+
+function gatherSocialGroupedSettings() {
+  const groups = socialGroupedGroupsFromEditor()
+    .slice(0, SOCIAL_GROUPED_LIMITS.groups)
+    .map((group) => {
+      const handle = group.handle
+        .replaceAll(",", " ")
+        .replace(/[\u0000-\u001f\u007f]/g, "")
+        .trim()
+        .slice(0, 128);
+      return `${group.platforms.join("+")}:${handle}`;
+    })
+    .join(",");
+  return {
+    ...(app.socialGroupedBase || app.state?.defaults?.socialGrouped || {}),
+    groups,
+    prefix: byId("socialGroupedPrefix").value.slice(0, 8),
+    preset: byId("socialGroupedPreset").value,
+    separate: byId("socialGroupedSeparate").checked,
+    tile: byId("socialGroupedTile").checked,
+    shape: byId("socialGroupedShape").value,
+    textSide: byId("socialGroupedTextSide").value,
+    textCase: byId("socialGroupedTextCase").value,
+    font: byId("socialGroupedFont").value,
+    weight: Number(byId("socialGroupedWeight").value),
+    size: byId("socialGroupedSize").value,
+    scale: Number(byId("socialGroupedScale").value),
+    merge: Number(byId("socialGroupedMerge").value),
+    textGap: Number(byId("socialGroupedTextGap").value),
+    groupGap: Number(byId("socialGroupedGroupGap").value),
+    logoHeight: Number(byId("socialGroupedLogoHeight").value),
+    textSize: Number(byId("socialGroupedTextSize").value),
+    equalHeight: byId("socialGroupedEqualHeight").checked,
+    brand: byId("socialGroupedBrand").checked,
+    logoOutline: Number(byId("socialGroupedLogoOutline").value),
+    textOutline: Number(byId("socialGroupedTextOutline").value),
+    edgeWidth: Number(byId("socialGroupedEdgeWidth").value),
+    textEdgeWidth: Number(byId("socialGroupedTextEdgeWidth").value),
+    join: byId("socialGroupedJoin").value,
+    outlineOpacity: Number(byId("socialGroupedOutlineOpacity").value),
+    tileEdge: byId("socialGroupedOuterColor").value.slice(1),
+    edgeColor: byId("socialGroupedEdgeColor").value.slice(1),
+    textColor: byId("socialGroupedTextColor").value.slice(1),
+    textOutlineColor: byId("socialGroupedTextOuterColor").value.slice(1),
+    textEdgeColor: byId("socialGroupedTextEdgeColor").value.slice(1),
+    shadow: byId("socialGroupedShadow").checked,
+    shadowBlur: Number(byId("socialGroupedShadowBlur").value),
+    shadowOpacity: Number(byId("socialGroupedShadowOpacity").value),
+  };
+}
+
+function applySocialGroupedPreset(preset) {
+  const values = SOCIAL_GROUPED_PRESETS[preset];
+  if (!values) return;
+  renderSocialGrouped({
+    ...gatherSocialGroupedSettings(),
+    ...values,
+    preset,
+  });
+  scheduleCustomizerChange(0);
+}
+
 function setColor(id, value) {
   const normalized = `#${String(value || "").replace("#", "").padEnd(6, "0").slice(0, 6)}`;
   const input = byId(id);
@@ -1778,6 +2123,8 @@ function fillConfig(config) {
     || activeInstance()?.type === "social-rotator"
   ) {
     renderSocial(config.social, activeInstance().type);
+  } else if (activeInstance()?.type === "social-grouped") {
+    renderSocialGrouped(config.socialGrouped);
   }
   renderMediaLibraries();
 }
@@ -2049,10 +2396,14 @@ async function saveOverlaySettings(options = {}) {
   app.busy = true;
   renderDanceProfileControls();
   try {
-    const submitted =
-      instance.type === "social" || instance.type === "social-rotator"
-        ? { social: gatherSocialSettings() }
-        : gatherConfig();
+    let submitted;
+    if (instance.type === "social" || instance.type === "social-rotator") {
+      submitted = { social: gatherSocialSettings() };
+    } else if (instance.type === "social-grouped") {
+      submitted = { socialGrouped: gatherSocialGroupedSettings() };
+    } else {
+      submitted = gatherConfig();
+    }
     const result = await callApi(
       "save_overlay_settings",
       submitted,
@@ -2278,6 +2629,10 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     renderSocial(
       materializeInstanceConfig(instance).social,
       instance.type,
+    );
+  } else if (instance.type === "social-grouped") {
+    renderSocialGrouped(
+      materializeInstanceConfig(instance).socialGrouped,
     );
   }
   showView(manifest.studioView);
@@ -2518,6 +2873,91 @@ function bindEvents() {
     byId("socialCycleOutput").value =
       Number(byId("socialCycle").value).toFixed(1);
   });
+  [
+    ["Scale", 2],
+    ["Merge", 1],
+    ["TextGap", 1],
+    ["GroupGap", 1],
+    ["LogoHeight", 1],
+    ["TextSize", 1],
+    ["LogoOutline", 2],
+    ["TextOutline", 2],
+    ["EdgeWidth", 2],
+    ["TextEdgeWidth", 2],
+    ["OutlineOpacity", 2],
+    ["ShadowBlur", 1],
+    ["ShadowOpacity", 2],
+  ].forEach(([name, precision]) => {
+    byId(`socialGrouped${name}`).addEventListener("input", () => {
+      byId(`socialGrouped${name}Output`).value =
+        Number(byId(`socialGrouped${name}`).value).toFixed(precision);
+    });
+  });
+  byId("socialGroupedTile").addEventListener(
+    "change",
+    syncSocialGroupedTileControls,
+  );
+  byId("socialGroupedPreset").addEventListener("change", (event) => {
+    applySocialGroupedPreset(event.target.value);
+  });
+  const socialGroupedView = byId("socialGroupedView");
+  const markSocialGroupedCustom = (event) => {
+    if (
+      event.target.id === "socialGroupedPreset"
+      || event.target.closest("#socialGroupedList")
+    ) return;
+    byId("socialGroupedPreset").value = "custom";
+  };
+  socialGroupedView.addEventListener("input", markSocialGroupedCustom);
+  socialGroupedView.addEventListener("change", markSocialGroupedCustom);
+  byId("addSocialGroupButton").addEventListener("click", () => {
+    const groups = socialGroupedGroupsFromEditor();
+    if (groups.length >= SOCIAL_GROUPED_LIMITS.groups) return;
+    const used = new Set(groups.flatMap((group) => group.platforms));
+    const platform = SOCIAL_PLATFORMS.find((item) => !used.has(item.id))
+      || SOCIAL_PLATFORMS[0];
+    groups.push({ platforms: [platform.id], handle: "yourname" });
+    renderSocialGroupedGroups(groups);
+    scheduleCustomizerChange(0);
+  });
+  byId("socialGroupedList").addEventListener("change", (event) => {
+    const select = event.target.closest("[data-social-grouped-add-platform]");
+    if (!select?.value) return;
+    const groups = socialGroupedGroupsFromEditor();
+    const index = Number(select.dataset.socialGroupedAddPlatform);
+    if (
+      !groups[index]
+      || groups[index].platforms.length >= SOCIAL_GROUPED_LIMITS.platforms
+      || groups[index].platforms.includes(select.value)
+    ) return;
+    groups[index].platforms.push(select.value);
+    renderSocialGroupedGroups(groups);
+    scheduleCustomizerChange(0);
+  });
+  byId("socialGroupedList").addEventListener("click", (event) => {
+    const row = event.target.closest("[data-social-grouped-row]");
+    if (!row) return;
+    const index = Number(row.dataset.socialGroupedRow);
+    const groups = socialGroupedGroupsFromEditor();
+    const removeGroup = event.target.closest("[data-social-grouped-remove-group]");
+    if (removeGroup && groups.length > 1) {
+      groups.splice(index, 1);
+      renderSocialGroupedGroups(groups);
+      scheduleCustomizerChange(0);
+      return;
+    }
+    const removePlatform = event.target.closest(
+      "[data-social-grouped-remove-platform]",
+    );
+    if (!removePlatform || !groups[index] || groups[index].platforms.length <= 1) {
+      return;
+    }
+    groups[index].platforms = groups[index].platforms.filter(
+      (id) => id !== removePlatform.dataset.socialGroupedRemovePlatform,
+    );
+    renderSocialGroupedGroups(groups);
+    scheduleCustomizerChange(0);
+  });
   byId("socialPlatformSelect").addEventListener("change", () => {
     byId("socialAddButton").disabled = !byId("socialPlatformSelect").value;
   });
@@ -2566,6 +3006,11 @@ function bindEvents() {
     "socialColor",
     "socialShellColor",
     "socialTextColor",
+    "socialGroupedOuterColor",
+    "socialGroupedEdgeColor",
+    "socialGroupedTextColor",
+    "socialGroupedTextOuterColor",
+    "socialGroupedTextEdgeColor",
   ].forEach((id) => {
     byId(id).addEventListener("input", () => updateColorLabel(id));
   });
@@ -2579,6 +3024,10 @@ function bindEvents() {
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSocialButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveSocialGroupedButton").addEventListener(
+    "click",
+    () => saveOverlaySettings(),
+  );
   byId("saveGoalSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalSettings(), "Goal saved and applied");
   });
@@ -2623,6 +3072,11 @@ function bindEvents() {
   byId("resetSocialButton").addEventListener("click", () => {
     renderSocial(app.state.defaults.social, activeInstance()?.type);
     logActivity("Social fields reset; save to apply");
+  });
+  byId("resetSocialGroupedButton").addEventListener("click", () => {
+    renderSocialGrouped(app.state.defaults.socialGrouped);
+    scheduleCustomizerChange(0);
+    logActivity("Grouped social fields reset; save to apply");
   });
   byId("resetGoalFieldsButton").addEventListener("click", () => {
     const instance = activeInstance();

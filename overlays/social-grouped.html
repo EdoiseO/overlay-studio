@@ -11,7 +11,7 @@
   "category": "branding",
   "canvas": { "w": 1200, "h": 160 },
   "settings": ["groups", "prefix", "size", "tile", "shape", "round", "merge", "groupGap", "separate", "overlap", "nameGap", "textSize", "textGap", "textNudge", "letterSpacing", "equalHeight", "logoHeight", "logoOutline", "edgeWidth", "edgeColor", "brand", "color", "tileEdge", "textEdge", "textColor", "outline", "tileOutline", "gap", "align", "font", "weight", "scale", "preset", "textOutline", "textEdgeWidth", "textOutlineColor", "textEdgeColor", "textSide", "textCase", "label", "labelSize", "labelGap", "labelColor", "direction", "wrap", "padding", "join", "outlineOpacity", "shadow", "shadowX", "shadowY", "shadowBlur", "shadowColor", "shadowOpacity"],
-  "studioView": ""
+  "studioView": "socialGroupedView"
 }
 </script>
 <link rel="stylesheet" href="/assets/overlay-surface.css" />
@@ -469,9 +469,14 @@
         path.setAttribute(
           "fill",
           settings.brand
-            ? (variant.color || meta.ink || "#fff")
+            ? (variant.color || meta.tileInk || meta.ink || "#fff")
             : (variant.bareColor || meta.bare || "#fff"),
         );
+        if (settings.brand && meta.tileStroke && !variant.color) {
+          path.setAttribute("stroke", meta.tileStroke);
+          path.setAttribute("stroke-width", ".8");
+          path.setAttribute("stroke-linejoin", "round");
+        }
         if (variant.dx || variant.dy) {
           path.setAttribute(
             "transform",

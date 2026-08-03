@@ -1277,6 +1277,161 @@ output {
   text-align: center;
 }
 
+.social-grouped-list {
+  display: grid;
+  gap: 9px;
+}
+
+.social-grouped-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(180px, 0.75fr);
+  gap: 11px 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-alt);
+}
+
+.social-grouped-row:focus-within {
+  border-color: var(--accent);
+}
+
+.social-grouped-row-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.social-grouped-row-heading strong {
+  font-size: 12px;
+}
+
+.social-grouped-row-heading span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.social-grouped-delete {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.social-grouped-delete:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--danger);
+}
+
+.social-grouped-delete svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.social-grouped-platform-area {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.social-grouped-platforms {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.social-grouped-chip {
+  min-width: 0;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.social-grouped-platform-mark {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--platform-color, var(--accent));
+  color: var(--platform-ink, #ffffff);
+  font-size: 8px;
+  font-weight: 900;
+  text-shadow: var(--platform-shadow, none);
+}
+
+.social-grouped-chip > button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 18px;
+}
+
+.social-grouped-chip > button:hover:not(:disabled) {
+  background: var(--panel-alt);
+  color: var(--danger);
+}
+
+.social-grouped-platform-area > select {
+  width: min(100%, 230px);
+}
+
+.social-grouped-handle {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.social-grouped-handle > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.social-grouped-handle > input {
+  width: 100%;
+}
+
+.social-grouped-palette {
+  flex-wrap: wrap;
+}
+
+.social-grouped-palette label {
+  min-width: 100px;
+}
+
 [data-social-bar-only][hidden],
 [data-social-rotator-only][hidden] {
   display: none;
@@ -1900,5 +2055,13 @@ dialog .primary-button {
 
   .social-platform-row {
     grid-template-columns: 30px minmax(76px, 100px) minmax(0, 1fr) 34px;
+  }
+
+  .social-grouped-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .social-grouped-row-heading {
+    grid-column: 1;
   }
 }

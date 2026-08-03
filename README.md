@@ -20,6 +20,7 @@ local OBS browser-source overlays.
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
 | **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
 | **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
+| **Social Grouped** | Combines several platform logos with shared handles in one continuous sticker or branded tiles. |
 
 ## Requirements
 
@@ -120,15 +121,16 @@ and appearance.
 
 ## Social overlays
 
-Add **Social Bar** or **Social Rotator** from Browse overlays, then choose exactly which
-platforms should appear and enter a handle or profile link for each one. The compact
-account picker only shows socials after they are added, while keeping the full platform
-library available from its dropdown. Social Bar supports up to eight visible accounts
-to keep a single OBS source readable; Social Rotator can cycle through all available
-platforms. If none are selected, the source stays transparent instead of showing
-placeholder content.
+Add **Social Bar**, **Social Rotator**, or **Social Grouped** from Browse overlays, then
+choose exactly which platforms should appear and enter a handle or profile link for
+each one. The compact account picker only shows socials after they are added, while
+keeping the full platform library available from its dropdown. Social Bar supports up
+to eight visible accounts
+to keep a single OBS source readable, while Social Rotator supports up to 12. If none
+are selected, the source stays transparent instead of showing placeholder content.
 
-Both overlays support platform brand colors, a fixed accent palette, five icon shapes,
+Social Bar and Social Rotator both support platform brand colors, a fixed accent
+palette, five icon shapes,
 optional shape backgrounds, three sizes, five fonts, and bounded scaling. Turning
 shape backgrounds off displays each platform logo as a standalone symbol. Social Bar
 also offers sticker, flat, compact, heading, and fused-capsule layouts with individual
@@ -138,6 +140,12 @@ optional platform and timer labels. The same Social Studio page provides a live 
 preview before settings are saved. Handles are always shown in full; when their natural
 width would exceed the OBS canvas, the overlay scales the complete composition to fit
 instead of replacing text with an ellipsis.
+
+Social Grouped lets up to six account groups share one source, with up to six platforms
+per group. Its default bare-logo mode joins every logo and handle into one continuous
+three-layer sticker. Separate-group mode restores individual islands, while branded
+tiles offer rounded, circular, and square shapes. The dedicated Studio customizer also
+includes spacing, type, outline, color, shadow, and preset controls with a live draft.
 
 ## Custom media
 
@@ -219,6 +227,7 @@ Goal Bar         860 x 560
 Goal Pill        720 x 220
 Social Bar      1200 x 160
 Social Rotator   640 x 200
+Social Grouped  1200 x 160
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined
