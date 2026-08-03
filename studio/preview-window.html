@@ -37,16 +37,18 @@
 
     .preview-toolbar {
       min-width: 0;
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
-      gap: 14px;
-      padding: 7px 12px 7px 16px;
+      gap: 12px;
+      padding: 7px 12px;
       border-bottom: 1px solid #304047;
       background: #141c20;
     }
 
     .preview-title {
       min-width: 0;
+      justify-self: start;
     }
 
     .preview-title span {
@@ -68,7 +70,6 @@
     }
 
     .preview-status {
-      margin-left: auto;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -88,11 +89,21 @@
     .zoom-controls {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 4px;
     }
 
+    .preview-actions {
+      min-width: 0;
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
     .icon-button,
-    .zoom-reset {
+    .zoom-reset,
+    .save-button {
       height: 30px;
       display: grid;
       place-items: center;
@@ -113,10 +124,31 @@
       font-weight: 800;
     }
 
+    .save-button {
+      min-width: 54px;
+      padding: 0 11px;
+      border-color: #57cbc7;
+      background: #57cbc7;
+      color: #071210;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
     .icon-button:hover,
-    .zoom-reset:hover {
+    .zoom-reset:hover,
+    .save-button:hover:not(:disabled) {
       border-color: #57cbc7;
       color: #ffffff;
+    }
+
+    .save-button:hover:not(:disabled) {
+      background: #72ddd9;
+      color: #071210;
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.48;
     }
 
     .icon-button svg {
@@ -182,15 +214,25 @@
         <span>LIVE DRAFT</span>
         <strong id="previewName">Overlay preview</strong>
       </div>
-      <div class="preview-status">LIVE</div>
       <div class="zoom-controls" aria-label="Preview zoom controls">
         <button class="icon-button" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
         </button>
-        <button class="zoom-reset" id="zoomReset" type="button" aria-label="Reset zoom and position" title="Reset zoom and position">100%</button>
+        <button class="zoom-reset" id="zoomReset" type="button" aria-label="Reset zoom to 100 percent" title="Reset zoom">100%</button>
         <button class="icon-button" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
         </button>
+        <button class="icon-button" id="positionReset" type="button" aria-label="Recenter preview position" title="Recenter preview">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 2v4"></path><path d="M12 18v4"></path>
+            <path d="M2 12h4"></path><path d="M18 12h4"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="preview-actions">
+        <div class="preview-status">LIVE</div>
+        <button class="save-button" id="saveDraft" type="button" disabled>Save</button>
       </div>
     </header>
     <section class="preview-stage" id="previewStage" title="Drag to move the preview; use the mouse wheel to zoom">
@@ -209,6 +251,7 @@
       const stage = document.getElementById("previewStage");
       const frame = document.getElementById("previewFrame");
       const readout = document.getElementById("zoomReset");
+      const saveButton = document.getElementById("saveDraft");
       const state = {
         source: "",
         targetOrigin: "",
@@ -285,6 +328,40 @@
         state.panX = 0;
         state.panY = 0;
         fit();
+      }
+
+      function resetZoom() {
+        state.zoom = 1;
+        fit();
+      }
+
+      function recenterPreview() {
+        state.panX = 0;
+        state.panY = 0;
+        state.drag = null;
+        stage.classList.remove("dragging");
+        fit();
+      }
+
+      function syncSaveAvailability() {
+        saveButton.disabled = !window.pywebview?.api?.save_preview_draft;
+      }
+
+      async function requestSave() {
+        if (!window.pywebview?.api?.save_preview_draft) return;
+        saveButton.disabled = true;
+        try {
+          const result = await window.pywebview.api.save_preview_draft();
+          if (!result?.ok) throw new Error(result?.detail || "Save unavailable");
+          saveButton.textContent = "Sent";
+        } catch {
+          saveButton.textContent = "Retry";
+        } finally {
+          setTimeout(() => {
+            saveButton.textContent = "Save";
+            syncSaveAvailability();
+          }, 1100);
+        }
       }
 
       function postDraft() {
@@ -393,9 +470,16 @@
         "click",
         () => setZoom(state.zoom + ZOOM_STEP),
       );
-      readout.addEventListener("click", resetViewport);
+      readout.addEventListener("click", resetZoom);
+      document.getElementById("positionReset").addEventListener(
+        "click",
+        recenterPreview,
+      );
+      saveButton.addEventListener("click", requestSave);
+      window.addEventListener("pywebviewready", syncSaveAvailability);
       window.addEventListener("resize", fit);
       window.overlayStudioPreview = Object.freeze({ configure, applyDraft });
+      setTimeout(syncSaveAvailability, 100);
       fit();
     })();
   </script>

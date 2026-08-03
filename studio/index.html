@@ -1094,14 +1094,25 @@
           </button>
         </div>
       </div>
-      <div class="customizer-preview-toolbar" aria-label="Preview zoom controls">
-        <button class="icon-button" id="customizerPreviewZoomOutButton" type="button" aria-label="Zoom preview out" title="Zoom out">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
-        </button>
-        <button class="customizer-preview-zoom-reset" id="customizerPreviewZoomResetButton" type="button" aria-label="Reset preview zoom and position" title="Reset zoom and position">100%</button>
-        <button class="icon-button" id="customizerPreviewZoomInButton" type="button" aria-label="Zoom preview in" title="Zoom in">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
-        </button>
+      <div class="customizer-preview-toolbar" aria-label="Preview controls">
+        <span class="customizer-preview-toolbar-spacer" aria-hidden="true"></span>
+        <div class="customizer-preview-controls" aria-label="Preview zoom and position controls">
+          <button class="icon-button" id="customizerPreviewZoomOutButton" type="button" aria-label="Zoom preview out" title="Zoom out">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+          </button>
+          <button class="customizer-preview-zoom-reset" id="customizerPreviewZoomResetButton" type="button" aria-label="Reset preview zoom to 100 percent" title="Reset zoom">100%</button>
+          <button class="icon-button" id="customizerPreviewZoomInButton" type="button" aria-label="Zoom preview in" title="Zoom in">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+          </button>
+          <button class="icon-button" id="customizerPreviewRecenterButton" type="button" aria-label="Recenter preview position" title="Recenter preview">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 2v4"></path><path d="M12 18v4"></path>
+              <path d="M2 12h4"></path><path d="M18 12h4"></path>
+            </svg>
+          </button>
+        </div>
+        <button class="primary-button compact customizer-preview-save" id="customizerPreviewSaveButton" type="button" disabled>Save</button>
       </div>
       <div
         class="customizer-preview-stage"

@@ -212,6 +212,8 @@ function renderCustomizerDirtyState() {
   byId("customizerPreviewStatus").textContent = app.state?.running
     ? (app.customizerDirty ? "UNSAVED" : "SAVED")
     : "OFFLINE";
+  byId("customizerPreviewSaveButton").disabled =
+    !customizerActive || !app.customizerDirty || app.busy;
 }
 
 function setCustomizerDirty(dirty) {
@@ -323,6 +325,25 @@ async function saveActiveCustomizer() {
     });
   }
   return false;
+}
+
+async function saveCustomizerFromPreview(instanceId = null) {
+  const instance = activeInstance();
+  if (!instance || (instanceId && instance.id !== instanceId)) {
+    showToast("Open this overlay in Studio before saving");
+    return false;
+  }
+  if (!app.customizerDirty) {
+    showToast("Preview is already saved");
+    return true;
+  }
+  const button = byId("customizerPreviewSaveButton");
+  button.disabled = true;
+  try {
+    return await saveActiveCustomizer();
+  } finally {
+    renderCustomizerDirtyState();
+  }
 }
 
 async function applyDontWarnPreference() {
@@ -580,6 +601,18 @@ function resetCustomizerPreviewViewport() {
   fitCustomizerPreview();
 }
 
+function resetCustomizerPreviewZoom() {
+  app.customizerPreviewZoom = 1;
+  fitCustomizerPreview();
+}
+
+function recenterCustomizerPreview() {
+  app.customizerPreviewPan = { x: 0, y: 0 };
+  app.customizerPreviewDrag = null;
+  byId("customizerPreviewStage")?.classList.remove("dragging");
+  fitCustomizerPreview();
+}
+
 function customizerDraft(instance) {
   if (!instance) return null;
   if (
@@ -778,6 +811,7 @@ function renderCustomizerPreview(state = app.state) {
     "customizerPreviewZoomOutButton",
     "customizerPreviewZoomResetButton",
     "customizerPreviewZoomInButton",
+    "customizerPreviewRecenterButton",
     "customizerPreviewPopoutButton",
   ].forEach((id) => {
     byId(id).disabled = !state?.running;
@@ -3023,7 +3057,15 @@ function bindEvents() {
   });
   byId("customizerPreviewZoomResetButton").addEventListener(
     "click",
-    resetCustomizerPreviewViewport,
+    resetCustomizerPreviewZoom,
+  );
+  byId("customizerPreviewRecenterButton").addEventListener(
+    "click",
+    recenterCustomizerPreview,
+  );
+  byId("customizerPreviewSaveButton").addEventListener(
+    "click",
+    () => saveCustomizerFromPreview(),
   );
   customizerStage.addEventListener("wheel", (event) => {
     if (!app.customizerPreviewReady) return;
@@ -3659,6 +3701,7 @@ function initializeWhenReady() {
 window.addEventListener("pywebviewready", initializeWhenReady);
 initializeWhenReady();
 window.overlayStudioRefresh = () => refreshState(false);
+window.overlayStudioSavePreviewDraft = saveCustomizerFromPreview;
 window.overlayStudioRequestClose = () => {
   requestUnsavedAction(
     () => callApi("close_window").catch(() => {}),

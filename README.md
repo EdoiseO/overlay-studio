@@ -79,10 +79,11 @@ the app. The warning can be disabled from the prompt and restored under
 **Settings > Editing**. Leaving the customization page unloads the draft preview to
 release its browser resources. The form scrolls independently from the preview. Drag
 the live draft to reposition it, use the mouse wheel or zoom controls to inspect it from
-25% to 300%, and reset the percentage to restore both zoom and position. The expand
-button fills the Studio window, while the pop-out button opens a larger resizable window
-that continues receiving unsaved draft changes. Press `Esc` to leave the in-app expanded
-view.
+25% to 300%, reset the percentage to restore zoom, or use the recenter control to restore
+its position. A nearby **Save** action applies a draft without scrolling to the bottom of
+the form. The expand button fills the Studio window, while the pop-out button opens a
+larger resizable window with the same centered controls, recenter action, Save shortcut,
+and live unsaved-draft updates. Press `Esc` to leave the in-app expanded view.
 
 Each card can copy its OBS URL, be renamed without changing that URL, or be removed
 from My overlays. Removing an instance does not delete its local overlay type, which

@@ -1588,6 +1588,7 @@ class DesktopApi:
             preview = webview.create_window(
                 f"{clean_title} - Overlay Studio",
                 url=PREVIEW_UI_PATH.as_uri(),
+                js_api=self,
                 width=1100,
                 height=650,
                 min_size=(640, 400),
@@ -1621,6 +1622,25 @@ class DesktopApi:
         if ready:
             self._run_preview_script("applyDraft", validated_draft)
         return {"ok": True, "open": True}
+
+    def save_preview_draft(self) -> dict[str, Any]:
+        with self._preview_lock:
+            source = str(self._preview_config.get("source", ""))
+        window = self._window
+        if window is None or not source:
+            return {"ok": False, "detail": "Studio window is unavailable"}
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(source).query)
+        instance_id = str((query.get("i") or [""])[0])
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Preview instance is invalid"}
+        try:
+            window.run_js(
+                "window.overlayStudioSavePreviewDraft?.("
+                f"{json.dumps(instance_id, ensure_ascii=True)});"
+            )
+        except Exception as exc:
+            return {"ok": False, "detail": f"Save request failed: {exc}"}
+        return {"ok": True}
 
     def close_window(self) -> dict[str, Any]:
         window = self._window

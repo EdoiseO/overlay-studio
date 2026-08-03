@@ -34,6 +34,8 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "customizerPreviewZoomOutButton",
             "customizerPreviewZoomResetButton",
             "customizerPreviewZoomInButton",
+            "customizerPreviewRecenterButton",
+            "customizerPreviewSaveButton",
             "customizerPreviewPopoutButton",
         ):
             self.assertEqual(markup.count(f'id="{element_id}"'), 1)
@@ -45,6 +47,9 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn("window.overlayStudioPreview", popout)
         self.assertIn('addEventListener("pointermove"', popout)
         self.assertIn("frame.contentWindow.postMessage", popout)
+        self.assertIn('id="positionReset"', popout)
+        self.assertIn('id="saveDraft"', popout)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)", popout)
 
     def test_native_preview_accepts_only_the_local_overlay_server(self) -> None:
         with patch.object(
@@ -83,8 +88,15 @@ class CustomizerPreviewContractTests(unittest.TestCase):
 
         api = overlay_studio.DesktopApi()
         window = PreviewWindow()
+        api._window = window
         api._preview_window = window
         api._preview_ready = True
+        api._preview_config = {
+            "source": (
+                "http://127.0.0.1:8474/overlays/social-grouped"
+                "?i=grouped-main&customizer=1"
+            )
+        }
 
         result = api.update_preview_window(
             {
@@ -100,6 +112,12 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn("applyDraft", window.scripts[-1])
         self.assertIsNone(
             api._preview_payload({"value": "x" * 262_145})
+        )
+        save_result = api.save_preview_draft()
+        self.assertTrue(save_result["ok"])
+        self.assertIn(
+            'window.overlayStudioSavePreviewDraft?.("grouped-main")',
+            window.scripts[-1],
         )
 
     def test_customizer_scroll_and_expansion_have_separate_layouts(self) -> None:
