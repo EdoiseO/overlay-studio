@@ -32,6 +32,18 @@ class RivalsCustomizerTests(unittest.TestCase):
         )
         self.assertIn('event.data?.config?.rivals', self.overlay)
 
+    def test_overlay_loads_every_custom_font_offered_by_studio(self) -> None:
+        self.assertIn("fonts.googleapis.com/css2", self.overlay)
+        for family in (
+            "Anton",
+            "Archivo+Black",
+            "Montserrat",
+            "Nunito",
+            "Poppins",
+        ):
+            with self.subTest(family=family):
+                self.assertIn(f"family={family}", self.overlay)
+
     def test_account_linking_is_private_and_separate_from_visual_draft(self) -> None:
         gather_start = self.script.index("function gatherRivalsSettings()")
         gather_end = self.script.index("async function sendRivals", gather_start)
