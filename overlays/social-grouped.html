@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Social Grouped</title>
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Social Grouped",
+  "description": "Groups several platform icons behind one shared handle, so accounts with the same username share a single name. Sticker outline styling for busy backgrounds.",
+  "category": "branding",
+  "canvas": { "w": 1200, "h": 160 },
+  "settings": ["groups", "prefix", "size", "tile", "shape", "round", "merge", "overlap", "nameGap", "textSize", "textGap", "textNudge", "letterSpacing", "equalHeight", "logoHeight", "logoOutline", "edgeWidth", "edgeColor", "brand", "color", "tileEdge", "textEdge", "textColor", "outline", "tileOutline", "gap", "align", "font", "weight", "scale", "preset", "textOutline", "textEdgeWidth", "textOutlineColor", "textEdgeColor", "textSide", "textCase", "label", "labelSize", "labelGap", "labelColor", "direction", "wrap", "padding", "join", "outlineOpacity", "shadow", "shadowX", "shadowY", "shadowBlur", "shadowColor", "shadowOpacity"],
+  "studioView": ""
+}
+</script>
+<link rel="stylesheet" href="/assets/overlay-surface.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Poppins:wght@600;700;800&family=Archivo+Black&family=Nunito:wght@800;900&family=Anton&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --accent: 255, 255, 255;
+    --ink: 255, 255, 255;
+    --tile-edge: #ffffff;
+    --text-edge: #000000;
+    --scale: 1;
+    --weight: 800;
+    --icon: 54px;
+    --name-size: 34px;
+    --group-gap: 26px;
+    /* Sticker glyphs carry padding inside their viewBox (room for the thick
+       outline), so a healthy negative margin is needed before they touch. */
+    --icon-overlap: 20px;
+    --name-gap: 6px;
+    --tile-round: 0.3;
+    --outline: 4px;
+    --tile-outline: 3px;
+    --fit-scale: 1;
+    --content-padding: 18px;
+    --shadow-filter: drop-shadow(0 3px 5px rgba(0,0,0,.45));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    color: rgb(var(--ink));
+    font-family: var(--font-stack, "Segoe UI", system-ui, sans-serif);
+  }
+  body > .overlay-content { grid-area: 1 / 1; }
+  html.overlay-studio-preview,
+  html.overlay-studio-preview body {
+    background: var(--overlay-preview-background, #16181d);
+  }
+
+  .overlay-content {
+    padding: var(--content-padding);
+    transform: scale(calc(var(--scale) * var(--fit-scale)));
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--group-gap);
+    justify-content: center;
+  }
+  .row[data-align="left"]  { justify-content: flex-start; }
+  .row[data-align="right"] { justify-content: flex-end; }
+  .row[data-direction="vertical"] { flex-direction: column; }
+  .row[data-wrap="off"] { flex-wrap: nowrap; }
+
+  /* ---------- one group: icons + a single shared handle ---------- */
+  .group {
+    display: flex;
+    align-items: center;
+    gap: var(--name-gap);
+    min-width: 0;
+  }
+
+  .icons {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  /* Sticker mode (default): the whole group is one SVG so the white outlines
+     merge into a single silhouette rather than stacking on each other. */
+  .merged {
+    display: block;
+    filter: var(--shadow-filter);
+  }
+  .merged svg {
+    height: var(--icon);
+    width: auto;          /* aspect-ratio is pinned in JS after measuring */
+    display: block;
+    overflow: visible;
+  }
+
+  /* Tiled mode still uses one element per platform. */
+  .icon {
+    position: relative;
+    width: var(--icon); height: var(--icon);
+    display: grid; place-items: center;
+    filter: var(--shadow-filter);
+  }
+  .icon svg { width: 100%; height: 100%; overflow: visible; display: block; }
+
+  /* tiles overlap so neighbouring white outlines merge into one sticker edge */
+  .icon + .icon { margin-left: calc(var(--icon-overlap, 6px) * -1); }
+
+  .icon img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* Optional tiled look (?tile=on) — coloured chip behind the glyph. */
+  .icon.tile {
+    border-radius: calc(var(--icon) * var(--tile-round, 0.3));
+    background: var(--brand, rgb(var(--accent)));
+    box-shadow:
+      0 0 0 var(--tile-outline) var(--tile-edge),
+      0 3px 8px rgba(0,0,0,.4);
+    filter: none;
+  }
+  .icon.tile svg { width: 60%; height: 60%; overflow: visible; }
+  .icon.tile.round  { border-radius: 50%; }
+  .icon.tile.square { border-radius: calc(var(--icon) * 0.14); }
+  .icon.tile.wide   { width: calc(var(--icon) * 1.44); }
+  .icon.tile.wide svg { width: 46%; height: 66%; }
+
+  .handle {
+    font-size: var(--name-size);
+    font-weight: var(--weight);
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: visible;
+    -webkit-text-stroke: var(--outline) var(--text-edge);
+    paint-order: stroke fill;
+  }
+
+  .legacy-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .legacy-label {
+    font-size: calc(var(--name-size) * .44);
+    font-weight: var(--weight);
+    line-height: 1;
+    white-space: nowrap;
+    -webkit-text-stroke: calc(var(--outline) * .65) var(--text-edge);
+    paint-order: stroke fill;
+  }
+
+  /* ---------- sizes ---------- */
+  .row.size-large { --icon: 60px; --name-size: 44px; --group-gap: 38px; }
+  .row.size-small { --icon: 34px; --name-size: 24px; --group-gap: 22px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon { transition: none; }
+  }
+</style>
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content">
+    <div class="row" id="row"></div>
+  </main>
+
+<script>
+(() => {
+  "use strict";
+
+  const query = new URLSearchParams(location.search);
+  const instanceId = query.get("i") || "";
+  if (query.get("preview") === "studio" || location.protocol === "file:") {
+    document.documentElement.classList.add("overlay-studio-preview");
+  }
+
+  const row = document.getElementById("row");
+
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+  const num = (key, dflt) => {
+    const raw = parseFloat(query.get(key));
+    return Number.isFinite(raw) ? raw : dflt;
+  };
+  const hexToRgb = value => {
+    const hex = String(value || "").trim().replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const hexColor = (value, dflt) => {
+    const hex = String(value || "").trim().replace(/^#/, "");
+    return /^[0-9a-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : dflt;
+  };
+  const on = (key, dflt = true) => {
+    const raw = (query.get(key) || "").toLowerCase();
+    if (!raw) return dflt;
+    return raw !== "off" && raw !== "false" && raw !== "0";
+  };
+
+  /* fill-rule evenodd: inner subpaths are knockouts, not fills.
+     `ink` darkens the glyph where the brand colour is too light for white. */
+  const PLATFORMS = {
+    twitch:    { color: "#9146ff", path: "M3 3h18v10.5l-5 5h-3.5L9 21v-2.5H3zM9 7h2v5H9zm5 0h2v5h-2z" },
+    kick:      { color: "#53fc18", ink: "#101014", path: "M3 3h6v6h3V6h3V3h6v9h-3v3h3v6h-6v-3h-3v-3H9v6H3z" },
+    youtube:   { color: "#ff0000", wide: true, path: "M23 12s0-3.7-.5-5.4a2.8 2.8 0 0 0-2-2C18.8 4 12 4 12 4s-6.8 0-8.5.6a2.8 2.8 0 0 0-2 2C1 8.3 1 12 1 12s0 3.7.5 5.4a2.8 2.8 0 0 0 2 2C5.2 20 12 20 12 20s6.8 0 8.5-.6a2.8 2.8 0 0 0 2-2C23 15.7 23 12 23 12zM10 15.5v-7l6 3.5z" },
+    instagram: { color: "#e1306c", path: "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm5.8-3.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z" },
+    x:         { color: "#101014", path: "M3 3h4.5l4.2 5.7L16.8 3H21l-6.8 8.2L21.4 21h-4.5l-4.6-6.2L7 21H2.8l7.2-8.6z" },
+    twitter:   { color: "#1d9bf0", path: "M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.8-2.2c-.8.5-1.7.8-2.6 1a4 4 0 0 0-6.9 3.7A11.4 11.4 0 0 1 3.8 4.6a4 4 0 0 0 1.2 5.4c-.6 0-1.2-.2-1.8-.5a4 4 0 0 0 3.2 4 4 4 0 0 1-1.8.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1z" },
+    tiktok:    { color: "#101014", path: "M14.5 2h3.1a5.9 5.9 0 0 0 4.4 4.6v3.2a9 9 0 0 1-4.3-1.3v6a6.6 6.6 0 1 1-5.7-6.5v3.3a3.4 3.4 0 1 0 2.5 3.2z" },
+    discord:   { color: "#5865f2", path: "M19.3 5.4A16 16 0 0 0 15.5 4l-.3.5a12 12 0 0 1 3 1.5 14 14 0 0 0-12.4 0 12 12 0 0 1 3-1.5L8.5 4a16 16 0 0 0-3.8 1.4C2.3 9 1.7 12.5 2 16a16 16 0 0 0 4.8 2.4l.9-1.4a10 10 0 0 1-1.6-.8l.4-.3a11.4 11.4 0 0 0 9 0l.4.3a10 10 0 0 1-1.6.8l.9 1.4A16 16 0 0 0 22 16c.4-4-.6-7.5-2.7-10.6zM9 14.4a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm6 0a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
+    facebook:  { color: "#1877f2", path: "M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z" },
+    snapchat:  { color: "#fffc00", ink: "#101014", path: "M12 3c2.6 0 4.4 1.9 4.4 4.4v1.9c.5.2 1-.2 1.5-.1.6.2.4 1-.2 1.4-.5.3-1.1.5-1.1.9 0 .9 2 2.6 3.3 3 .3.1.4.4.2.7-.4.6-1.6.8-2.1 1-.3.1-.3.5-.4.9-.1.3-.3.4-.7.3-.6-.1-1.5-.2-2.3.1-.7.4-1.3 1.4-2.2 1.4s-1.5-1-2.2-1.4c-.8-.3-1.7-.2-2.3-.1-.4.1-.6 0-.7-.3-.1-.4-.1-.8-.4-.9-.5-.2-1.7-.4-2.1-1-.2-.3-.1-.6.2-.7 1.3-.4 3.3-2.1 3.3-3 0-.4-.6-.6-1.1-.9-.6-.4-.8-1.2-.2-1.4.5-.1 1 .3 1.5.1V7.4C7.6 4.9 9.4 3 12 3z" },
+    telegram:  { color: "#2aabee", path: "M21.9 4.3 18.7 20c-.2 1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1L18.2 6c.4-.4-.1-.6-.6-.2L6.1 13.1l-4.9-1.5c-1-.3-1-1 .2-1.5l19.1-7.4c.9-.3 1.6.2 1.4 1.6z" },
+    whatsapp:  { color: "#25d366", path: "M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2zm0 2a8 8 0 1 1-4.2 14.8l-.3-.2-2.5.7.7-2.4-.2-.3A8 8 0 0 1 12 4zm-3 4c-.3 0-.7.1-1 .5-.4.4-1 1-1 2.3s1 2.6 1.2 2.8c.1.2 2 3.1 4.9 4.2 2.4.9 2.9.7 3.4.7.5-.1 1.6-.7 1.9-1.3.2-.7.2-1.2.1-1.3l-.6-.3-1.9-.9c-.3-.1-.5-.2-.7.1l-.9 1.1c-.2.2-.3.3-.6.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5v-.5l-.9-2.1c-.2-.5-.4-.5-.6-.5z" },
+    linkedin:  { color: "#0a66c2", path: "M4.9 3.5a2.4 2.4 0 1 1 0 4.9 2.4 2.4 0 0 1 0-4.9zM3 9.5h4v11H3zm7 0h3.8v1.5h.1a4.2 4.2 0 0 1 3.8-2c4 0 4.8 2.6 4.8 6v5.5h-4v-4.9c0-1.2 0-2.7-1.7-2.7s-2 1.3-2 2.6v5H10z" },
+    bluesky:   { color: "#0085ff", path: "M12 10.8C10.9 8.7 7.9 4.7 5.1 3 2.4 1.4 1.4 2.3 1.4 4.2c0 1.9 1 6.4 1.7 7.6.7 1.2 2.1 1.6 3.4 1.4-2 .3-3.8 1-1.5 3.6 2.5 2.9 3.5-.6 4-2.4l1-2.6 1 2.6c.5 1.8 1.5 5.3 4 2.4 2.3-2.6.5-3.3-1.5-3.6 1.3.2 2.7-.2 3.4-1.4.7-1.2 1.7-5.7 1.7-7.6 0-1.9-1-2.8-3.7-1.2-2.8 1.7-5.8 5.7-6.9 7.8z" },
+    reddit:    { color: "#ff4500", path: "M22 11.2a2.4 2.4 0 0 0-4.1-1.7 11.7 11.7 0 0 0-5.8-1.8l1-4.6 3.2.7a1.9 1.9 0 1 0 .2-1.6l-3.9-.8a.6.6 0 0 0-.7.5l-1.2 5.6a11.7 11.7 0 0 0-5.9 1.8A2.4 2.4 0 1 0 2 14.4a4 4 0 0 0 0 .8c0 3.6 4.2 6.5 9.4 6.5s9.4-2.9 9.4-6.5a4 4 0 0 0 0-.8 2.4 2.4 0 0 0 1.2-3.2zM9.1 14.9a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm7.3 2.6c-1.2 1.2-3.5 1.3-4.2 1.3s-3-.1-4.2-1.3a.5.5 0 0 1 .7-.7c.8.8 2.4 1 3.5 1s2.8-.2 3.5-1a.5.5 0 0 1 .7.7zm-1.5-2.6a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4z" },
+  };
+  const ALIASES = { ig: "instagram", yt: "youtube", tt: "tiktok", fb: "facebook", snap: "snapchat", tg: "telegram", wa: "whatsapp", li: "linkedin", tweet: "twitter" };
+
+  /* Webfonts first (closest to the sticker-overlay look), system stacks after.
+     Each falls back to a system face if the font request fails. */
+  const FONTS = {
+    montserrat: '"Montserrat", "Segoe UI", system-ui, sans-serif',
+    poppins:    '"Poppins", "Segoe UI", system-ui, sans-serif',
+    archivo:    '"Archivo Black", "Segoe UI", system-ui, sans-serif',
+    nunito:     '"Nunito", "Segoe UI", system-ui, sans-serif',
+    anton:      '"Anton", "Bahnschrift", system-ui, sans-serif',
+    sans:       '"Segoe UI", system-ui, sans-serif',
+    display:    '"Bahnschrift", "Segoe UI Semibold", system-ui, sans-serif',
+    round:      '"Fredoka", "Segoe UI", system-ui, sans-serif',
+    mono:       '"Cascadia Mono", Consolas, monospace',
+    serif:      'Georgia, "Times New Roman", serif',
+  };
+
+  /* groups=twitch+youtube:dre2funtyy,tiktok+instagram:dre2funtyy
+     Each group is "platform[+platform...]:handle". */
+  const DEFAULTS = Object.freeze({
+    groups: "twitch+youtube:yourname,tiktok+instagram:yourname",
+    prefix: "@", size: "medium", tile: false, shape: "squircle",
+    round: .3, merge: 3, overlap: 20, nameGap: 6, textSize: 20,
+    textGap: -3, textNudge: 0, letterSpacing: -.3, equalHeight: true,
+    logoHeight: 19, logoOutline: 2, edgeWidth: 1, edgeColor: "#000000",
+    brand: true, color: "#ffffff", tileEdge: "#ffffff",
+    textEdge: "#000000", textColor: "#ffffff", outline: 4,
+    tileOutline: 3, gap: 26, align: "center", font: "montserrat",
+    weight: 800, scale: 1, preset: "sticker", textOutline: 2,
+    textEdgeWidth: 1, textOutlineColor: "#ffffff",
+    textEdgeColor: "#000000", textSide: "right", textCase: "none",
+    label: "", labelSize: 8, labelGap: 0, labelColor: "#ffffff",
+    direction: "horizontal", wrap: true, padding: 18, join: "round",
+    outlineOpacity: 1, shadow: true, shadowX: 0, shadowY: 3,
+    shadowBlur: 5, shadowColor: "#000000", shadowOpacity: .45,
+  });
+  const PRESETS = Object.freeze({
+    sticker: {},
+    clean: {
+      logoOutline: 1.25, edgeWidth: .5, textOutline: 1.25,
+      textEdgeWidth: .5, merge: 1, textGap: 1, shadow: false,
+    },
+    bold: {
+      logoOutline: 3.5, edgeWidth: 1.5, textOutline: 3.5,
+      textEdgeWidth: 1.5, merge: 4, textGap: -4, weight: 900,
+    },
+    custom: {},
+  });
+  const SETTING_KEYS = Object.keys(DEFAULTS);
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const layoutCache = new WeakMap();
+  let currentSettings = null;
+  let settingsKey = "";
+  let renderVersion = 0;
+
+  const valueNumber = (value, dflt, lo, hi) => {
+    const parsed = Number(value);
+    return clamp(Number.isFinite(parsed) ? parsed : dflt, lo, hi);
+  };
+  const valueBoolean = (value, dflt) => {
+    if (typeof value === "boolean") return value;
+    const candidate = String(value ?? "").trim().toLowerCase();
+    if (["on", "true", "1"].includes(candidate)) return true;
+    if (["off", "false", "0"].includes(candidate)) return false;
+    return dflt;
+  };
+  const choice = (value, choices, dflt) => {
+    const candidate = String(value ?? "").trim().toLowerCase();
+    return choices.includes(candidate) ? candidate : dflt;
+  };
+  const boundedText = (value, dflt, maximum) => String(value ?? dflt)
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .slice(0, maximum);
+
+  function normalizeSettings(raw) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const preset = choice(
+      source.preset,
+      Object.keys(PRESETS),
+      DEFAULTS.preset,
+    );
+    const defaults = { ...DEFAULTS, ...PRESETS[preset] };
+    const tileEdge = hexColor(source.tileEdge, defaults.tileEdge);
+    const edgeColor = hexColor(source.edgeColor, defaults.edgeColor);
+    const textColor = hexColor(source.textColor, defaults.textColor);
+    return {
+      groups: boundedText(source.groups, defaults.groups, 2048),
+      prefix: source.prefix === undefined
+        ? defaults.prefix
+        : boundedText(source.prefix, "", 8).trim(),
+      size: choice(source.size, ["small", "medium", "large"], defaults.size),
+      tile: valueBoolean(source.tile, defaults.tile),
+      shape: choice(source.shape, ["squircle", "round", "square"], defaults.shape),
+      round: valueNumber(source.round, defaults.round, 0, .5),
+      merge: valueNumber(source.merge, defaults.merge, -12, 22),
+      overlap: valueNumber(source.overlap, defaults.overlap, -40, 60),
+      nameGap: valueNumber(source.nameGap, defaults.nameGap, -20, 60),
+      textSize: valueNumber(source.textSize, defaults.textSize, 6, 40),
+      textGap: valueNumber(source.textGap, defaults.textGap, -14, 30),
+      textNudge: valueNumber(source.textNudge, defaults.textNudge, -12, 12),
+      letterSpacing: valueNumber(source.letterSpacing, defaults.letterSpacing, -3, 6),
+      equalHeight: valueBoolean(source.equalHeight, defaults.equalHeight),
+      logoHeight: valueNumber(source.logoHeight, defaults.logoHeight, 6, 24),
+      logoOutline: valueNumber(source.logoOutline, defaults.logoOutline, 0, 10),
+      edgeWidth: valueNumber(source.edgeWidth, defaults.edgeWidth, 0, 6),
+      edgeColor,
+      brand: valueBoolean(source.brand, defaults.brand),
+      color: hexColor(source.color, defaults.color),
+      tileEdge,
+      textEdge: hexColor(source.textEdge, defaults.textEdge),
+      textColor,
+      outline: valueNumber(source.outline, defaults.outline, 0, 12),
+      tileOutline: valueNumber(source.tileOutline, defaults.tileOutline, 0, 10),
+      gap: valueNumber(source.gap, defaults.gap, 0, 120),
+      align: choice(source.align, ["left", "center", "right"], defaults.align),
+      font: choice(source.font, Object.keys(FONTS), defaults.font),
+      weight: Math.round(valueNumber(source.weight, defaults.weight, 100, 900)),
+      scale: valueNumber(source.scale, defaults.scale, .3, 3),
+      preset,
+      textOutline: valueNumber(source.textOutline, defaults.textOutline, 0, 10),
+      textEdgeWidth: valueNumber(source.textEdgeWidth, defaults.textEdgeWidth, 0, 6),
+      textOutlineColor: hexColor(source.textOutlineColor, tileEdge),
+      textEdgeColor: hexColor(source.textEdgeColor, edgeColor),
+      textSide: choice(source.textSide, ["left", "right"], defaults.textSide),
+      textCase: choice(source.textCase, ["none", "upper", "lower"], defaults.textCase),
+      label: boundedText(source.label, defaults.label, 64).trim(),
+      labelSize: valueNumber(source.labelSize, defaults.labelSize, 4, 24),
+      labelGap: valueNumber(source.labelGap, defaults.labelGap, -4, 12),
+      labelColor: hexColor(source.labelColor, textColor),
+      direction: choice(source.direction, ["horizontal", "vertical"], defaults.direction),
+      wrap: valueBoolean(source.wrap, defaults.wrap),
+      padding: valueNumber(source.padding, defaults.padding, 0, 80),
+      join: choice(source.join, ["round", "miter", "bevel"], defaults.join),
+      outlineOpacity: valueNumber(source.outlineOpacity, defaults.outlineOpacity, 0, 1),
+      shadow: valueBoolean(source.shadow, defaults.shadow),
+      shadowX: valueNumber(source.shadowX, defaults.shadowX, -30, 30),
+      shadowY: valueNumber(source.shadowY, defaults.shadowY, -30, 30),
+      shadowBlur: valueNumber(source.shadowBlur, defaults.shadowBlur, 0, 30),
+      shadowColor: hexColor(source.shadowColor, defaults.shadowColor),
+      shadowOpacity: valueNumber(source.shadowOpacity, defaults.shadowOpacity, 0, 1),
+    };
+  }
+
+  const queryOverrides = Object.fromEntries(
+    SETTING_KEYS
+      .filter(key => query.has(key))
+      .map(key => [key, query.get(key)]),
+  );
+
+  function parseGroups(raw) {
+    const parsed = [];
+    for (const chunk of String(raw || "").split(",").slice(0, 6)) {
+      const separator = chunk.indexOf(":");
+      const platformPart = separator >= 0 ? chunk.slice(0, separator) : chunk;
+      const handlePart = separator >= 0 ? chunk.slice(separator + 1) : "";
+      const platforms = [];
+      for (const supplied of platformPart.split(/[+|]/)) {
+        const candidate = supplied.trim().toLowerCase();
+        const platform = ALIASES[candidate] || candidate;
+        if (PLATFORMS[platform] && !platforms.includes(platform)) {
+          platforms.push(platform);
+        }
+        if (platforms.length === 6) break;
+      }
+      if (!platforms.length) continue;
+      parsed.push({
+        platforms,
+        handle: boundedText(handlePart, "", 128).trim(),
+      });
+    }
+    return parsed.length ? parsed : parseGroups(DEFAULTS.groups);
+  }
+
+  function transformText(value, textCase) {
+    const text = String(value || "");
+    if (textCase === "upper") return text.toLocaleUpperCase();
+    if (textCase === "lower") return text.toLocaleLowerCase();
+    return text;
+  }
+
+  function applyAppearance(settings) {
+    const root = document.documentElement;
+    const accent = hexToRgb(settings.color);
+    if (accent) root.style.setProperty("--accent", accent.join(","));
+    const ink = hexToRgb(settings.textColor);
+    if (ink) root.style.setProperty("--ink", ink.join(","));
+    root.style.setProperty("--tile-edge", settings.tileEdge);
+    root.style.setProperty("--text-edge", settings.textEdge);
+    root.style.setProperty("--outline", `${settings.outline}px`);
+    root.style.setProperty("--tile-outline", `${settings.tileOutline}px`);
+    root.style.setProperty("--group-gap", `${settings.gap}px`);
+    root.style.setProperty("--icon-overlap", `${settings.overlap}px`);
+    root.style.setProperty("--name-gap", `${settings.nameGap}px`);
+    root.style.setProperty("--tile-round", String(settings.round));
+    root.style.setProperty("--font-stack", FONTS[settings.font]);
+    root.style.setProperty("--weight", String(settings.weight));
+    root.style.setProperty("--scale", String(settings.scale));
+    root.style.setProperty("--fit-scale", "1");
+    root.style.setProperty("--content-padding", `${settings.padding}px`);
+
+    const shadowRgb = hexToRgb(settings.shadowColor) || [0, 0, 0];
+    root.style.setProperty(
+      "--shadow-filter",
+      settings.shadow
+        ? `drop-shadow(${settings.shadowX}px ${settings.shadowY}px ` +
+          `${settings.shadowBlur}px rgba(${shadowRgb.join(",")},` +
+          `${settings.shadowOpacity}))`
+        : "none",
+    );
+
+    row.className = "row";
+    if (settings.size === "large" || settings.size === "small") {
+      row.classList.add(`size-${settings.size}`);
+    }
+    row.dataset.align = settings.align;
+    row.dataset.direction = settings.direction;
+    row.dataset.wrap = settings.wrap ? "on" : "off";
+  }
+
+  function buildIcon(platform, settings) {
+    const meta = PLATFORMS[platform];
+    const icon = document.createElement("span");
+    const classes = ["icon", "tile"];
+    if (settings.shape === "round") classes.push("round");
+    else if (settings.shape === "square") classes.push("square");
+    if (meta.wide && settings.shape !== "round") classes.push("wide");
+    icon.className = classes.join(" ");
+    icon.style.setProperty(
+      "--brand",
+      settings.brand ? meta.color : "rgb(var(--accent))",
+    );
+
+    const fill = meta.ink && settings.brand ? meta.ink : "#fff";
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "-3 -3 30 30");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("fill-rule", "evenodd");
+    path.setAttribute("clip-rule", "evenodd");
+    path.setAttribute("d", meta.path);
+    path.setAttribute("fill", fill);
+    svg.append(path);
+    icon.append(svg);
+    return icon;
+  }
+
+  /* Sticker mode: one SVG for the whole group, drawn in two passes —
+     every outline first, then every fill on top. The white edges merge into a
+     single silhouette instead of one logo's outline covering its neighbour. */
+  function svgElement(name, attributes = {}) {
+    const element = document.createElementNS(SVG_NS, name);
+    for (const [key, value] of Object.entries(attributes)) {
+      element.setAttribute(key, String(value));
+    }
+    return element;
+  }
+
+  function applyOutline(element, fill, width, settings) {
+    element.setAttribute("fill", fill);
+    element.setAttribute("stroke", fill);
+    element.setAttribute("stroke-width", String(width));
+    element.setAttribute("stroke-linejoin", settings.join);
+    element.setAttribute("stroke-linecap", "round");
+    if (settings.outlineOpacity !== 1) {
+      element.setAttribute("fill-opacity", String(settings.outlineOpacity));
+      element.setAttribute("stroke-opacity", String(settings.outlineOpacity));
+    }
+  }
+
+  function appendLogo(layers, meta, settings, widths) {
+    for (const layerName of ["out", "edge", "fills"]) {
+      const path = svgElement("path", {
+        "fill-rule": "evenodd",
+        "clip-rule": "evenodd",
+        d: meta.path,
+        "data-kind": "logo",
+      });
+      if (layerName === "out") {
+        applyOutline(path, settings.tileEdge, widths.logoOuter, settings);
+      } else if (layerName === "edge") {
+        applyOutline(path, settings.edgeColor, widths.logoEdge, settings);
+      } else {
+        path.setAttribute(
+          "fill",
+          settings.brand ? meta.color : "rgb(var(--ink))",
+        );
+      }
+      layers[layerName].append(path);
+    }
+  }
+
+  function createTextLine(content, y, size, fill, stroke, width, settings) {
+    const text = svgElement("text", {
+      x: 0,
+      y,
+      "dominant-baseline": "central",
+      "text-anchor": "start",
+      "xml:space": "preserve",
+      "font-size": size,
+      "font-weight": settings.weight,
+      "letter-spacing": settings.letterSpacing,
+      "font-family": FONTS[settings.font],
+      fill,
+    });
+    if (stroke) {
+      text.setAttribute("stroke", stroke);
+      text.setAttribute("stroke-width", String(width));
+      text.setAttribute("stroke-linejoin", settings.join);
+      if (settings.outlineOpacity !== 1) {
+        text.setAttribute("fill-opacity", String(settings.outlineOpacity));
+        text.setAttribute("stroke-opacity", String(settings.outlineOpacity));
+      }
+    }
+    text.textContent = content;
+    return text;
+  }
+
+  function appendTextBlock(layers, handle, settings, widths) {
+    const label = transformText(settings.label, settings.textCase);
+    const name = handle
+      ? `${settings.prefix}${transformText(handle, settings.textCase)}`
+      : "";
+    if (!name && !label) return;
+    const hasLabel = Boolean(label);
+    const lineSeparation = (
+      settings.labelSize / 2
+      + settings.textSize / 2
+      + settings.labelGap
+      + Math.max(1, settings.textEdgeWidth)
+    );
+    const labelY = 12 - lineSeparation / 2;
+    const handleY = hasLabel ? 12 + lineSeparation / 2 : 12;
+
+    for (const layerName of ["out", "edge", "fills"]) {
+      const layer = layers[layerName];
+      const fill = layerName === "out"
+        ? settings.textOutlineColor
+        : layerName === "edge"
+          ? settings.textEdgeColor
+          : settings.textColor;
+      const stroke = layerName === "fills" ? "" : fill;
+      const width = layerName === "out" ? widths.textOuter : widths.textEdge;
+      const parent = hasLabel
+        ? svgElement("g", { "data-kind": "text" })
+        : null;
+      const target = parent || layer;
+      if (label) {
+        target.append(
+          createTextLine(
+            label,
+            labelY,
+            settings.labelSize,
+            layerName === "fills" ? settings.labelColor : fill,
+            stroke,
+            width,
+            settings,
+          ),
+        );
+      }
+      if (name) {
+        const line = createTextLine(
+          name,
+          handleY,
+          settings.textSize,
+          fill,
+          stroke,
+          width,
+          settings,
+        );
+        if (!parent) line.dataset.kind = "text";
+        target.append(line);
+      }
+      if (parent) layer.append(parent);
+    }
+  }
+
+  function buildMergedIcons(platforms, handle, settings) {
+    const logoEdge = settings.edgeWidth * 2;
+    const textEdge = settings.textEdgeWidth * 2;
+    const widths = {
+      logoEdge,
+      logoOuter: logoEdge + settings.logoOutline * 2,
+      textEdge,
+      textOuter: textEdge + settings.textOutline * 2,
+    };
+    const holder = document.createElement("span");
+    holder.className = "merged";
+    const svg = svgElement("svg", {
+      viewBox: "0 0 24 24",
+      "aria-hidden": "true",
+    });
+    const layers = {
+      out: svgElement("g", { class: "out" }),
+      edge: svgElement("g", { class: "edge" }),
+      fills: svgElement("g", { class: "fills" }),
+    };
+    svg.append(layers.out, layers.edge, layers.fills);
+
+    const addText = () => appendTextBlock(layers, handle, settings, widths);
+    if (settings.textSide === "left") addText();
+    for (const platform of platforms) {
+      appendLogo(layers, PLATFORMS[platform], settings, widths);
+    }
+    if (settings.textSide === "right") addText();
+    holder.append(svg);
+    return holder;
+  }
+
+  /* Pack by each glyph's REAL bounding box. The paths have different amounts of
+     empty margin inside their 24-unit boxes, so a fixed step leaves uneven gaps.
+     Measuring lets every pair sit the same distance apart, and vertically
+     centres each glyph so none of them ride high or low. */
+  function safeBBox(element, settings) {
+    try {
+      const box = element.getBBox();
+      if (
+        [box.x, box.y, box.width, box.height].every(Number.isFinite)
+        && box.width > 0
+        && box.height > 0
+      ) {
+        return {
+          box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          stable: true,
+        };
+      }
+    } catch {}
+
+    if (element.dataset.kind === "logo") {
+      return { box: { x: 0, y: 0, width: 24, height: 24 }, stable: false };
+    }
+    const nested = element.querySelectorAll
+      ? [...element.querySelectorAll("text")]
+      : [];
+    const lines = nested.length ? nested : [element];
+    const width = Math.max(
+      1,
+      ...lines.map(line => (
+        String(line.textContent || "").length
+        * valueNumber(line.getAttribute?.("font-size"), settings.textSize, 1, 40)
+        * .62
+      )),
+    );
+    const height = settings.label
+      ? settings.textSize + settings.labelSize + Math.max(0, settings.labelGap)
+      : settings.textSize;
+    return {
+      box: { x: 0, y: 12 - height / 2, width, height },
+      stable: false,
+    };
+  }
+
+  function layoutMerged(svg, settings, forceMeasure = false) {
+    const edgeLayer = svg.querySelector(".edge");
+    const outLayer = svg.querySelector(".out");
+    const fillLayer = svg.querySelector(".fills");
+    const items = [...fillLayer.children];
+    if (!items.length) return false;
+
+    let boxes = !forceMeasure ? layoutCache.get(svg) : null;
+    if (!boxes || boxes.length !== items.length) {
+      const measured = items.map(item => safeBBox(item, settings));
+      boxes = measured.map(result => result.box);
+      if (measured.every(result => result.stable)) layoutCache.set(svg, boxes);
+      else layoutCache.delete(svg);
+    }
+
+    const logoEdge = settings.edgeWidth * 2;
+    const logoOuter = logoEdge + settings.logoOutline * 2;
+    const textEdge = settings.textEdgeWidth * 2;
+    const textOuter = textEdge + settings.textOutline * 2;
+    let cursor = 0;
+    let halfHeight = 0;
+
+    items.forEach((item, index) => {
+      const box = boxes[index];
+      const isText = item.dataset.kind === "text";
+      const scale = !isText && settings.equalHeight && box.height > 0
+        ? settings.logoHeight / box.height
+        : 1;
+      const outer = isText ? textOuter : logoOuter;
+      const width = Math.max(.01, box.width * scale + outer);
+      const height = Math.max(.01, box.height * scale + outer);
+      const tx = cursor + outer / 2 - scale * box.x;
+      /* Logos centre on the midline by bounding box. Text must NOT: its box
+         includes descenders, so box-centring lifts the letters above the line.
+         It already sits on y=12 via dominant-baseline="central", which is the
+         same midline the logos use, so it only needs an optional nudge. */
+      const ty = isText
+        ? settings.textNudge
+        : 12 - scale * (box.y + box.height / 2);
+      const shift = `translate(${tx.toFixed(2)} ${ty.toFixed(2)})` +
+        (scale === 1 ? "" : ` scale(${scale.toFixed(4)})`);
+
+      item.setAttribute("transform", shift);
+      const applyStroked = (element, baseWidth) => {
+        if (!element) return;
+        element.setAttribute("transform", shift);
+        element.setAttribute(
+          "stroke-width",
+          scale === 1 ? String(baseWidth) : (baseWidth / scale).toFixed(3),
+        );
+      };
+      applyStroked(outLayer.children[index], isText ? textOuter : logoOuter);
+      applyStroked(edgeLayer.children[index], isText ? textEdge : logoEdge);
+
+      const next = items[index + 1];
+      const nextIsText = next?.dataset.kind === "text";
+      const spacing = index === items.length - 1
+        ? 0
+        : (isText || nextIsText ? settings.textGap : -settings.merge);
+      cursor += width + spacing;
+      halfHeight = Math.max(halfHeight, height / 2);
+    });
+
+    const pad = 1.5;
+    const boxWidth = clamp(cursor + pad * 2, 1, 8192);
+    const boxHeight = clamp(halfHeight * 2 + pad * 2, 1, 2048);
+    if (![boxWidth, boxHeight, halfHeight].every(Number.isFinite)) return false;
+    svg.setAttribute(
+      "viewBox",
+      `${-pad} ${(12 - halfHeight - pad).toFixed(2)} ` +
+      `${boxWidth.toFixed(2)} ${boxHeight.toFixed(2)}`,
+    );
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    /* Pin the element's layout box to the new viewBox. Without this the browser
+       can keep the width it derived from the original 24x24 viewBox, leaving the
+       artwork off-centre inside an element that is the wrong width. */
+    svg.style.aspectRatio = `${boxWidth.toFixed(2)} / ${boxHeight.toFixed(2)}`;
+    return true;
+  }
+
+  function fitToCanvas(settings) {
+    const root = document.documentElement;
+    root.style.setProperty("--fit-scale", "1");
+    const bounds = row.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const availableWidth = Math.max(1, innerWidth - settings.padding * 2);
+    const availableHeight = Math.max(1, innerHeight - settings.padding * 2);
+    const fit = clamp(
+      Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height),
+      .05,
+      1,
+    );
+    root.style.setProperty("--fit-scale", fit.toFixed(4));
+  }
+
+  function buildLegacyCopy(group, settings) {
+    const handle = group.handle
+      ? `${settings.prefix}${transformText(group.handle, settings.textCase)}`
+      : "";
+    const label = transformText(settings.label, settings.textCase);
+    if (!handle && !label) return null;
+    if (!label) {
+      const name = document.createElement("span");
+      name.className = "handle";
+      name.textContent = handle;
+      return name;
+    }
+    const copy = document.createElement("span");
+    copy.className = "legacy-copy";
+    const eyebrow = document.createElement("span");
+    eyebrow.className = "legacy-label";
+    eyebrow.textContent = label;
+    copy.append(eyebrow);
+    if (handle) {
+      const name = document.createElement("span");
+      name.className = "handle";
+      name.textContent = handle;
+      copy.append(name);
+    }
+    return copy;
+  }
+
+  function render(settings) {
+    const version = ++renderVersion;
+    const groups = parseGroups(settings.groups);
+    applyAppearance(settings);
+    row.replaceChildren();
+    for (const group of groups) {
+      const groupElement = document.createElement("span");
+      groupElement.className = "group";
+
+      const icons = document.createElement("span");
+      icons.className = "icons";
+      if (settings.tile) {
+        for (const platform of group.platforms) {
+          icons.append(buildIcon(platform, settings));
+        }
+        const copy = buildLegacyCopy(group, settings);
+        if (settings.textSide === "left" && copy) groupElement.append(copy);
+        groupElement.append(icons);
+        if (settings.textSide === "right" && copy) groupElement.append(copy);
+      } else {
+        icons.append(buildMergedIcons(group.platforms, group.handle, settings));
+        groupElement.append(icons);
+      }
+      row.append(groupElement);
+    }
+
+    const pack = (forceMeasure = false) => {
+      if (version !== renderVersion) return;
+      if (!settings.tile) {
+        for (const svg of row.querySelectorAll(".merged svg")) {
+          layoutMerged(svg, settings, forceMeasure);
+        }
+      }
+      fitToCanvas(settings);
+    };
+    // Keep all three layout passes: attached DOM, next frame, and webfont ready.
+    pack();
+    requestAnimationFrame(() => pack());
+    if (document.fonts?.ready) {
+      const requestedFont = document.fonts.load(
+        `${settings.weight} ${Math.max(settings.textSize, settings.labelSize)}px ` +
+        FONTS[settings.font],
+      ).catch(() => []);
+      Promise.all([document.fonts.ready, requestedFont])
+        .then(() => pack(true))
+        .catch(() => {});
+    }
+  }
+
+  function applySettings(raw) {
+    const settings = normalizeSettings({ ...raw, ...queryOverrides });
+    const nextKey = JSON.stringify(settings);
+    if (nextKey === settingsKey) return;
+    settingsKey = nextKey;
+    currentSettings = settings;
+    render(settings);
+  }
+
+  async function loadSettings() {
+    let saved = {};
+    if (instanceId && location.protocol !== "file:") {
+      try {
+        const response = await fetch(`/api/config?i=${encodeURIComponent(instanceId)}`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload.socialGrouped && typeof payload.socialGrouped === "object") {
+            saved = payload.socialGrouped;
+          }
+        }
+      } catch {}
+    }
+    return saved;
+  }
+
+  function connect() {
+    if (query.get("customizer") === "1") {
+      window.addEventListener("message", event => {
+        if (
+          event.source !== window.parent
+          || event.data?.type !== "overlay-studio-draft"
+          || event.data?.overlayType !== "social-grouped"
+          || String(event.data?.instanceId || "") !== instanceId
+          || !event.data?.config?.socialGrouped
+        ) return;
+        applySettings(event.data.config.socialGrouped);
+      });
+    }
+    if (location.protocol === "file:" || !("WebSocket" in window)) return;
+    let socket;
+    try {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    } catch {
+      setTimeout(connect, 2000);
+      return;
+    }
+    socket.onmessage = event => {
+      if (typeof event.data !== "string" || event.data.length > 64 * 1024) return;
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      if (
+        message?.type === "config"
+        && String(message.instanceId || "") === instanceId
+        && message.config?.socialGrouped
+      ) {
+        applySettings(message.config.socialGrouped);
+      }
+    };
+    socket.onclose = () => setTimeout(connect, 2000);
+  }
+
+  window.addEventListener("resize", () => {
+    if (currentSettings) fitToCanvas(currentSettings);
+  });
+  loadSettings().then(applySettings).catch(() => applySettings({}));
+  connect();
+})();
+</script>
+</body>
+</html>
