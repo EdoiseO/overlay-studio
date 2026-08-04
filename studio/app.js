@@ -1082,6 +1082,7 @@ function createOverlayCard(instance, running, canReorder) {
   const frame = document.createElement("iframe");
   frame.title = `Live ${instance.name} preview`;
   frame.tabIndex = -1;
+  frame.frameBorder = "0";
   frame.dataset.source = running ? studioPreviewUrl(instance) : "";
   frame.src = frame.dataset.source || "about:blank";
   frame.addEventListener("load", () => fitCardPreview(frame, manifest));
@@ -1348,6 +1349,7 @@ function renderCatalog() {
     const frame = document.createElement("iframe");
     frame.title = `${manifest.name} preview`;
     frame.tabIndex = -1;
+    frame.frameBorder = "0";
     frame.loading = "lazy";
     frame.dataset.loaded = "false";
     frame.dataset.previewUrl = catalogPreviewUrl(manifest);

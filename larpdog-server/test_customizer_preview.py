@@ -23,6 +23,24 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('url.searchParams.set("customizer", "1")', script)
         self.assertIn("setCustomizerPreviewExpanded", script)
 
+    def test_preview_iframes_suppress_native_frame_edges(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        styles = (ROOT_DIR / "studio" / "app.css").read_text(encoding="utf-8")
+
+        self.assertEqual(markup.count('frameborder="0"'), 2)
+        self.assertEqual(script.count('frame.frameBorder = "0"'), 2)
+        for selector in (
+            ".live-preview iframe",
+            ".customizer-preview-stage iframe",
+            ".large-preview-stage iframe",
+        ):
+            rule = styles.split(selector, maxsplit=1)[1].split("}", maxsplit=1)[0]
+            self.assertIn("border: 0", rule)
+            self.assertIn("outline: 2px solid #1c2429", rule)
+            self.assertIn("outline-offset: -1px", rule)
+            self.assertIn("box-shadow: inset 0 0 0 1px #1c2429", rule)
+
     def test_customizer_preview_supports_zoom_pan_and_native_popout(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
