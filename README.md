@@ -22,6 +22,7 @@ local OBS browser-source overlays.
 | **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
 | **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
 | **Social Grouped** | Combines several platform logos with shared handles in one continuous sticker or branded tiles. |
+| **Platform Badge** | Pairs one platform logo with a compact brand-colored handle badge. |
 
 ## Requirements
 
@@ -185,6 +186,11 @@ handle creates a group. The manual group editor remains available for rearrangin
 fine-tuning. The dedicated Studio customizer also includes spacing, type, outline,
 color, shadow, and preset controls with a live draft.
 
+Platform Badge keeps one account compact: choose any supported platform, set the handle
+and optional prefix, then use the platform's brand color or a custom nameplate color.
+Text contrast is automatic, while corner radius, scale, font, and weight remain bounded
+in the Studio customizer.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -244,6 +250,7 @@ http://127.0.0.1:8473/overlays/rivals-rank
 http://127.0.0.1:8473/overlays/social
 http://127.0.0.1:8473/overlays/social-rotator
 http://127.0.0.1:8473/overlays/social-grouped
+http://127.0.0.1:8473/overlays/platform-badge
 ```
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
@@ -269,6 +276,7 @@ Rivals Rank      620 x 190
 Social Bar      1200 x 160
 Social Rotator   640 x 200
 Social Grouped  1200 x 160
+Platform Badge   420 x 110
 ```
 
 Increase the Browser Source canvas if you raise an overlay's scale. Existing combined

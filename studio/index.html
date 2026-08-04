@@ -751,6 +751,102 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="platformBadgeView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>PLATFORM BADGE</span>
+            <h1 id="platformBadgeDetailName">Platform Badge</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <div class="panel">
+          <h2>Badge identity</h2>
+          <div class="form-grid">
+            <label for="platformBadgePlatform">Platform</label>
+            <select id="platformBadgePlatform"></select>
+            <label for="platformBadgeHandle">Handle</label>
+            <input id="platformBadgeHandle" type="text" maxlength="32" autocomplete="off" placeholder="yourname">
+            <div class="field-copy">
+              <label for="platformBadgePrefix">Prefix</label>
+              <span>Optional, e.g. @</span>
+            </div>
+            <input id="platformBadgePrefix" type="text" maxlength="4" autocomplete="off" placeholder="@">
+          </div>
+        </div>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
+          <div class="form-grid">
+            <span>Nameplate color</span>
+            <div class="goal-toggle-row">
+              <label><input id="platformBadgeUseBrandColor" type="checkbox"> Use platform color</label>
+            </div>
+            <section class="palette-detail-section"
+              id="platformBadgeCustomColorSection"
+              aria-labelledby="platformBadgePaletteHeading"
+            >
+              <div class="palette-detail-heading">
+                <h3 id="platformBadgePaletteHeading">Custom nameplate color</h3>
+                <p>Used only when platform color is off. Text contrast is selected automatically.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Nameplate</strong>
+                    <span>Colors the block behind the handle while keeping the logo in its platform color.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="platformBadgeColor" type="color" aria-label="Platform Badge custom nameplate color">
+                    <span id="platformBadgeColorLabel">#9146FF</span>
+                  </span>
+                </label>
+              </div>
+            </section>
+            <label for="platformBadgeCorners">Corners</label>
+            <div class="range-control">
+              <input id="platformBadgeCorners" type="range" min="0" max="24" step="1">
+              <output id="platformBadgeCornersOutput">4</output>
+            </div>
+            <label for="platformBadgeScale">Scale</label>
+            <div class="range-control">
+              <input id="platformBadgeScale" type="range" min="0.5" max="2" step="0.05">
+              <output id="platformBadgeScaleOutput">1.00</output>
+            </div>
+            <label for="platformBadgeFont">Font</label>
+            <select id="platformBadgeFont">
+              <option value="montserrat">Montserrat</option>
+              <option value="poppins">Poppins</option>
+              <option value="archivo">Archivo Black</option>
+              <option value="nunito">Nunito</option>
+              <option value="anton">Anton</option>
+              <option value="sans">Sans serif</option>
+              <option value="display">Display</option>
+              <option value="round">Rounded</option>
+              <option value="mono">Monospace</option>
+              <option value="serif">Serif</option>
+            </select>
+            <label for="platformBadgeWeight">Font weight</label>
+            <div class="range-control">
+              <input id="platformBadgeWeight" type="range" min="300" max="900" step="100">
+              <output id="platformBadgeWeightOutput">700</output>
+            </div>
+          </div>
+        </details>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="platformBadgeSourceLabel" for="platformBadgeUrl">Platform Badge</label>
+            <input id="platformBadgeUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetPlatformBadgeButton" type="button">Reset fields</button>
+          <button class="primary-button" id="savePlatformBadgeButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="socialView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

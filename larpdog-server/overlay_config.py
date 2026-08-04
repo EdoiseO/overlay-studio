@@ -72,6 +72,18 @@ DEFAULT_SOCIAL_CONFIG: dict[str, Any] = {
     "showPlatform": True,
 }
 
+DEFAULT_PLATFORM_BADGE_CONFIG: dict[str, Any] = {
+    "platform": "twitch",
+    "handle": "yourname",
+    "prefix": "",
+    "useBrandColor": True,
+    "badgeColor": "9146ff",
+    "corners": 4,
+    "scale": 1.0,
+    "font": "display",
+    "weight": 700,
+}
+
 DEFAULT_SOCIAL_GROUPED_CONFIG: dict[str, Any] = {
     "groups": "twitch+youtube:yourname,tiktok+instagram:yourname",
     "prefix": "@",
@@ -166,6 +178,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
         "fallbackBpm": 120,
     },
     "social": copy.deepcopy(DEFAULT_SOCIAL_CONFIG),
+    "platformBadge": copy.deepcopy(DEFAULT_PLATFORM_BADGE_CONFIG),
     "socialGrouped": copy.deepcopy(DEFAULT_SOCIAL_GROUPED_CONFIG),
 }
 
@@ -183,6 +196,7 @@ SOCIAL_SIZE_CHOICES = {"small", "medium", "large"}
 SOCIAL_FONT_CHOICES = {"sans", "display", "round", "mono", "serif"}
 SOCIAL_ROTATOR_SHAPES = {"capsule", "rounded", "square", "cut"}
 SOCIAL_TRANSITIONS = {"slide", "fade", "flip"}
+PLATFORM_BADGE_PLATFORMS = set(SOCIAL_PLATFORMS)
 SOCIAL_GROUPED_PRESETS = {"sticker", "clean", "bold", "custom"}
 SOCIAL_GROUPED_SIZES = {"small", "medium", "large"}
 SOCIAL_GROUPED_SHAPES = {"squircle", "round", "square"}
@@ -198,6 +212,7 @@ SOCIAL_GROUPED_FONTS = {
     "mono",
     "serif",
 }
+PLATFORM_BADGE_FONT_CHOICES = set(SOCIAL_GROUPED_FONTS)
 SOCIAL_GROUPED_TEXT_SIDES = {"left", "right"}
 SOCIAL_GROUPED_TEXT_CASES = {"none", "upper", "lower"}
 SOCIAL_GROUPED_DIRECTIONS = {"horizontal", "vertical"}
@@ -597,6 +612,47 @@ def _normalize_social(raw: Any, overlay_type: str = "social") -> dict[str, Any]:
     }
 
 
+def _normalize_platform_badge(raw: Any) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    defaults = DEFAULT_PLATFORM_BADGE_CONFIG
+    return {
+        "platform": _choice(
+            source.get("platform"),
+            PLATFORM_BADGE_PLATFORMS,
+            defaults["platform"],
+        ),
+        "handle": _short_text(
+            source.get("handle"),
+            defaults["handle"],
+            32,
+        ),
+        "prefix": _short_text(source.get("prefix"), defaults["prefix"], 4),
+        "useBrandColor": _boolean(
+            source.get("useBrandColor"),
+            defaults["useBrandColor"],
+        ),
+        "badgeColor": _color(
+            source.get("badgeColor"),
+            defaults["badgeColor"],
+        ),
+        "corners": int(
+            round(_number(source.get("corners"), defaults["corners"], 0, 24))
+        ),
+        "scale": round(
+            _number(source.get("scale"), defaults["scale"], 0.5, 2.0),
+            2,
+        ),
+        "font": _choice(
+            source.get("font"),
+            PLATFORM_BADGE_FONT_CHOICES,
+            defaults["font"],
+        ),
+        "weight": int(
+            round(_number(source.get("weight"), defaults["weight"], 300, 900))
+        ),
+    }
+
+
 def _profile_id(value: Any, index: int, used_ids: set[str]) -> str:
     candidate = str(value or "").strip()
     if not DANCE_PROFILE_ID.fullmatch(candidate) or candidate in used_ids:
@@ -684,6 +740,11 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         else {}
     )
     social = source.get("social") if isinstance(source.get("social"), dict) else {}
+    platform_badge = (
+        source.get("platformBadge")
+        if isinstance(source.get("platformBadge"), dict)
+        else {}
+    )
     social_grouped = (
         source.get("socialGrouped")
         if isinstance(source.get("socialGrouped"), dict)
@@ -886,6 +947,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
             "fallbackBpm": active_profile["fallbackBpm"],
         },
         "social": _normalize_social(social),
+        "platformBadge": _normalize_platform_badge(platform_badge),
         "socialGrouped": _normalize_social_grouped(social_grouped),
     }
 
@@ -909,6 +971,12 @@ def _instance_config(
             "social": _normalize_social(
                 source.get("social"),
                 overlay_type,
+            )
+        }
+    elif overlay_type == "platform-badge":
+        return {
+            "platformBadge": _normalize_platform_badge(
+                source.get("platformBadge")
             )
         }
     elif overlay_type == "social-grouped":
@@ -998,6 +1066,7 @@ def materialize_instance_config(
             "audio",
             "nowPlaying",
             "social",
+            "platformBadge",
             "socialGrouped",
         )
     }
@@ -1030,6 +1099,7 @@ def update_instance_config(
         "audio",
         "nowPlaying",
         "social",
+        "platformBadge",
         "socialGrouped",
     ):
         if isinstance(source.get(key), dict):

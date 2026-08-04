@@ -1932,6 +1932,22 @@ output {
   gap: 2px;
 }
 
+.field-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.field-copy > label {
+  color: var(--muted);
+}
+
+.field-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
 .color-control-copy > label {
   color: var(--muted);
 }

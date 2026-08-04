@@ -165,6 +165,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "goalView",
   "goalBarView",
   "goalPillView",
+  "platformBadgeView",
   "socialView",
   "socialGroupedView",
   "counterView",
@@ -323,6 +324,7 @@ async function saveActiveCustomizer() {
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
+    || instance.type === "platform-badge"
     || instance.type === "social-grouped"
   ) {
     return saveOverlaySettings();
@@ -642,6 +644,7 @@ function materializeInstanceConfig(instance) {
     "audio",
     "nowPlaying",
     "social",
+    "platformBadge",
     "socialGrouped",
   ].forEach((key) => {
     materialized[key] = structuredClone(root[key] || {});
@@ -776,6 +779,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "social" || instance.type === "social-rotator") {
     return { config: { social: gatherSocialSettings() } };
+  }
+  if (instance.type === "platform-badge") {
+    return { config: { platformBadge: gatherPlatformBadgeSettings() } };
   }
   if (instance.type === "social-grouped") {
     return { config: { socialGrouped: gatherSocialGroupedSettings() } };
@@ -1444,6 +1450,10 @@ function renderActiveIdentity(instance) {
     byId("socialDetailName").textContent = instance.name;
     byId("socialSourceLabel").textContent = instance.name;
     byId("socialUrl").value = source;
+  } else if (instance.type === "platform-badge") {
+    byId("platformBadgeDetailName").textContent = instance.name;
+    byId("platformBadgeSourceLabel").textContent = instance.name;
+    byId("platformBadgeUrl").value = source;
   } else if (instance.type === "social-grouped") {
     byId("socialGroupedDetailName").textContent = instance.name;
     byId("socialGroupedSourceLabel").textContent = instance.name;
@@ -2427,6 +2437,71 @@ function gatherSocialSettings() {
   };
 }
 
+function populatePlatformBadgePlatformSelect() {
+  const select = byId("platformBadgePlatform");
+  const previous = select.value;
+  select.replaceChildren();
+  SOCIAL_PLATFORMS.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform.id;
+    option.textContent = platform.name;
+    select.append(option);
+  });
+  select.value = SOCIAL_PLATFORMS.some((platform) => platform.id === previous)
+    ? previous
+    : "twitch";
+}
+
+function syncPlatformBadgeColorControl() {
+  const useBrandColor = byId("platformBadgeUseBrandColor").checked;
+  const section = byId("platformBadgeCustomColorSection");
+  section.hidden = useBrandColor;
+  section.querySelectorAll("input").forEach((control) => {
+    control.disabled = useBrandColor;
+  });
+}
+
+function renderPlatformBadge(platformBadge) {
+  const defaults = app.state?.defaults?.platformBadge || {};
+  const config = { ...defaults, ...(platformBadge || {}) };
+  const platform = SOCIAL_PLATFORMS.some(
+    (item) => item.id === config.platform,
+  ) ? config.platform : "twitch";
+  byId("platformBadgePlatform").value = platform;
+  byId("platformBadgeHandle").value = config.handle || "yourname";
+  byId("platformBadgePrefix").value = config.prefix || "";
+  byId("platformBadgeUseBrandColor").checked = config.useBrandColor !== false;
+  setColor("platformBadgeColor", config.badgeColor || "9146ff");
+  byId("platformBadgeCorners").value = Number(config.corners ?? 4);
+  byId("platformBadgeCornersOutput").value = String(
+    Number(config.corners ?? 4),
+  );
+  byId("platformBadgeScale").value = Number(config.scale ?? 1);
+  byId("platformBadgeScaleOutput").value = Number(
+    config.scale ?? 1,
+  ).toFixed(2);
+  byId("platformBadgeFont").value = config.font || "display";
+  byId("platformBadgeWeight").value = Number(config.weight ?? 700);
+  byId("platformBadgeWeightOutput").value = String(
+    Number(config.weight ?? 700),
+  );
+  syncPlatformBadgeColorControl();
+}
+
+function gatherPlatformBadgeSettings() {
+  return {
+    platform: byId("platformBadgePlatform").value,
+    handle: byId("platformBadgeHandle").value,
+    prefix: byId("platformBadgePrefix").value,
+    useBrandColor: byId("platformBadgeUseBrandColor").checked,
+    badgeColor: byId("platformBadgeColor").value.slice(1),
+    corners: Number(byId("platformBadgeCorners").value),
+    scale: Number(byId("platformBadgeScale").value),
+    font: byId("platformBadgeFont").value,
+    weight: Number(byId("platformBadgeWeight").value),
+  };
+}
+
 function parseSocialGroupedGroups(value) {
   const groups = [];
   String(value || "")
@@ -2892,6 +2967,8 @@ function fillConfig(config) {
     || activeInstance()?.type === "social-rotator"
   ) {
     renderSocial(config.social, activeInstance().type);
+  } else if (activeInstance()?.type === "platform-badge") {
+    renderPlatformBadge(config.platformBadge);
   } else if (activeInstance()?.type === "social-grouped") {
     renderSocialGrouped(config.socialGrouped);
   }
@@ -3180,6 +3257,8 @@ async function saveOverlaySettings(options = {}) {
     let submitted;
     if (instance.type === "social" || instance.type === "social-rotator") {
       submitted = { social: gatherSocialSettings() };
+    } else if (instance.type === "platform-badge") {
+      submitted = { platformBadge: gatherPlatformBadgeSettings() };
     } else if (instance.type === "social-grouped") {
       submitted = { socialGrouped: gatherSocialGroupedSettings() };
     } else {
@@ -3497,6 +3576,10 @@ function openInstanceSettings(instanceId, skipWarning = false) {
       materializeInstanceConfig(instance).social,
       instance.type,
     );
+  } else if (instance.type === "platform-badge") {
+    renderPlatformBadge(
+      materializeInstanceConfig(instance).platformBadge,
+    );
   } else if (instance.type === "social-grouped") {
     renderSocialGrouped(
       materializeInstanceConfig(instance).socialGrouped,
@@ -3604,6 +3687,7 @@ function bindEvents() {
   initializeRangeControls();
   initializeCurrencySelects();
   bindDanceDropZone();
+  populatePlatformBadgePlatformSelect();
   populateSocialGroupedPlatformSelect();
   const customizerFrame = byId("customizerPreviewFrame");
   const customizerStage = byId("customizerPreviewStage");
@@ -3965,6 +4049,10 @@ function bindEvents() {
     scheduleCustomizerChange(0);
     showToast(`${platform?.name || "Social account"} removed`);
   });
+  byId("platformBadgeUseBrandColor").addEventListener(
+    "change",
+    syncPlatformBadgeColorControl,
+  );
   byId("goalFormat").addEventListener("change", syncGoalFormat);
   byId("goalBarFormat").addEventListener("change", syncGoalBarFormat);
   byId("goalBarLayout").addEventListener("change", syncGoalBarLayout);
@@ -3997,6 +4085,7 @@ function bindEvents() {
     "socialColor",
     "socialShellColor",
     "socialTextColor",
+    "platformBadgeColor",
     "socialGroupedOuterColor",
     "socialGroupedEdgeColor",
     "socialGroupedTextColor",
@@ -4018,6 +4107,10 @@ function bindEvents() {
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
+  byId("savePlatformBadgeButton").addEventListener(
+    "click",
+    () => saveOverlaySettings(),
+  );
   byId("saveSocialButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSocialGroupedButton").addEventListener(
     "click",
@@ -4082,6 +4175,10 @@ function bindEvents() {
     byId("flowGlow").value = defaults.glow;
     byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
     logActivity("Now Playing Flow fields reset; save to apply");
+  });
+  byId("resetPlatformBadgeButton").addEventListener("click", () => {
+    renderPlatformBadge(app.state.defaults.platformBadge);
+    logActivity("Platform Badge fields reset; save to apply");
   });
   byId("resetSocialButton").addEventListener("click", () => {
     renderSocial(app.state.defaults.social, activeInstance()?.type);

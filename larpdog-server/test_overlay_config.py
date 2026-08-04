@@ -138,6 +138,81 @@ class DanceProfileConfigTests(unittest.TestCase):
         self.assertEqual(instance["nowPlaying"]["fallbackBpm"], 150)
 
 
+class PlatformBadgeConfigTests(unittest.TestCase):
+    def test_platform_badge_defaults_are_materialized(self) -> None:
+        config = normalize_overlay_config({})
+
+        self.assertEqual(
+            config["platformBadge"],
+            {
+                "platform": "twitch",
+                "handle": "yourname",
+                "prefix": "",
+                "useBrandColor": True,
+                "badgeColor": "9146ff",
+                "corners": 4,
+                "scale": 1.0,
+                "font": "display",
+                "weight": 700,
+            },
+        )
+
+    def test_platform_badge_round_trips_and_clamps_instance_settings(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "platform-badge",
+            "platform-badge-main",
+            "Platform Badge",
+        )
+
+        updated = update_instance_config(
+            config,
+            "platform-badge-main",
+            {
+                "platformBadge": {
+                    "platform": "snapchat",
+                    "handle": "  creator   name  ",
+                    "prefix": "  @  ",
+                    "useBrandColor": "false",
+                    "badgeColor": "#ABCDEF",
+                    "corners": 99,
+                    "scale": 0.1,
+                    "font": "poppins",
+                    "weight": 1200,
+                }
+            },
+        )
+        badge = materialize_instance_config(
+            normalize_overlay_config(updated),
+            "platform-badge-main",
+        )["platformBadge"]
+
+        self.assertEqual(badge["platform"], "snapchat")
+        self.assertEqual(badge["handle"], "creator name")
+        self.assertEqual(badge["prefix"], "@")
+        self.assertFalse(badge["useBrandColor"])
+        self.assertEqual(badge["badgeColor"], "abcdef")
+        self.assertEqual(badge["corners"], 24)
+        self.assertEqual(badge["scale"], 0.5)
+        self.assertEqual(badge["font"], "poppins")
+        self.assertEqual(badge["weight"], 900)
+
+    def test_platform_badge_rejects_unknown_choices_and_bad_color(self) -> None:
+        badge = normalize_overlay_config(
+            {
+                "platformBadge": {
+                    "platform": "unknown",
+                    "font": "comic-sans",
+                    "badgeColor": "not-a-color",
+                }
+            }
+        )["platformBadge"]
+
+        self.assertEqual(badge["platform"], "twitch")
+        self.assertEqual(badge["font"], "display")
+        self.assertEqual(badge["badgeColor"], "9146ff")
+
+
 class SocialOverlayConfigTests(unittest.TestCase):
     def test_social_bar_limits_platforms_and_normalizes_fields(self) -> None:
         config = add_overlay_instance(

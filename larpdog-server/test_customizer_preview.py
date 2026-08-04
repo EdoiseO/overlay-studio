@@ -215,6 +215,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "social": ROOT_DIR / "overlays" / "social.html",
             "social-rotator": ROOT_DIR / "overlays" / "social-rotator.html",
             "social-grouped": ROOT_DIR / "overlays" / "social-grouped.html",
+            "platform-badge": ROOT_DIR / "overlays" / "platform-badge.html",
         }
         shared_social = (
             ROOT_DIR / "assets" / "social-platforms.js"
@@ -223,7 +224,12 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         for overlay_type, path in overlay_sources.items():
             with self.subTest(overlay_type=overlay_type):
                 source = path.read_text(encoding="utf-8")
-                if overlay_type in {"social", "social-rotator", "social-grouped"}:
+                if overlay_type in {
+                    "social",
+                    "social-rotator",
+                    "social-grouped",
+                    "platform-badge",
+                }:
                     source += shared_social
                 self.assertIn("overlay-studio-draft", source)
                 self.assertIn(overlay_type, source)
