@@ -2476,6 +2476,14 @@ function renderPlatformBadge(platformBadge) {
   byId("platformBadgeCornersOutput").value = String(
     Number(config.corners ?? 4),
   );
+  byId("platformBadgeWidth").value = Number(config.width ?? 340);
+  byId("platformBadgeWidthOutput").value = String(
+    Number(config.width ?? 340),
+  );
+  byId("platformBadgeHeight").value = Number(config.height ?? 96);
+  byId("platformBadgeHeightOutput").value = String(
+    Number(config.height ?? 96),
+  );
   byId("platformBadgeScale").value = Number(config.scale ?? 1);
   byId("platformBadgeScaleOutput").value = Number(
     config.scale ?? 1,
@@ -2496,6 +2504,8 @@ function gatherPlatformBadgeSettings() {
     useBrandColor: byId("platformBadgeUseBrandColor").checked,
     badgeColor: byId("platformBadgeColor").value.slice(1),
     corners: Number(byId("platformBadgeCorners").value),
+    width: Number(byId("platformBadgeWidth").value),
+    height: Number(byId("platformBadgeHeight").value),
     scale: Number(byId("platformBadgeScale").value),
     font: byId("platformBadgeFont").value,
     weight: Number(byId("platformBadgeWeight").value),

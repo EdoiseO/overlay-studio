@@ -10,7 +10,7 @@
   "description": "A compact two-tone badge: a white square with the platform logo beside a nameplate filled with the platform's own brand color.",
   "category": "branding",
   "canvas": { "w": 420, "h": 110 },
-  "settings": ["platform", "handle", "prefix", "useBrandColor", "badgeColor", "corners", "scale", "font", "weight"],
+  "settings": ["platform", "handle", "prefix", "useBrandColor", "badgeColor", "corners", "width", "height", "scale", "font", "weight"],
   "studioView": "platformBadgeView"
 }
 </script>
@@ -29,7 +29,8 @@
     --fit-scale: 1;
     --weight: 700;
     --corners: 4px;
-    --tile: 96px;
+    --badge-width: 340px;
+    --badge-height: 96px;
     --name-size: 34px;
     --pad-x: 30px;
   }
@@ -52,14 +53,15 @@
     display: flex;
     align-items: stretch;
     width: max-content;
+    min-width: var(--badge-width);
     transform: scale(calc(var(--scale) * var(--fit-scale)));
     transform-origin: center;
   }
 
   .logo-tile {
-    flex: 0 0 var(--tile);
-    width: var(--tile);
-    height: var(--tile);
+    flex: 0 0 var(--badge-height);
+    width: var(--badge-height);
+    height: var(--badge-height);
     display: grid;
     place-items: center;
     background: #ffffff;
@@ -77,7 +79,8 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    height: var(--tile);
+    min-width: max(0px, calc(var(--badge-width) - var(--badge-height)));
+    height: var(--badge-height);
     padding: 0 var(--pad-x);
     background: var(--fill);
     border-radius: 0 var(--corners) var(--corners) 0;
@@ -127,6 +130,8 @@
     useBrandColor: true,
     badgeColor: "9146ff",
     corners: 4,
+    width: 340,
+    height: 96,
     scale: 1,
     font: "display",
     weight: 700,
@@ -158,6 +163,8 @@
       useBrandColor: bool(source.useBrandColor, DEFAULTS.useBrandColor),
       badgeColor: hex(source.badgeColor, DEFAULTS.badgeColor),
       corners: Math.round(clamp(source.corners, 0, 24, DEFAULTS.corners)),
+      width: Math.round(clamp(source.width, 220, 720, DEFAULTS.width)),
+      height: Math.round(clamp(source.height, 48, 160, DEFAULTS.height)),
       scale: clamp(source.scale, 0.5, 2, DEFAULTS.scale),
       font: social?.FONTS[source.font] ? String(source.font) : DEFAULTS.font,
       weight: Math.round(clamp(source.weight, 300, 900, DEFAULTS.weight)),
@@ -196,6 +203,16 @@
     document.documentElement.style.setProperty("--font-stack", social.FONTS[settings.font]);
     document.documentElement.style.setProperty("--weight", String(settings.weight));
     document.documentElement.style.setProperty("--corners", `${settings.corners}px`);
+    document.documentElement.style.setProperty("--badge-width", `${settings.width}px`);
+    document.documentElement.style.setProperty("--badge-height", `${settings.height}px`);
+    document.documentElement.style.setProperty(
+      "--name-size",
+      `${clamp(settings.height * .3542, 16, 58, 34).toFixed(2)}px`,
+    );
+    document.documentElement.style.setProperty(
+      "--pad-x",
+      `${clamp(settings.height * .3125, 14, 48, 30).toFixed(2)}px`,
+    );
     document.documentElement.style.setProperty("--scale", String(settings.scale));
     requestedScale = settings.scale;
 
@@ -225,7 +242,7 @@
       } catch {}
     }
     const overrides = {};
-    ["platform", "handle", "prefix", "badgeColor", "corners", "scale", "font", "weight"].forEach(key => {
+    ["platform", "handle", "prefix", "badgeColor", "corners", "width", "height", "scale", "font", "weight"].forEach(key => {
       if (query.has(key)) overrides[key] = query.get(key);
     });
     if (query.has("useBrandColor")) {

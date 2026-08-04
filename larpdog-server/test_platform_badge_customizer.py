@@ -33,6 +33,8 @@ class PlatformBadgeCustomizerTests(unittest.TestCase):
         "useBrandColor": "platformBadgeUseBrandColor",
         "badgeColor": "platformBadgeColor",
         "corners": "platformBadgeCorners",
+        "width": "platformBadgeWidth",
+        "height": "platformBadgeHeight",
         "scale": "platformBadgeScale",
         "font": "platformBadgeFont",
         "weight": "platformBadgeWeight",
@@ -98,6 +100,8 @@ class PlatformBadgeCustomizerTests(unittest.TestCase):
     def test_slider_ranges_match_server_contract(self) -> None:
         expected = {
             "platformBadgeCorners": ("0", "24", "1"),
+            "platformBadgeWidth": ("220", "720", "10"),
+            "platformBadgeHeight": ("48", "160", "4"),
             "platformBadgeScale": ("0.5", "2", "0.05"),
             "platformBadgeWeight": ("300", "900", "100"),
         }
@@ -137,6 +141,8 @@ class PlatformBadgeCustomizerTests(unittest.TestCase):
         self.assertIn("event.data.config.platformBadge", self.overlay)
         self.assertIn("message.config.platformBadge", self.overlay)
         self.assertIn("social.contrast(fill)", self.overlay)
+        self.assertIn("min-width: var(--badge-width)", self.overlay)
+        self.assertNotIn("text-overflow: ellipsis", self.overlay)
         self.assertNotIn("textColor", self.manifest["settings"])
 
 
@@ -184,6 +190,8 @@ class PlatformBadgeApiTests(unittest.IsolatedAsyncioTestCase):
                     "useBrandColor": True,
                     "badgeColor": "123456",
                     "corners": 2,
+                    "width": 510,
+                    "height": 120,
                     "scale": 1.25,
                     "font": "anton",
                     "weight": 800,
@@ -205,6 +213,8 @@ class PlatformBadgeApiTests(unittest.IsolatedAsyncioTestCase):
         )
         badge = (await persisted.json())["platformBadge"]
         self.assertEqual(badge["handle"], "livecreator")
+        self.assertEqual(badge["width"], 510)
+        self.assertEqual(badge["height"], 120)
         self.assertEqual(badge["scale"], 1.25)
         self.assertEqual(badge["font"], "anton")
 

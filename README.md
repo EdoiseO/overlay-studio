@@ -188,8 +188,9 @@ color, shadow, and preset controls with a live draft.
 
 Platform Badge keeps one account compact: choose any supported platform, set the handle
 and optional prefix, then use the platform's brand color or a custom nameplate color.
-Text contrast is automatic, while corner radius, scale, font, and weight remain bounded
-in the Studio customizer.
+Text contrast is automatic, while width, height, corner radius, scale, font, and weight
+remain bounded in the Studio customizer. Long handles can expand past the chosen width
+rather than being clipped or shortened.
 
 ## Custom media
 

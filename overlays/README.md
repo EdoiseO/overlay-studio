@@ -133,6 +133,7 @@ customizer draft, HTTP response, or websocket payload. Eternity and One Above Al
 ## Platform Badge overlay
 
 Platform Badge uses its dedicated `platformBadgeView` customizer for one platform,
-handle, optional prefix, brand or custom nameplate color, corners, scale, font, and
-weight. Its handle ink is always computed from the active nameplate color rather than
-stored as a user setting.
+handle, optional prefix, brand or custom nameplate color, width, height, corners, scale,
+font, and weight. Width is a safe minimum, so long handles expand the nameplate instead
+of being truncated. Handle ink is always computed from the active nameplate color rather
+than stored as a user setting.

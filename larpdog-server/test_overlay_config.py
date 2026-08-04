@@ -151,6 +151,8 @@ class PlatformBadgeConfigTests(unittest.TestCase):
                 "useBrandColor": True,
                 "badgeColor": "9146ff",
                 "corners": 4,
+                "width": 340,
+                "height": 96,
                 "scale": 1.0,
                 "font": "display",
                 "weight": 700,
@@ -176,6 +178,8 @@ class PlatformBadgeConfigTests(unittest.TestCase):
                     "useBrandColor": "false",
                     "badgeColor": "#ABCDEF",
                     "corners": 99,
+                    "width": 999,
+                    "height": 10,
                     "scale": 0.1,
                     "font": "poppins",
                     "weight": 1200,
@@ -193,6 +197,8 @@ class PlatformBadgeConfigTests(unittest.TestCase):
         self.assertFalse(badge["useBrandColor"])
         self.assertEqual(badge["badgeColor"], "abcdef")
         self.assertEqual(badge["corners"], 24)
+        self.assertEqual(badge["width"], 720)
+        self.assertEqual(badge["height"], 48)
         self.assertEqual(badge["scale"], 0.5)
         self.assertEqual(badge["font"], "poppins")
         self.assertEqual(badge["weight"], 900)

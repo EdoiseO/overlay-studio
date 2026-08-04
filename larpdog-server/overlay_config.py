@@ -79,6 +79,8 @@ DEFAULT_PLATFORM_BADGE_CONFIG: dict[str, Any] = {
     "useBrandColor": True,
     "badgeColor": "9146ff",
     "corners": 4,
+    "width": 340,
+    "height": 96,
     "scale": 1.0,
     "font": "display",
     "weight": 700,
@@ -637,6 +639,12 @@ def _normalize_platform_badge(raw: Any) -> dict[str, Any]:
         ),
         "corners": int(
             round(_number(source.get("corners"), defaults["corners"], 0, 24))
+        ),
+        "width": int(
+            round(_number(source.get("width"), defaults["width"], 220, 720))
+        ),
+        "height": int(
+            round(_number(source.get("height"), defaults["height"], 48, 160))
         ),
         "scale": round(
             _number(source.get("scale"), defaults["scale"], 0.5, 2.0),
