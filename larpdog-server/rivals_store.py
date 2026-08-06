@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -69,11 +71,15 @@ HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 MATCH_UID = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 MAX_INSTANCES = 64
-MAX_SEEN_MATCHES = 64
-MAX_STATE_FILE_BYTES = 1024 * 1024
+MAX_SEEN_MATCHES = 256
+MAX_STATE_FILE_BYTES = 4 * 1024 * 1024
 MAX_PLAYER_UID = 9_999_999_999_999_999_999
 MAX_SCORE = 1_000_000_000.0
 MAX_SESSION_RESULTS = 999
+MAX_RATE_LIMIT_FAILURES = 5
+MAX_REQUEST_BUDGET_ENTRIES = 120
+MAX_EPOCH_SECONDS = 4_102_444_800
+REQUEST_BUDGET_WINDOW_SECONDS = 60 * 60
 POLL_STATUSES = {"unlinked", "waiting", "ok", "error"}
 COMPETITIVE_GAME_MODE_ID = 2
 COMPETITIVE_PLAY_MODE_ID = 200
@@ -81,6 +87,11 @@ RANK_SCORE_BASE = 3000.0
 RANK_SCORE_STEP = 100.0
 RANK_SCORE_CAP_LEVEL = 22
 RANK_SCORE_TOP_TIER_BONUS = 30.0
+_DOCUMENT_CACHE: dict[
+    str,
+    tuple[int, int, dict[str, Any]],
+] = {}
+_DOCUMENT_CACHE_LOCK = threading.Lock()
 
 
 def _number(
@@ -332,6 +343,31 @@ def _normalize_record(raw: Any) -> dict[str, Any]:
     }
 
 
+def _normalize_rate_limit(raw: Any) -> dict[str, int]:
+    source = raw if isinstance(raw, dict) else {}
+    return {
+        "until": _integer(source.get("until"), 0, 0, MAX_EPOCH_SECONDS),
+        "failures": _integer(
+            source.get("failures"),
+            0,
+            0,
+            MAX_RATE_LIMIT_FAILURES,
+        ),
+    }
+
+
+def _normalize_request_budget(raw: Any) -> dict[str, list[int]]:
+    source = raw if isinstance(raw, dict) else {}
+    supplied = source.get("requests")
+    requests: list[int] = []
+    if isinstance(supplied, list):
+        for value in supplied[-MAX_REQUEST_BUDGET_ENTRIES:]:
+            timestamp = _integer(value, 0, 0, MAX_EPOCH_SECONDS)
+            if timestamp > 0:
+                requests.append(timestamp)
+    return {"requests": sorted(requests)}
+
+
 def normalize_rivals_document(raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
     supplied = source.get("instances") if isinstance(source.get("instances"), dict) else {}
@@ -340,19 +376,60 @@ def normalize_rivals_document(raw: Any) -> dict[str, Any]:
         candidate = str(instance_id or "")
         if INSTANCE_ID.fullmatch(candidate):
             instances[candidate] = _normalize_record(record)
-    return {"instances": instances}
+    return {
+        "rateLimit": _normalize_rate_limit(source.get("rateLimit")),
+        "requestBudget": _normalize_request_budget(source.get("requestBudget")),
+        "instances": instances,
+    }
 
 
 def load_rivals_document(path: Path) -> dict[str, Any]:
+    cache_key = str(path.absolute())
     if not path.exists():
+        with _DOCUMENT_CACHE_LOCK:
+            _DOCUMENT_CACHE.pop(cache_key, None)
         return normalize_rivals_document({})
     try:
-        if path.stat().st_size > MAX_STATE_FILE_BYTES:
+        stat = path.stat()
+        if stat.st_size > MAX_STATE_FILE_BYTES:
             return normalize_rivals_document({})
+        with _DOCUMENT_CACHE_LOCK:
+            cached = _DOCUMENT_CACHE.get(cache_key)
+            if (
+                cached is not None
+                and cached[0] == stat.st_mtime_ns
+                and cached[1] == stat.st_size
+            ):
+                return copy.deepcopy(cached[2])
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
         return normalize_rivals_document({})
-    return normalize_rivals_document(raw)
+    normalized = normalize_rivals_document(raw)
+    with _DOCUMENT_CACHE_LOCK:
+        _DOCUMENT_CACHE[cache_key] = (
+            stat.st_mtime_ns,
+            stat.st_size,
+            copy.deepcopy(normalized),
+        )
+    return normalized
+
+
+def load_rate_limit_state(path: Path) -> dict[str, int]:
+    return dict(load_rivals_document(path)["rateLimit"])
+
+
+def load_request_budget_state(
+    path: Path,
+    *,
+    now: int | None = None,
+) -> list[int]:
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    cutoff = timestamp - REQUEST_BUDGET_WINDOW_SECONDS
+    return [
+        request_at
+        for request_at in load_rivals_document(path)["requestBudget"]["requests"]
+        if cutoff < request_at <= timestamp + REQUEST_BUDGET_WINDOW_SECONDS
+    ]
 
 
 def load_rivals_record(path: Path, instance_id: str) -> dict[str, Any]:
@@ -366,11 +443,23 @@ def load_rivals_state(path: Path, instance_id: str) -> dict[str, Any]:
     return dict(load_rivals_record(path, instance_id)["state"])
 
 
-def _public_poll_status(private: dict[str, Any]) -> dict[str, Any]:
+def _public_poll_status(
+    private: dict[str, Any],
+    rate_limit: dict[str, int] | None = None,
+    *,
+    now: int | None = None,
+) -> dict[str, Any]:
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    paused_until = _normalize_rate_limit(rate_limit).get("until", 0)
+    paused = private["uid"] is not None and paused_until > timestamp
+    detail = private["lastPollError"]
+    if paused and not detail:
+        detail = "Rivals Data updates are temporarily paused"
     return {
-        "status": private["pollStatus"],
+        "status": "error" if paused else private["pollStatus"],
         "lastAttemptAt": private["lastPollAt"],
-        "detail": private["lastPollError"],
+        "detail": detail,
+        "retryAt": paused_until if paused else 0,
     }
 
 
@@ -379,6 +468,7 @@ def load_rivals_studio_state(
     instance_ids: Iterable[str],
 ) -> dict[str, dict[str, Any]]:
     document = load_rivals_document(path)
+    rate_limit = document["rateLimit"]
     states: dict[str, dict[str, Any]] = {}
     linked: dict[str, bool] = {}
     polls: dict[str, dict[str, Any]] = {}
@@ -389,16 +479,19 @@ def load_rivals_studio_state(
         record = _normalize_record(document["instances"].get(candidate, {}))
         states[candidate] = dict(record["state"])
         linked[candidate] = record["private"]["uid"] is not None
-        polls[candidate] = _public_poll_status(record["private"])
+        polls[candidate] = _public_poll_status(record["private"], rate_limit)
     return {"states": states, "linked": linked, "polls": polls}
 
 
 def rivals_status(path: Path, instance_id: str) -> dict[str, Any]:
-    record = load_rivals_record(path, instance_id)
+    document = load_rivals_document(path)
+    if not INSTANCE_ID.fullmatch(str(instance_id or "")):
+        raise ValueError("Invalid Rivals Rank instance")
+    record = _normalize_record(document["instances"].get(instance_id, {}))
     return {
         "state": dict(record["state"]),
         "linked": record["private"]["uid"] is not None,
-        "poll": _public_poll_status(record["private"]),
+        "poll": _public_poll_status(record["private"], document["rateLimit"]),
     }
 
 
@@ -411,14 +504,79 @@ def linked_rivals_instances(path: Path) -> list[tuple[str, int]]:
     return result
 
 
+def linked_rivals_uid(path: Path, instance_id: str) -> int | None:
+    private = load_rivals_record(path, instance_id)["private"]
+    uid = private["uid"]
+    return uid if isinstance(uid, int) else None
+
+
 def _write_rivals_document(path: Path, document: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
+    normalized = normalize_rivals_document(document)
     temporary_path.write_text(
-        json.dumps(normalize_rivals_document(document), indent=2) + "\n",
+        json.dumps(normalized, indent=2) + "\n",
         encoding="utf-8",
     )
     temporary_path.replace(path)
+    stat = path.stat()
+    with _DOCUMENT_CACHE_LOCK:
+        _DOCUMENT_CACHE[str(path.absolute())] = (
+            stat.st_mtime_ns,
+            stat.st_size,
+            copy.deepcopy(normalized),
+        )
+
+
+def save_rate_limit_state(
+    path: Path,
+    until: Any,
+    failures: Any,
+) -> dict[str, int]:
+    document = load_rivals_document(path)
+    normalized = _normalize_rate_limit(
+        {"until": until, "failures": failures}
+    )
+    if normalized != document["rateLimit"]:
+        document["rateLimit"] = normalized
+        _write_rivals_document(path, document)
+    return dict(normalized)
+
+
+def reserve_rivals_request(
+    path: Path,
+    maximum: int,
+    *,
+    now: int | None = None,
+) -> tuple[bool, int, int]:
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    limit = _integer(
+        maximum,
+        MAX_REQUEST_BUDGET_ENTRIES,
+        1,
+        MAX_REQUEST_BUDGET_ENTRIES,
+    )
+    document = load_rivals_document(path)
+    cutoff = timestamp - REQUEST_BUDGET_WINDOW_SECONDS
+    requests = [
+        request_at
+        for request_at in document["requestBudget"]["requests"]
+        if cutoff < request_at <= timestamp + REQUEST_BUDGET_WINDOW_SECONDS
+    ]
+    requests.sort()
+    if len(requests) >= limit:
+        retry_after = max(
+            1,
+            requests[0] + REQUEST_BUDGET_WINDOW_SECONDS - timestamp,
+        )
+        if requests != document["requestBudget"]["requests"]:
+            document["requestBudget"] = {"requests": requests}
+            _write_rivals_document(path, document)
+        return False, retry_after, len(requests)
+    requests.append(timestamp)
+    document["requestBudget"] = {"requests": requests}
+    _write_rivals_document(path, document)
+    return True, 0, len(requests)
 
 
 def _save_record(path: Path, instance_id: str, record: dict[str, Any]) -> None:
@@ -438,7 +596,7 @@ def update_rivals_record(
         raise ValueError("Invalid Rivals Rank instance")
     source = raw if isinstance(raw, dict) else {}
     action = str(source.get("action") or "").strip().lower()
-    if action not in {"", "reset-session", "unlink"}:
+    if action not in {"", "refresh", "reset-session", "unlink"}:
         raise ValueError(f"Unknown Rivals action: {action}")
     timestamp = int(time.time()) if now is None else max(0, int(now))
     record = load_rivals_record(path, instance_id)
@@ -495,7 +653,10 @@ def update_rivals_record(
     return {
         "state": state,
         "linked": normalized_private["uid"] is not None,
-        "poll": _public_poll_status(normalized_private),
+        "poll": _public_poll_status(
+            normalized_private,
+            load_rate_limit_state(path),
+        ),
     }
 
 
@@ -606,6 +767,47 @@ def apply_rivals_poll(
     }
 
 
+def save_rivals_polls(
+    path: Path,
+    instance_ids: Iterable[str],
+    expected_uid: int,
+    *,
+    player_name: str = "",
+    rank_level: Any = None,
+    rank_score: Any = None,
+    matches: Iterable[Any] = (),
+    now: int | None = None,
+) -> dict[str, tuple[dict[str, Any], bool]]:
+    document = load_rivals_document(path)
+    results: dict[str, tuple[dict[str, Any], bool]] = {}
+    changed_document = False
+    supplied_matches = list(matches)
+    for instance_id in instance_ids:
+        candidate = str(instance_id or "")
+        if not INSTANCE_ID.fullmatch(candidate):
+            continue
+        record = _normalize_record(document["instances"].get(candidate, {}))
+        if record["private"]["uid"] != expected_uid:
+            results[candidate] = (dict(record["state"]), False)
+            continue
+        updated = apply_rivals_poll(
+            record,
+            player_name=player_name,
+            rank_level=rank_level,
+            rank_score=rank_score,
+            matches=supplied_matches,
+            now=now,
+        )
+        public_changed = updated["state"] != record["state"]
+        results[candidate] = (dict(updated["state"]), public_changed)
+        if updated != record:
+            document["instances"][candidate] = updated
+            changed_document = True
+    if changed_document:
+        _write_rivals_document(path, document)
+    return results
+
+
 def save_rivals_poll(
     path: Path,
     instance_id: str,
@@ -617,21 +819,19 @@ def save_rivals_poll(
     matches: Iterable[Any] = (),
     now: int | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    record = load_rivals_record(path, instance_id)
-    if record["private"]["uid"] != expected_uid:
-        return dict(record["state"]), False
-    updated = apply_rivals_poll(
-        record,
+    results = save_rivals_polls(
+        path,
+        [instance_id],
+        expected_uid,
         player_name=player_name,
         rank_level=rank_level,
         rank_score=rank_score,
         matches=matches,
         now=now,
     )
-    public_changed = updated["state"] != record["state"]
-    if updated != record:
-        _save_record(path, instance_id, updated)
-    return dict(updated["state"]), public_changed
+    if instance_id in results:
+        return results[instance_id]
+    return load_rivals_state(path, instance_id), False
 
 
 def save_rivals_poll_failure(
@@ -656,6 +856,53 @@ def save_rivals_poll_failure(
         {"state": record["state"], "private": private},
     )
     return True
+
+
+def save_rivals_poll_failures(
+    path: Path,
+    linked: Iterable[tuple[str, int]],
+    error: Any,
+    *,
+    rate_limit_until: Any | None = None,
+    rate_limit_failures: Any | None = None,
+    now: int | None = None,
+) -> list[str]:
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    message = " ".join(str(error or "Unknown error").split())[:180]
+    document = load_rivals_document(path)
+    changed: list[str] = []
+    for instance_id, expected_uid in linked:
+        candidate = str(instance_id or "")
+        if not INSTANCE_ID.fullmatch(candidate):
+            continue
+        record = _normalize_record(document["instances"].get(candidate, {}))
+        if record["private"]["uid"] != expected_uid:
+            continue
+        private = dict(record["private"])
+        private["pollStatus"] = "error"
+        private["lastPollAt"] = timestamp
+        private["lastPollError"] = message
+        updated = {"state": record["state"], "private": private}
+        document["instances"][candidate] = _normalize_record(updated)
+        changed.append(candidate)
+    if rate_limit_until is not None or rate_limit_failures is not None:
+        document["rateLimit"] = _normalize_rate_limit(
+            {
+                "until": (
+                    document["rateLimit"]["until"]
+                    if rate_limit_until is None
+                    else rate_limit_until
+                ),
+                "failures": (
+                    document["rateLimit"]["failures"]
+                    if rate_limit_failures is None
+                    else rate_limit_failures
+                ),
+            }
+        )
+    if changed or rate_limit_until is not None or rate_limit_failures is not None:
+        _write_rivals_document(path, document)
+    return changed
 
 
 def remove_rivals_instance(path: Path, instance_id: str) -> None:

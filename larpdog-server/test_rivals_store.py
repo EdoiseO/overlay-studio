@@ -5,23 +5,30 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
+    MAX_SEEN_MATCHES,
     apply_rivals_poll,
     is_competitive_match,
     load_rivals_record,
+    load_rivals_document,
     load_rivals_studio_state,
+    load_rate_limit_state,
     normalize_rivals_state,
     parse_player_uid,
     rank_progress_score,
     rank_from_level,
     remove_rivals_instance,
     rivals_status,
+    reserve_rivals_request,
+    save_rate_limit_state,
     save_rivals_poll,
+    save_rivals_poll_failures,
     update_rivals_record,
 )
 
@@ -222,6 +229,125 @@ class RivalsStoreTests(unittest.TestCase):
         self.assertEqual(updated["state"]["tier"], "diamond")
         self.assertEqual(updated["state"]["division"], 3)
         self.assertEqual(updated["state"]["score"], 51.91)
+
+    def test_document_level_protection_state_upgrades_and_round_trips(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            path.write_text('{"instances":{}}', encoding="utf-8")
+
+            self.assertEqual(
+                load_rate_limit_state(path),
+                {"until": 0, "failures": 0},
+            )
+            saved = save_rate_limit_state(path, 1_900_000_000, 3)
+
+            self.assertEqual(saved, {"until": 1_900_000_000, "failures": 3})
+            self.assertEqual(load_rate_limit_state(path), saved)
+
+    def test_document_cache_returns_independent_normalized_copies(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            save_rate_limit_state(path, 1_900_000_000, 2)
+
+            first = load_rivals_document(path)
+            first["rateLimit"]["failures"] = 0
+            second = load_rivals_document(path)
+
+            self.assertEqual(second["rateLimit"]["failures"], 2)
+
+    def test_request_budget_is_persisted_as_a_rolling_window(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+
+            for timestamp in (100, 101, 102):
+                allowed, retry_after, count = reserve_rivals_request(
+                    path,
+                    3,
+                    now=timestamp,
+                )
+                self.assertTrue(allowed)
+                self.assertEqual(retry_after, 0)
+                self.assertEqual(count, timestamp - 99)
+
+            allowed, retry_after, count = reserve_rivals_request(
+                path,
+                3,
+                now=103,
+            )
+            self.assertFalse(allowed)
+            self.assertEqual(retry_after, 3597)
+            self.assertEqual(count, 3)
+
+            allowed, _retry_after, count = reserve_rivals_request(
+                path,
+                3,
+                now=3700,
+            )
+            self.assertTrue(allowed)
+            self.assertEqual(count, 3)
+
+    def test_seen_match_history_retains_multiple_full_api_windows(self) -> None:
+        self.assertGreaterEqual(MAX_SEEN_MATCHES, 256)
+        record = {
+            "state": DEFAULT_RIVALS_STATE,
+            "private": {"uid": 396536339, "sessionStartedAt": 100},
+        }
+        historical = [
+            {
+                "match_uid": f"historical-{index}",
+                "is_win": True,
+                "timestamp": 90,
+            }
+            for index in range(64)
+        ]
+        baseline = apply_rivals_poll(record, matches=historical, now=105)
+        current = [
+            {
+                "match_uid": f"current-{index}",
+                "is_win": True,
+                "timestamp": 110,
+            }
+            for index in range(64)
+        ]
+        updated = apply_rivals_poll(baseline, matches=current, now=115)
+        replayed = apply_rivals_poll(updated, matches=historical, now=120)
+
+        self.assertEqual(updated["state"]["sessionWins"], 64)
+        self.assertEqual(replayed["state"]["sessionWins"], 64)
+        self.assertEqual(len(replayed["private"]["seenMatchUids"]), 128)
+
+    def test_provider_failure_updates_all_instances_with_one_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            linked = []
+            for index, uid in enumerate((396536339, 502565567, 465451418)):
+                instance_id = f"rank-{index}"
+                update_rivals_record(
+                    path,
+                    instance_id,
+                    {"uid": str(uid)},
+                    now=100,
+                )
+                linked.append((instance_id, uid))
+
+            import rivals_store
+
+            writer = rivals_store._write_rivals_document
+            with mock.patch(
+                "rivals_store._write_rivals_document",
+                wraps=writer,
+            ) as write:
+                changed = save_rivals_poll_failures(
+                    path,
+                    linked,
+                    RuntimeError("provider paused"),
+                    rate_limit_until=1_900_000_000,
+                    rate_limit_failures=2,
+                    now=200,
+                )
+
+            self.assertEqual(changed, ["rank-0", "rank-1", "rank-2"])
+            self.assertEqual(write.call_count, 1)
 
     def test_link_reset_poll_and_remove_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:

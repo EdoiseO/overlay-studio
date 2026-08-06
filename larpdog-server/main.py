@@ -33,7 +33,7 @@ from overlay_config import (
     update_instance_config,
 )
 from overlay_manifest import OVERLAY_NAME, scan_overlay_manifests
-from rivals_store import rivals_status, update_rivals_record
+from rivals_store import linked_rivals_uid, rivals_status, update_rivals_record
 from rivals_worker import RivalsPollWorker
 
 
@@ -65,10 +65,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "rivals": {
         "enabled": True,
-        "poll_seconds": 120,
+        "poll_seconds": 300,
         "profile_refresh_seconds": 300,
         "live_refresh_seconds": 300,
         "rate_limit_backoff_seconds": 300,
+        "transient_backoff_seconds": 120,
+        "max_requests_per_hour": 120,
         "timeout_seconds": 12,
     },
 }
@@ -944,15 +946,38 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         if not isinstance(submitted, dict):
             raise web.HTTPBadRequest(text="Expected a JSON object")
         instance_id = request_rivals_instance(request)
+        action = str(submitted.get("action") or "").strip().lower()
         try:
             async with rivals_store_lock:
+                previous_uid = linked_rivals_uid(
+                    rivals_state_path,
+                    instance_id,
+                )
                 payload = update_rivals_record(
                     rivals_state_path,
                     instance_id,
                     submitted,
                 )
+                current_uid = linked_rivals_uid(
+                    rivals_state_path,
+                    instance_id,
+                )
         except ValueError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from None
+        rivals_worker: RivalsPollWorker = request.app["rivals_worker"]
+        if current_uid is not None and current_uid != previous_uid:
+            rivals_worker.wake_for_link(current_uid)
+        if action == "refresh":
+            payload["refresh"] = (
+                rivals_worker.request_manual_refresh(current_uid)
+                if current_uid is not None
+                else {
+                    "accepted": False,
+                    "retryAfter": 0,
+                    "retryAt": 0,
+                    "detail": "Link a Rivals Data account first",
+                }
+            )
         await hub.broadcast(
             {
                 "type": "rivals",

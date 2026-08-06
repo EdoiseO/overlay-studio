@@ -21,10 +21,12 @@
   },
   "rivals": {
     "enabled": true,
-    "poll_seconds": 120,
+    "poll_seconds": 300,
     "profile_refresh_seconds": 300,
     "live_refresh_seconds": 300,
     "rate_limit_backoff_seconds": 300,
+    "transient_backoff_seconds": 120,
+    "max_requests_per_hour": 120,
     "timeout_seconds": 12
   }
 }

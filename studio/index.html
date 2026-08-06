@@ -1515,7 +1515,12 @@
               </div>
             </dl>
             <div class="rivals-session-actions">
-              <button class="danger-button compact" id="resetRivalsSessionButton" type="button">Reset session</button>
+              <div class="rivals-action-buttons">
+                <button class="primary-button compact" id="refreshRivalsButton" type="button">Refresh now</button>
+                <button class="secondary-button compact" id="resetRivalsSessionButton" type="button">Reset session</button>
+                <button class="danger-button compact" id="unlinkRivalsButton" type="button">Unlink</button>
+              </div>
+              <span id="rivalsRefreshStatus" aria-live="polite">Manual refresh is available once per minute.</span>
               <span>Data comes from the unofficial Rivals Data service and may become unavailable.</span>
             </div>
           </div>

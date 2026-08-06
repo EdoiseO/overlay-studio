@@ -4,6 +4,7 @@ import asyncio
 import datetime as dt
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -11,17 +12,52 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from rivals_store import rivals_status, update_rivals_record  # noqa: E402
+from rivals_store import (  # noqa: E402
+    load_rate_limit_state,
+    reserve_rivals_request,
+    rivals_status,
+    save_rate_limit_state,
+    update_rivals_record,
+)
 from rivals_worker import (  # noqa: E402
     MATCHES_ENDPOINT,
     MATCHES_REFRESH_ENDPOINT,
     PROFILE_ENDPOINT,
+    RivalsProviderBackoffError,
     RivalsRateLimitError,
+    RivalsRequestBudgetError,
     RivalsPollWorker,
     _parse_retry_after,
     extract_matches,
     extract_profile_snapshot,
 )
+
+
+class FakeResponseContent:
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+
+    async def iter_chunked(self, _size: int):
+        yield self.body
+
+
+class FakeResponse:
+    def __init__(
+        self,
+        status: int,
+        body: bytes = b"",
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        self.status = status
+        self.headers = headers or {}
+        self.content_length = len(body)
+        self.content = FakeResponseContent(body)
+
+    async def __aenter__(self) -> "FakeResponse":
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
 
 
 class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
@@ -55,11 +91,138 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             store_lock=asyncio.Lock(),
             logger=lambda _message: None,
         )
+        worker._reserve_request_slot = mock.AsyncMock()  # type: ignore[method-assign]
 
         with self.assertRaises(RivalsRateLimitError) as raised:
             await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
 
         self.assertEqual(raised.exception.retry_after_seconds, 180)
+
+    async def test_http_403_requests_provider_backoff(self) -> None:
+        session = mock.MagicMock()
+        session.post.return_value = FakeResponse(403)
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        worker._reserve_request_slot = mock.AsyncMock()  # type: ignore[method-assign]
+
+        with self.assertRaises(RivalsProviderBackoffError) as raised:
+            await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+
+        self.assertIn("HTTP 403", str(raised.exception))
+
+    async def test_html_challenge_requests_provider_backoff(self) -> None:
+        session = mock.MagicMock()
+        session.post.return_value = FakeResponse(
+            200,
+            b"<!doctype html><title>Just a moment</title>",
+            {"Content-Type": "text/html; charset=UTF-8"},
+        )
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        worker._reserve_request_slot = mock.AsyncMock()  # type: ignore[method-assign]
+
+        with self.assertRaises(RivalsProviderBackoffError) as raised:
+            await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+
+        self.assertIn("browser challenge", str(raised.exception))
+
+    async def test_repeated_invalid_json_requests_provider_backoff(self) -> None:
+        session = mock.MagicMock()
+        session.post.return_value = FakeResponse(
+            200,
+            b"not-json",
+            {"Content-Type": "application/json"},
+        )
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        worker._reserve_request_slot = mock.AsyncMock()  # type: ignore[method-assign]
+
+        for _attempt in range(2):
+            with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+                await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+        with self.assertRaises(RivalsProviderBackoffError):
+            await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+
+    async def test_valid_other_endpoint_does_not_clear_invalid_json_streak(
+        self,
+    ) -> None:
+        invalid = FakeResponse(
+            200,
+            b"not-json",
+            {"Content-Type": "application/json"},
+        )
+        valid = FakeResponse(
+            200,
+            b"{}",
+            {"Content-Type": "application/json"},
+        )
+        session = mock.MagicMock()
+        session.post.side_effect = [invalid, valid, invalid, valid, invalid]
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        worker._reserve_request_slot = mock.AsyncMock()  # type: ignore[method-assign]
+
+        for _attempt in range(2):
+            with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+                await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+            self.assertEqual(
+                await worker._request_json(session, MATCHES_ENDPOINT, 396536339),
+                {},
+            )
+        with self.assertRaises(RivalsProviderBackoffError):
+            await worker._request_json(session, PROFILE_ENDPOINT, 396536339)
+
+    async def test_hourly_budget_blocks_before_session_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            for _index in range(12):
+                allowed, _retry_after, _count = reserve_rivals_request(
+                    path,
+                    12,
+                    now=1_000,
+                )
+                self.assertTrue(allowed)
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {"max_requests_per_hour": 12},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            session = mock.MagicMock()
+
+            with (
+                mock.patch("rivals_store.time.time", return_value=1_001),
+                mock.patch("rivals_worker.time.time", return_value=1_001),
+                self.assertRaises(RivalsRequestBudgetError),
+            ):
+                await worker._request_json(
+                    session,
+                    PROFILE_ENDPOINT,
+                    396536339,
+                )
+
+            session.post.assert_not_called()
 
     def test_extracts_nested_profile_and_match_payloads(self) -> None:
         self.assertEqual(
@@ -100,7 +263,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             ("iiTzEdo", 13, 4656.718),
         )
 
-    def test_live_match_refresh_is_rate_limited_per_instance(self) -> None:
+    def test_live_match_refresh_is_rate_limited_per_uid(self) -> None:
         worker = RivalsPollWorker(
             Path("unused.json"),
             mock.AsyncMock(),
@@ -112,9 +275,9 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             "rivals_worker.time.monotonic",
             side_effect=[100.0, 130.0, 160.0],
         ):
-            self.assertTrue(worker._should_refresh_live_matches("rank-card"))
-            self.assertFalse(worker._should_refresh_live_matches("rank-card"))
-            self.assertTrue(worker._should_refresh_live_matches("rank-card"))
+            self.assertTrue(worker._should_refresh_live_matches(396536339))
+            self.assertFalse(worker._should_refresh_live_matches(396536339))
+            self.assertTrue(worker._should_refresh_live_matches(396536339))
 
     async def test_profile_snapshot_is_reused_between_refreshes(self) -> None:
         worker = RivalsPollWorker(
@@ -142,13 +305,13 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             side_effect=[100.0, 200.0, 401.0],
         ):
             first = await worker._load_profile_snapshot(
-                mock.MagicMock(), "rank-card", 396536339
+                mock.MagicMock(), 396536339
             )
             second = await worker._load_profile_snapshot(
-                mock.MagicMock(), "rank-card", 396536339
+                mock.MagicMock(), 396536339
             )
             third = await worker._load_profile_snapshot(
-                mock.MagicMock(), "rank-card", 396536339
+                mock.MagicMock(), 396536339
             )
 
         self.assertEqual(first, second)
@@ -168,9 +331,8 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(RivalsRateLimitError):
-            await worker._load_matches_payload(
+            await worker._load_matches(
                 mock.MagicMock(),
-                "rank-card",
                 396536339,
                 18,
             )
@@ -190,7 +352,7 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 store_lock=asyncio.Lock(),
                 logger=logs.append,
             )
-            worker._poll_instance = mock.AsyncMock(  # type: ignore[method-assign]
+            worker._poll_uid = mock.AsyncMock(  # type: ignore[method-assign]
                 side_effect=RivalsRateLimitError()
             )
 
@@ -203,10 +365,253 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(first_delay, 300)
             self.assertEqual(second_delay, 299)
-            self.assertEqual(worker._poll_instance.await_count, 1)
+            self.assertEqual(worker._poll_uid.await_count, 1)
             self.assertIn("updates paused for about 5 minutes", logs[0])
             self.assertEqual(rivals_status(path, "rank-one")["poll"]["status"], "error")
             self.assertEqual(rivals_status(path, "rank-two")["poll"]["status"], "error")
+
+    async def test_persisted_cooldown_survives_worker_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(path, "rank-card", {"uid": "396536339"}, now=100)
+            wall_now = int(time.time())
+            save_rate_limit_state(path, wall_now + 300, 2)
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            worker._poll_uid = mock.AsyncMock()  # type: ignore[method-assign]
+
+            with (
+                mock.patch("rivals_worker.time.time", return_value=wall_now),
+                mock.patch("rivals_worker.time.monotonic", return_value=100.0),
+            ):
+                delay = await worker.poll_once(mock.MagicMock())
+
+            self.assertEqual(delay, 300)
+            self.assertEqual(worker._rate_limit_failures, 2)
+            worker._poll_uid.assert_not_awaited()
+            self.assertEqual(load_rate_limit_state(path)["failures"], 2)
+            self.assertEqual(
+                rivals_status(path, "rank-card")["poll"]["retryAt"],
+                wall_now + 300,
+            )
+
+    def test_repeated_retry_after_escalates_past_server_floor(self) -> None:
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {"rate_limit_backoff_seconds": 300},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        with (
+            mock.patch("rivals_worker.time.monotonic", return_value=100.0),
+            mock.patch("rivals_worker.time.time", return_value=1_000.0),
+        ):
+            first, _first_until = worker._begin_provider_cooldown(
+                RivalsRateLimitError(60)
+            )
+            second, _second_until = worker._begin_provider_cooldown(
+                RivalsRateLimitError(60)
+            )
+
+        self.assertEqual(first, 60)
+        self.assertEqual(second, 600)
+
+    def test_manual_refresh_obeys_cooldown_and_one_minute_debounce(self) -> None:
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        with (
+            mock.patch("rivals_worker.time.monotonic", return_value=100.0),
+            mock.patch("rivals_worker.time.time", return_value=1_000.0),
+        ):
+            worker._rate_limit_until = 340.0
+            worker._rate_limit_wall_until = 1_240
+            paused = worker.request_manual_refresh(396536339)
+            self.assertFalse(paused["accepted"])
+            self.assertEqual(paused["retryAfter"], 240)
+            self.assertFalse(worker._wake_event.is_set())
+
+            worker._rate_limit_until = 0.0
+            accepted = worker.request_manual_refresh(396536339)
+            repeated = worker.request_manual_refresh(396536339)
+
+        self.assertTrue(accepted["accepted"])
+        self.assertFalse(repeated["accepted"])
+        self.assertEqual(repeated["retryAfter"], 60)
+        self.assertTrue(worker._wake_event.is_set())
+
+    async def test_one_clean_cycle_only_decrements_failure_ladder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(path, "rank-card", {"uid": "396536339"}, now=100)
+            save_rate_limit_state(path, 0, 3)
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+
+            async def successful_poll(*_args: object, **_kwargs: object) -> None:
+                worker._successful_requests_this_cycle += 1
+
+            worker._poll_uid = mock.AsyncMock(  # type: ignore[method-assign]
+                side_effect=successful_poll
+            )
+            await worker.poll_once(mock.MagicMock())
+
+            self.assertEqual(worker._rate_limit_failures, 2)
+            self.assertEqual(load_rate_limit_state(path)["failures"], 2)
+
+    async def test_partial_fallback_cycle_does_not_decay_failure_ladder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(path, "rank-card", {"uid": "396536339"}, now=100)
+            save_rate_limit_state(path, 0, 3)
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+
+            async def fallback_poll(*_args: object, **_kwargs: object) -> None:
+                worker._successful_requests_this_cycle += 1
+                worker._had_recoverable_error_this_cycle = True
+
+            worker._poll_uid = mock.AsyncMock(  # type: ignore[method-assign]
+                side_effect=fallback_poll
+            )
+            await worker.poll_once(mock.MagicMock())
+
+            self.assertEqual(worker._rate_limit_failures, 3)
+            self.assertEqual(load_rate_limit_state(path)["failures"], 3)
+
+    async def test_same_uid_is_fetched_once_and_updates_both_instances(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            for instance_id in ("rank-main", "rank-corner"):
+                update_rivals_record(
+                    path,
+                    instance_id,
+                    {"uid": "396536339"},
+                    now=100,
+                )
+            messages: list[dict[str, object]] = []
+
+            async def broadcast(message: dict[str, object]) -> None:
+                messages.append(message)
+
+            worker = RivalsPollWorker(
+                path,
+                broadcast,
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            worker._fetch_uid = mock.AsyncMock(  # type: ignore[method-assign]
+                return_value=(
+                    "iiTzEdo",
+                    17,
+                    4656.718,
+                    [
+                        {
+                            "match_uid": "shared-match",
+                            "is_win": True,
+                            "timestamp": 110,
+                            "rank_level": 17,
+                            "rank_score": 4656.718,
+                            "game_mode_id": 2,
+                        }
+                    ],
+                )
+            )
+
+            await worker.poll_once(mock.MagicMock())
+
+            worker._fetch_uid.assert_awaited_once()
+            self.assertEqual(len(messages), 2)
+            for instance_id in ("rank-main", "rank-corner"):
+                state = rivals_status(path, instance_id)["state"]
+                self.assertEqual(state["playerName"], "iiTzEdo")
+                self.assertEqual(state["sessionWins"], 1)
+
+    async def test_default_twenty_minute_schedule_uses_eight_requests(self) -> None:
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {
+                "profile_refresh_seconds": 300,
+                "live_refresh_seconds": 300,
+            },
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        live = {
+            "matches": [
+                {
+                    "match_uid": "ranked-match",
+                    "is_win": True,
+                    "timestamp": 110,
+                    "rank_level": 17,
+                    "rank_score": 4656.718,
+                    "game_mode_id": 2,
+                }
+            ]
+        }
+        profile = {
+            "name": "iiTzEdo",
+            "rank_game_season": {
+                "1001018": {
+                    "rank_game_id": 18,
+                    "level": 17,
+                    "rank_score": 4656.718,
+                }
+            },
+        }
+        worker._request_json = mock.AsyncMock(  # type: ignore[method-assign]
+            side_effect=[profile, live, profile, live, profile, live, profile, live]
+        )
+
+        with mock.patch(
+            "rivals_worker.time.monotonic",
+            side_effect=[
+                0.0,
+                0.0,
+                120.0,
+                120.0,
+                300.0,
+                300.0,
+                600.0,
+                600.0,
+                900.0,
+                900.0,
+            ],
+        ):
+            await worker._fetch_uid(mock.MagicMock(), 396536339)
+            await worker._fetch_uid(mock.MagicMock(), 396536339)
+            await worker._fetch_uid(mock.MagicMock(), 396536339)
+            await worker._fetch_uid(mock.MagicMock(), 396536339)
+            await worker._fetch_uid(mock.MagicMock(), 396536339)
+
+        endpoints = [call.args[1] for call in worker._request_json.await_args_list]
+        self.assertEqual(
+            endpoints,
+            [PROFILE_ENDPOINT, MATCHES_REFRESH_ENDPOINT] * 4,
+        )
+        self.assertNotIn(MATCHES_ENDPOINT, endpoints)
 
     async def test_poll_failure_keeps_last_known_state(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -306,7 +711,11 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 ]
             )
 
-            await worker._poll_instance(mock.MagicMock(), "rank-card", 396536339)
+            await worker._poll_uid(
+                mock.MagicMock(),
+                396536339,
+                ["rank-card"],
+            )
 
             result = rivals_status(path, "rank-card")
             self.assertEqual(result["state"]["playerName"], "iiTzEdo")
@@ -371,7 +780,11 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 ]
             )
 
-            await worker._poll_instance(mock.MagicMock(), "rank-card", 396536339)
+            await worker._poll_uid(
+                mock.MagicMock(),
+                396536339,
+                ["rank-card"],
+            )
 
             result = rivals_status(path, "rank-card")
             self.assertEqual(result["state"]["tier"], "grandmaster")
@@ -431,7 +844,11 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 ]
             )
 
-            await worker._poll_instance(mock.MagicMock(), "rank-card", 502565567)
+            await worker._poll_uid(
+                mock.MagicMock(),
+                502565567,
+                ["rank-card"],
+            )
 
             result = rivals_status(path, "rank-card")
             self.assertEqual(result["state"]["playerName"], "iiTzMag")
@@ -488,7 +905,11 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 ]
             )
 
-            await worker._poll_instance(mock.MagicMock(), "rank-card", 465451418)
+            await worker._poll_uid(
+                mock.MagicMock(),
+                465451418,
+                ["rank-card"],
+            )
 
             result = rivals_status(path, "rank-card")
             self.assertEqual(result["state"]["tier"], "one-above-all")

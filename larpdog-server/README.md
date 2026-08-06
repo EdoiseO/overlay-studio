@@ -95,15 +95,21 @@ images can be `png`, `jpg`, `jpeg`, `gif`, `webp`, or `apng`.
 
 ## Rivals Rank data
 
-The Rivals Rank Tracker links a numeric Rivals Data player ID server-side and checks the
-unofficial service every two minutes by default. Profile and live match-history
-refreshes are limited to once every five minutes per overlay instance, with cached
-history used between them. A `429` response stops the current request chain and pauses
-all Rivals Data requests for at least five minutes, honoring a longer `Retry-After`
-value and increasing the cooldown after repeated limits. New match IDs update the
-per-instance session record; a failed or malformed response leaves the last successful
-public state unchanged. The private player ID and match cursor are stored in
-`rivals.json` and are never included in `/api/rivals` responses or websocket messages.
+The Rivals Rank Tracker links a numeric Rivals Data player ID server-side. Its default
+worker, profile, and live-history cadence is five minutes. Requests are deduplicated by
+player ID, and cached history is fallback-only after a live refresh rather than an
+independent high-frequency request. Normal steady state is therefore about 24
+requests/hour per unique linked account, or up to about 36 when every live refresh needs
+the cached fallback.
+
+A `429`, 403, 408, 5xx response, or browser challenge stops the current request chain
+and pauses every linked tracker. The document-level cooldown and failure ladder survive
+process restarts. Repeated limits escalate, successful request cycles reduce the ladder
+one step at a time, and a persisted rolling budget hard-caps the app at 120 outbound
+Rivals Data requests/hour. New match IDs update each instance's session record; a failed
+or malformed response leaves the last successful public state unchanged. The private
+player ID, match bookkeeping, cooldown, and request budget live in `rivals.json` and are
+never included in `/api/rivals` responses or websocket messages.
 
 Rivals Data is an undocumented fan service, not an official NetEase or Marvel Rivals
 API. Treat availability and response shape as best effort.
@@ -135,10 +141,12 @@ http://127.0.0.1:8473/overlays/spotify?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9
 - `media.preferred_source`: default is `spotify`; used to pick Spotify when multiple media apps are active.
 - `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
 - `rivals.enabled`: enables or disables Rivals Data polling.
-- `rivals.poll_seconds`: polling interval, clamped to 60 through 300 seconds; default is 120.
+- `rivals.poll_seconds`: worker check interval, clamped to 60 through 900 seconds; default is 300. Checks that occur before profile/live data is due do not request cached history.
 - `rivals.profile_refresh_seconds`: profile refresh interval, clamped to 120 through 900 seconds; default is 300.
 - `rivals.live_refresh_seconds`: live match-history refresh interval, clamped to 60 through 900 seconds; default is 300.
-- `rivals.rate_limit_backoff_seconds`: initial `429` cooldown, clamped to 60 through 3600 seconds; default is 300 and doubles after repeated limits.
+- `rivals.rate_limit_backoff_seconds`: fallback `429` cooldown, clamped to 60 through 3600 seconds; default is 300 and escalates after repeated limits.
+- `rivals.transient_backoff_seconds`: initial 403/408/5xx or challenge-page cooldown; default is 120 seconds and uses the same escalation ladder.
+- `rivals.max_requests_per_hour`: persisted rolling request cap across every Rivals endpoint and instance; clamped to 12 through 120 and defaults to 120.
 - `rivals.timeout_seconds`: per-request timeout, clamped to 3 through 30 seconds.
 
 ## Optional EXE build

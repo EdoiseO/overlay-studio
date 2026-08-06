@@ -134,22 +134,28 @@ and appearance.
 Add **Rivals Rank Tracker** from Browse overlays, then paste either a numeric Rivals
 Data player ID or a `rivalsdata.com/player/...` profile URL into its Studio customizer.
 The card shows the linked player name, tier and division, rank score, and wins and
-losses since the current session began. Use **Reset session** to zero only the session
-record; the last known rank and score stay in place.
+losses since the current session began. **Refresh now** requests an early guarded
+refresh, **Reset session** zeroes only the session record, and **Unlink** removes the
+account from that overlay. Linking wakes the worker immediately instead of waiting for
+the next scheduled cycle.
 
-The local server checks for new matches every two minutes by default and requests fresh
-profile and live match-history data no more than once every five minutes per linked
-overlay. It uses cached match history between live refreshes. Existing match history is
-baselined when an account is linked, while matches completed after linking or a manual
-reset count toward the session. The numeric player ID is stored only in the server's
-private `rivals.json` bookkeeping and is never returned by `/api/rivals` or sent over
-the overlay websocket.
+The local server refreshes profile and live match history every five minutes by default
+per unique player ID. Multiple overlays linked to the same account share one fetch.
+Cached history is requested only when a live refresh fails or returns no competitive
+matches, so the normal cadence is about 24 requests/hour per unique account instead of
+42. Existing match history is baselined when an account is linked, while matches
+completed after linking or a manual reset count toward the session. The numeric player
+ID is stored only in the server's private `rivals.json` bookkeeping and is never
+returned by `/api/rivals` or sent over the overlay websocket.
 
 Rivals Data is an unofficial, undocumented fan service and is not affiliated with
 NetEase or Marvel Rivals. Its API can change, rate-limit requests, or become unavailable.
-When a check fails, Overlay Studio keeps displaying the last successful state. A rate
-limit pauses the full request chain for at least five minutes, honors a longer provider
-cooldown, and backs off further if the provider continues returning `429` responses.
+When a check fails, Overlay Studio keeps displaying the last successful state. Provider
+cooldowns survive app restarts, repeated limits escalate instead of resetting after one
+clean cycle, and 403/408/5xx responses or browser challenge pages also back off. A
+persisted rolling budget caps the entire app at 120 Rivals Data requests/hour. Scheduled
+checks include startup delay and jitter so restarting several clients does not create a
+request burst.
 
 ## Social overlays
 
@@ -349,10 +355,10 @@ automation should always include the intended instance ID.
 ## Rivals Rank API
 
 `GET /api/rivals?i=<instance>` returns the public rank, score, session record, visual
-settings, and a `linked` flag. `POST` to the same addressed URL saves visual settings
-or accepts `{"action":"reset-session"}`. Account linking is handled by the Studio
-customizer. The private player ID is deliberately excluded from every response and
-websocket message.
+settings, a `linked` flag, and sanitized poll status. `POST` to the same addressed URL
+saves visual settings or accepts `refresh`, `reset-session`, and `unlink` actions.
+Account linking is handled by the Studio customizer. The private player ID is
+deliberately excluded from every response and websocket message.
 
 All mutating `/api/` requests must use `Content-Type: application/json`. Browser-based
 automation must run from the same local Overlay Studio origin; desktop and chat tools

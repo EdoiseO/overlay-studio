@@ -23,6 +23,7 @@ const app = {
   goalBarKey: "",
   goalPillKey: "",
   rivalsSettingsKey: "",
+  rivalsManualRefreshUntil: {},
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
   customizerPreviewExpanded: false,
@@ -2138,6 +2139,15 @@ function rivalsVisualState(state) {
   };
 }
 
+function formatRivalsRefreshWait(seconds) {
+  const remaining = Math.max(1, Math.ceil(Number(seconds) || 0));
+  if (remaining >= 60) {
+    const minutes = Math.max(1, Math.ceil(remaining / 60));
+    return `~${minutes} ${minutes === 1 ? "min" : "mins"}`;
+  }
+  return `${remaining}s`;
+}
+
 function renderRivals(state, linked = false, force = false, poll = null) {
   const resolved = state || app.state?.rivalsDefaults || {};
   const visual = rivalsVisualState(resolved);
@@ -2192,7 +2202,38 @@ function renderRivals(state, linked = false, force = false, poll = null) {
   byId("rivalsSessionRecord").textContent =
     `${wins} ${wins === 1 ? "win" : "wins"} | `
     + `${losses} ${losses === 1 ? "loss" : "losses"}`;
+  const now = Date.now() / 1000;
+  const instanceId = activeInstance()?.id || "";
+  const providerRetryAt = Math.max(0, Number(poll?.retryAt) || 0);
+  let localRetryAt = Math.max(
+    0,
+    Number(app.rivalsManualRefreshUntil[instanceId]) || 0,
+  );
+  if (localRetryAt <= now) {
+    delete app.rivalsManualRefreshUntil[instanceId];
+    localRetryAt = 0;
+  }
+  const refreshAt = Math.max(
+    providerRetryAt,
+    localRetryAt,
+  );
+  const refreshPaused = linked && refreshAt > now;
+  const refreshStatus = byId("rivalsRefreshStatus");
+  refreshStatus.dataset.paused = String(refreshPaused);
+  if (!linked) {
+    refreshStatus.textContent = "Link an account to request an update.";
+  } else if (providerRetryAt > now) {
+    refreshStatus.textContent =
+      `Updates paused, ${formatRivalsRefreshWait(providerRetryAt - now)} remaining.`;
+  } else if (localRetryAt > now) {
+    refreshStatus.textContent =
+      `Refresh available in ${formatRivalsRefreshWait(localRetryAt - now)}.`;
+  } else {
+    refreshStatus.textContent = "Manual refresh is available once per minute.";
+  }
+  byId("refreshRivalsButton").disabled = !linked || refreshPaused || app.busy;
   byId("resetRivalsSessionButton").disabled = !linked || app.busy;
+  byId("unlinkRivalsButton").disabled = !linked || app.busy;
 }
 
 function renderSocialAccounts(accounts, overlayType) {
@@ -3456,14 +3497,20 @@ async function sendRivals(payload, message, options = {}) {
     app.state.rivals[instance.id] = result.rivals;
     app.state.rivalsLinked[instance.id] = result.linked === true;
     app.state.rivalsPolls[instance.id] = result.poll || {};
+    if (typeof options.onResult === "function") options.onResult(result);
     renderRivals(
       result.rivals,
       result.linked,
       options.hydrate === true,
       result.poll,
     );
-    logActivity(message);
-    showToast(message);
+    const resolvedMessage = typeof message === "function"
+      ? message(result)
+      : message;
+    if (resolvedMessage) {
+      logActivity(resolvedMessage);
+      showToast(resolvedMessage);
+    }
     if (options.remember) rememberSavedCustomizer();
     return true;
   } catch (error) {
@@ -3491,7 +3538,28 @@ async function linkRivalsAccount() {
     { uid },
     "Rivals Data account linked",
   );
-  if (linked) byId("rivalsUid").value = "";
+  if (linked) {
+    const instanceId = activeInstance()?.id || "";
+    if (instanceId) delete app.rivalsManualRefreshUntil[instanceId];
+    byId("rivalsUid").value = "";
+  }
+}
+
+async function refreshRivalsAccount() {
+  const instanceId = activeInstance()?.id || "";
+  await sendRivals(
+    { action: "refresh" },
+    (result) => result.refresh?.detail || "Rivals refresh requested",
+    {
+      onResult(result) {
+        const refresh = result.refresh || {};
+        const retryAt = Math.max(0, Number(refresh.retryAt) || 0);
+        if (retryAt > 0 && instanceId) {
+          app.rivalsManualRefreshUntil[instanceId] = retryAt;
+        }
+      },
+    },
+  );
 }
 
 async function sendGoal(payload, message = "Goal updated") {
@@ -4158,8 +4226,17 @@ function bindEvents() {
     event.preventDefault();
     linkRivalsAccount();
   });
+  byId("refreshRivalsButton").addEventListener(
+    "click",
+    refreshRivalsAccount,
+  );
   byId("resetRivalsSessionButton").addEventListener("click", () => {
     sendRivals({ action: "reset-session" }, "Rivals session reset");
+  });
+  byId("unlinkRivalsButton").addEventListener("click", () => {
+    const instanceId = activeInstance()?.id || "";
+    if (instanceId) delete app.rivalsManualRefreshUntil[instanceId];
+    sendRivals({ action: "unlink" }, "Rivals Data account unlinked");
   });
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;

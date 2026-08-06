@@ -54,6 +54,7 @@ class RivalsApiTests(unittest.IsolatedAsyncioTestCase):
         config = copy.deepcopy(main.DEFAULT_CONFIG)
         config["server"]["overlay_path"] = "../overlay-studio.html"
         app = main.create_app(config, server_dir)
+        self.app = app
         self.patches = [
             mock.patch.object(main.AudioLoopbackWorker, "start"),
             mock.patch.object(main.AudioLoopbackWorker, "stop"),
@@ -156,6 +157,51 @@ class RivalsApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["state"]["sessionLosses"], 0)
         self.assertEqual(payload["state"]["tier"], "grandmaster")
         self.assertEqual(payload["state"]["score"], 56)
+
+    async def test_link_wakes_after_unlock_and_refresh_unlink_are_wired(self) -> None:
+        worker = self.app["rivals_worker"]
+        store_lock = self.app["rivals_store_lock"]
+
+        def wake_after_unlock(uid: int) -> None:
+            self.assertEqual(uid, 396536339)
+            self.assertFalse(store_lock.locked())
+
+        with mock.patch.object(
+            worker,
+            "wake_for_link",
+            side_effect=wake_after_unlock,
+        ) as wake:
+            linked = await self.client.post(
+                "/api/rivals?i=rank-card",
+                json={"uid": "396536339"},
+            )
+            self.assertEqual(linked.status, 200)
+            wake.assert_called_once_with(396536339)
+
+        refresh_result = {
+            "accepted": True,
+            "retryAfter": 60,
+            "retryAt": 1_900_000_000,
+            "detail": "Refresh requested",
+        }
+        with mock.patch.object(
+            worker,
+            "request_manual_refresh",
+            return_value=refresh_result,
+        ) as refresh:
+            response = await self.client.post(
+                "/api/rivals?i=rank-card",
+                json={"action": "refresh"},
+            )
+            payload = await response.json()
+            self.assertEqual(payload["refresh"], refresh_result)
+            refresh.assert_called_once_with(396536339)
+
+        unlinked = await self.client.post(
+            "/api/rivals?i=rank-card",
+            json={"action": "unlink"},
+        )
+        self.assertFalse((await unlinked.json())["linked"])
 
     async def test_route_and_write_guards(self) -> None:
         overlay = await self.client.get("/overlays/rivals-rank?i=rank-card")

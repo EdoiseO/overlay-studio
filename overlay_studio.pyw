@@ -1508,6 +1508,11 @@ class DesktopApi:
                 if isinstance(payload.get("poll"), dict)
                 else {}
             ),
+            "refresh": (
+                payload.get("refresh")
+                if isinstance(payload.get("refresh"), dict)
+                else {}
+            ),
         }
 
     def set_theme(self, theme: str) -> dict[str, Any]:

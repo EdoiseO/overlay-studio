@@ -89,6 +89,19 @@ class RivalsCustomizerTests(unittest.TestCase):
         self.assertIn("/rate limit|updates paused/i", self.script)
         self.assertIn("Linked; updates temporarily paused", self.script)
 
+    def test_refresh_and_unlink_controls_use_the_guarded_rivals_action(self) -> None:
+        for control_id in (
+            "refreshRivalsButton",
+            "unlinkRivalsButton",
+            "rivalsRefreshStatus",
+        ):
+            with self.subTest(control_id=control_id):
+                self.assertEqual(self.markup.count(f'id="{control_id}"'), 1)
+        self.assertIn('{ action: "refresh" }', self.script)
+        self.assertIn('{ action: "unlink" }', self.script)
+        self.assertIn("Refresh available in", self.script)
+        self.assertIn("Updates paused,", self.script)
+
 
 if __name__ == "__main__":
     unittest.main()
