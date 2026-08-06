@@ -118,6 +118,15 @@
     transform: scale(calc(1 + var(--pulse) * 0.03));
     transition: transform .04s linear;
   }
+  .card.held {
+    opacity: .72;
+    filter: saturate(.55);
+    transform: scale(1);
+    box-shadow: 0 8px 24px rgba(0,0,0,.34);
+  }
+  .card.held .eyebrow .dot {
+    box-shadow: none;
+  }
   .card.hidden, .dog-wrap.hidden { display: none; }
 
   /* album art (or the live EQ if no art) */
@@ -511,6 +520,10 @@ const eqBars = [...document.querySelectorAll("#eq i")];
 let pulse = 0, avg = 0, lastBeat = 0;
 let standaloneAudioStarted = false;
 let standaloneNowPlayingStarted = false;
+let overlayServerSocket = null;
+let overlayServerReconnectTimer = 0;
+let overlayServerReconnectDelay = 750;
+let overlayServerStopped = false;
 window.__overlayStudio = { serverConnected: false, serverClosed: false, lastAudioAt: 0, lastTrackAt: 0 };
 window.__larpdog = window.__overlayStudio;
 
@@ -655,33 +668,57 @@ function serverWsUrl() {
   return `${proto}//${host}/ws`;
 }
 
+function scheduleOverlayStudioReconnect() {
+  if (
+    overlayServerStopped
+    || overlayServerReconnectTimer
+    || location.protocol === "file:"
+  ) return;
+  overlayServerReconnectTimer = window.setTimeout(() => {
+    overlayServerReconnectTimer = 0;
+    connectOverlayStudioServer();
+  }, overlayServerReconnectDelay);
+  overlayServerReconnectDelay = Math.min(
+    8000,
+    overlayServerReconnectDelay * 1.7,
+  );
+}
+
 function connectOverlayStudioServer() {
-  if (!("WebSocket" in window)) return Promise.resolve(false);
+  if (
+    !("WebSocket" in window)
+    || overlayServerStopped
+    || location.protocol === "file:"
+  ) return Promise.resolve(false);
 
   return new Promise(resolve => {
     let settled = false;
-    let connected = false;
     let ws;
-    const fail = () => {
+    const finish = connected => {
       if (settled) return;
       settled = true;
-      try { ws?.close(); } catch {}
-      resolve(false);
+      clearTimeout(timeout);
+      resolve(connected);
     };
-    const timeout = setTimeout(fail, 2000);
+    const timeout = setTimeout(() => {
+      finish(false);
+      try { ws?.close(); } catch {}
+      scheduleOverlayStudioReconnect();
+    }, 2000);
 
     try { ws = new WebSocket(serverWsUrl()); }
-    catch { clearTimeout(timeout); return fail(); }
+    catch {
+      finish(false);
+      scheduleOverlayStudioReconnect();
+      return;
+    }
+    overlayServerSocket = ws;
 
     ws.onopen = () => {
-      connected = true;
       window.__larpdog.serverConnected = true;
       window.__larpdog.serverClosed = false;
-      if (!settled) {
-        settled = true;
-        clearTimeout(timeout);
-        resolve(true);
-      }
+      overlayServerReconnectDelay = 750;
+      finish(true);
     };
     ws.onmessage = event => {
       let msg;
@@ -690,31 +727,34 @@ function connectOverlayStudioServer() {
         paintServerAudio(msg);
       } else if (msg.type === "track") {
         window.__larpdog.lastTrackAt = Date.now();
-        if (msg.isPlaying) {
-          showSong({
-            trackId: msg.trackId,
-            title: msg.title,
-            artist: msg.artist,
-            art: msg.art,
-            progressMs: msg.progressMs,
-            durationMs: msg.durationMs,
-          });
-        }
-        else showIdle();
+        handleServerTrack(msg);
       } else if (msg.type === "config") {
         const messageInstance = String(msg.instanceId || "");
         if (!CUSTOMIZER_MODE && messageInstance === INSTANCE_ID) location.reload();
       }
     };
-    ws.onerror = () => { if (!connected) fail(); };
+    ws.onerror = () => {
+      try { ws.close(); } catch {}
+    };
     ws.onclose = () => {
+      if (overlayServerSocket === ws) overlayServerSocket = null;
+      window.__larpdog.serverConnected = false;
       window.__larpdog.serverClosed = true;
-      clearTimeout(timeout);
-      if (!connected) fail();
-      else startStandaloneSources();
+      finish(false);
+      if (CONFIG.ui.asset !== "dog") {
+        showSpotifyWaiting(lastSpotifyServerTrack);
+      }
+      scheduleOverlayStudioReconnect();
     };
   });
 }
+
+window.addEventListener("pagehide", () => {
+  overlayServerStopped = true;
+  clearTimeout(overlayServerReconnectTimer);
+  overlayServerReconnectTimer = 0;
+  try { overlayServerSocket?.close(); } catch {}
+});
 
 
 /* =====================================================================
@@ -862,6 +902,7 @@ const $eq = document.getElementById("eq");
 const $progressFill = document.getElementById("progressFill");
 let trackProgress = { progressMs: 0, durationMs: 0, startedAt: 0, active: false };
 let lastTrackIdentity = "";
+let lastSpotifyServerTrack = null;
 
 function setTrackLine(el, text) {
   const inner = el.querySelector(".marquee-text");
@@ -892,23 +933,25 @@ function setTrackLine(el, text) {
   });
 }
 
-function setProgress(progressMs, durationMs) {
+function setProgress(progressMs, durationMs, playing = true) {
   const progress = Math.max(0, Number(progressMs) || 0);
   const duration = Math.max(0, Number(durationMs) || 0);
-  const active = duration > 0;
+  const active = duration > 0 && playing;
   trackProgress = {
     progressMs: Math.min(progress, duration || progress),
     durationMs: duration,
     startedAt: performance.now(),
     active,
   };
-  $card.classList.toggle("idle", !active);
+  $card.classList.toggle("idle", duration <= 0);
 }
 
 function paintProgress() {
   let ratio = 0;
-  if (trackProgress.active) {
-    const elapsed = performance.now() - trackProgress.startedAt;
+  if (trackProgress.durationMs > 0) {
+    const elapsed = trackProgress.active
+      ? performance.now() - trackProgress.startedAt
+      : 0;
     ratio = (trackProgress.progressMs + elapsed) / trackProgress.durationMs;
   }
   $progressFill.style.transform = `scaleX(${clamp01(ratio).toFixed(4)})`;
@@ -926,8 +969,9 @@ function trackIdentity({ trackId, title, artist, durationMs }) {
   ].join("\u0000");
 }
 
-function showSong(song) {
+function showSong(song, options = {}) {
   const { title, artist, art, progressMs, durationMs } = song;
+  const playing = options.playing !== false;
   const nextTrackIdentity = trackIdentity(song);
   const trackChanged = Boolean(
     lastTrackIdentity
@@ -935,11 +979,13 @@ function showSong(song) {
     && nextTrackIdentity !== lastTrackIdentity
   );
   if (nextTrackIdentity) lastTrackIdentity = nextTrackIdentity;
-  showDancingDog(trackChanged);
+  if (playing) showDancingDog(trackChanged);
+  else showRestingDog();
   setTrackLine($title, title || "-");
   setTrackLine($artist, artist || "");
-  setProgress(progressMs, durationMs);
-  $status.textContent = "Now playing";
+  setProgress(progressMs, durationMs, playing);
+  $status.textContent = options.status || (playing ? "Now playing" : "Paused");
+  $card.classList.toggle("held", !playing);
   if (art) {
     const img = new Image();
     img.alt = "";
@@ -957,7 +1003,56 @@ function showIdle(msg) {
   setTrackLine($artist, "");
   setProgress(0, 0);
   $status.textContent = "Standing by";
+  $card.classList.remove("held");
   applyPalette(fallbackPalette());
+}
+
+function serverTrack(message) {
+  return {
+    trackId: message?.trackId,
+    title: message?.title,
+    artist: message?.artist,
+    art: message?.art,
+    progressMs: message?.progressMs,
+    durationMs: message?.durationMs,
+  };
+}
+
+function showSpotifyWaiting(track = null, status = "Waiting for Spotify") {
+  if (track?.title) {
+    lastSpotifyServerTrack = serverTrack(track);
+    showSong(lastSpotifyServerTrack, { playing: false, status });
+    return;
+  }
+  showRestingDog();
+  setTrackLine($title, "Waiting for Spotify");
+  setTrackLine($artist, "Start playback in Spotify desktop");
+  setProgress(0, 0, false);
+  $status.textContent = "Spotify standing by";
+  $card.classList.add("held");
+  $art.replaceChildren($eq);
+  applyPalette(fallbackPalette());
+}
+
+function handleServerTrack(message) {
+  const hasSpotifyRouting = typeof message.spotifyStatus === "string";
+  if (CONFIG.ui.asset === "dog" || !hasSpotifyRouting) {
+    if (message.isPlaying) showSong(serverTrack(message));
+    else showIdle();
+    return;
+  }
+
+  if (message.spotifyStatus === "playing" && message.title) {
+    lastSpotifyServerTrack = serverTrack(message);
+    showSong(lastSpotifyServerTrack);
+    return;
+  }
+  if (message.spotifyStatus === "paused") {
+    const heldTrack = message.title ? message : message.spotifyTrack;
+    showSpotifyWaiting(heldTrack || lastSpotifyServerTrack, "Spotify paused");
+    return;
+  }
+  showSpotifyWaiting(message.spotifyTrack || lastSpotifyServerTrack);
 }
 
 async function pollFile() {
@@ -1102,11 +1197,15 @@ if (CUSTOMIZER_MODE) {
 }
 
 (async () => {
-  if (Q.has("song") || Q.has("noserver")) {
+  if (
+    Q.has("song")
+    || Q.has("noserver")
+    || location.protocol === "file:"
+  ) {
     startStandaloneSources();
     return;
   }
-  const usingServer = await connectOverlayStudioServer();
-  if (!usingServer) startStandaloneSources();
+  if (CONFIG.ui.asset !== "dog") showSpotifyWaiting();
+  await connectOverlayStudioServer();
 })();
 </script>

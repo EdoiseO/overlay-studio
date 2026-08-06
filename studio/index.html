@@ -129,6 +129,7 @@
         </details>
         <details class="panel customizer-disclosure">
           <summary><h2>Motion</h2></summary>
+          <p class="customizer-note">Audio reaction listens to all sound on the current Windows output, including games, browsers, and streams.</p>
           <div class="form-grid">
             <label for="sensitivity">Beat sensitivity</label>
             <div class="range-control">
@@ -162,6 +163,7 @@
         </div>
         <details class="panel customizer-disclosure" open>
           <summary><h2>Player appearance</h2></summary>
+          <p class="customizer-note">Reads Spotify desktop through Windows media controls. Other media apps are ignored, and no Spotify login is required.</p>
           <div class="form-grid">
             <label for="spotifyScale">Scale</label>
             <input id="spotifyScale" type="number" min="0.5" max="2" step="0.05">
@@ -239,6 +241,7 @@
         </div>
         <details class="panel customizer-disclosure" open>
           <summary><h2>Player appearance</h2></summary>
+          <p class="customizer-note">Shows the active Windows media session, including supported browsers and music apps.</p>
           <div class="form-grid">
             <label for="flowName">Overlay name</label>
             <input id="flowName" type="text" maxlength="48" autocomplete="off" placeholder="Now Playing Flow">
@@ -1830,10 +1833,10 @@
       <h3>Connections</h3>
       <div class="connection-row">
         <div>
-          <strong>Spotify</strong>
-          <span>Not connected</span>
+          <strong>Spotify desktop</strong>
+          <span>Windows media controls</span>
         </div>
-        <button class="secondary-button compact" type="button" disabled title="Spotify account authorization will be added in a future update">Connect</button>
+        <button class="secondary-button compact" type="button" disabled title="Spotify account authorization is not required">No login</button>
       </div>
     </div>
     <div class="drawer-section">
