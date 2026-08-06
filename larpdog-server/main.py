@@ -65,7 +65,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "rivals": {
         "enabled": True,
-        "poll_seconds": 45,
+        "poll_seconds": 120,
+        "profile_refresh_seconds": 300,
+        "live_refresh_seconds": 300,
+        "rate_limit_backoff_seconds": 300,
         "timeout_seconds": 12,
     },
 }

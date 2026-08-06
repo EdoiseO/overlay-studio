@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import json
 import math
 import time
 from collections import deque
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -23,9 +25,61 @@ MATCHES_ENDPOINT = "https://api.rivalsdata.com/player/matches/cached"
 MATCHES_REFRESH_ENDPOINT = "https://api.rivalsdata.com/player/matches"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_MATCHES = 64
-DEFAULT_LIVE_REFRESH_SECONDS = 60.0
+DEFAULT_POLL_SECONDS = 120.0
+MIN_POLL_SECONDS = 60.0
+MAX_POLL_SECONDS = 300.0
+DEFAULT_PROFILE_REFRESH_SECONDS = 300.0
+MIN_PROFILE_REFRESH_SECONDS = 120.0
+MAX_PROFILE_REFRESH_SECONDS = 900.0
+DEFAULT_LIVE_REFRESH_SECONDS = 300.0
 MIN_LIVE_REFRESH_SECONDS = 60.0
-MAX_LIVE_REFRESH_SECONDS = 300.0
+MAX_LIVE_REFRESH_SECONDS = 900.0
+DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 300.0
+MIN_RATE_LIMIT_BACKOFF_SECONDS = 60.0
+MAX_RATE_LIMIT_BACKOFF_SECONDS = 3600.0
+
+
+class RivalsRateLimitError(RuntimeError):
+    def __init__(self, retry_after_seconds: float | None = None) -> None:
+        super().__init__("Rivals Data rate limit reached")
+        self.retry_after_seconds = retry_after_seconds
+
+
+def _bounded_seconds(
+    value: Any,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    if not math.isfinite(number):
+        number = default
+    return max(minimum, min(maximum, number))
+
+
+def _parse_retry_after(value: Any, now: dt.datetime | None = None) -> float | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    try:
+        seconds = float(candidate)
+    except ValueError:
+        seconds = math.nan
+    if math.isfinite(seconds) and seconds >= 0:
+        return seconds
+    try:
+        retry_at = parsedate_to_datetime(candidate)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=dt.timezone.utc)
+    current = now or dt.datetime.now(dt.timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=dt.timezone.utc)
+    return max(0.0, (retry_at - current).total_seconds())
 
 
 def _walk_dicts(value: Any, maximum: int = 512) -> list[dict[str, Any]]:
@@ -150,19 +204,38 @@ class RivalsPollWorker:
         self.logger = logger
         self.task: asyncio.Task[None] | None = None
         self._last_errors: dict[str, str] = {}
-        try:
-            live_refresh_seconds = float(
-                config.get("live_refresh_seconds", DEFAULT_LIVE_REFRESH_SECONDS)
-            )
-        except (TypeError, ValueError):
-            live_refresh_seconds = DEFAULT_LIVE_REFRESH_SECONDS
-        if not math.isfinite(live_refresh_seconds):
-            live_refresh_seconds = DEFAULT_LIVE_REFRESH_SECONDS
-        self.live_refresh_seconds = max(
-            MIN_LIVE_REFRESH_SECONDS,
-            min(MAX_LIVE_REFRESH_SECONDS, live_refresh_seconds),
+        self.profile_refresh_seconds = _bounded_seconds(
+            config.get(
+                "profile_refresh_seconds",
+                DEFAULT_PROFILE_REFRESH_SECONDS,
+            ),
+            DEFAULT_PROFILE_REFRESH_SECONDS,
+            MIN_PROFILE_REFRESH_SECONDS,
+            MAX_PROFILE_REFRESH_SECONDS,
         )
+        self.live_refresh_seconds = _bounded_seconds(
+            config.get("live_refresh_seconds", DEFAULT_LIVE_REFRESH_SECONDS),
+            DEFAULT_LIVE_REFRESH_SECONDS,
+            MIN_LIVE_REFRESH_SECONDS,
+            MAX_LIVE_REFRESH_SECONDS,
+        )
+        self.rate_limit_backoff_seconds = _bounded_seconds(
+            config.get(
+                "rate_limit_backoff_seconds",
+                DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
+            ),
+            DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
+            MIN_RATE_LIMIT_BACKOFF_SECONDS,
+            MAX_RATE_LIMIT_BACKOFF_SECONDS,
+        )
+        self._last_profile_refresh_at: dict[str, float] = {}
+        self._profile_snapshots: dict[
+            str,
+            tuple[int, str, Any, Any, int | None],
+        ] = {}
         self._last_live_refresh_at: dict[str, float] = {}
+        self._rate_limit_until = 0.0
+        self._rate_limit_failures = 0
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
@@ -192,6 +265,10 @@ class RivalsPollWorker:
         if payload:
             request_body.update(payload)
         async with session.post(endpoint, json=request_body) as response:
+            if response.status == 429:
+                raise RivalsRateLimitError(
+                    _parse_retry_after(response.headers.get("Retry-After"))
+                )
             if response.status < 200 or response.status >= 300:
                 raise RuntimeError(f"Rivals Data returned HTTP {response.status}")
             if (
@@ -208,6 +285,56 @@ class RivalsPollWorker:
             return json.loads(bytes(body).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise RuntimeError("Rivals Data returned invalid JSON") from exc
+
+    async def _load_profile_snapshot(
+        self,
+        session: ClientSession,
+        instance_id: str,
+        uid: int,
+    ) -> tuple[str, Any, Any, int | None]:
+        cached = self._profile_snapshots.get(instance_id)
+        cached_matches_uid = cached is not None and cached[0] == uid
+        now = time.monotonic()
+        previous = self._last_profile_refresh_at.get(instance_id)
+        if (
+            cached_matches_uid
+            and previous is not None
+            and now - previous < self.profile_refresh_seconds
+        ):
+            return cached[1:]
+
+        self._last_profile_refresh_at[instance_id] = now
+        try:
+            profile = await self._request_json(session, PROFILE_ENDPOINT, uid)
+        except asyncio.CancelledError:
+            raise
+        except RivalsRateLimitError:
+            raise
+        except Exception:
+            if cached_matches_uid:
+                return cached[1:]
+            return "", None, None, None
+
+        player_name, rank_level, rank_score = extract_profile_snapshot(profile)
+        profile_season, _profile_rank = _latest_rank_season(profile)
+        if (
+            player_name
+            or rank_level is not None
+            or rank_score is not None
+            or profile_season is not None
+        ):
+            snapshot = (
+                uid,
+                player_name,
+                rank_level,
+                rank_score,
+                profile_season,
+            )
+            self._profile_snapshots[instance_id] = snapshot
+            return snapshot[1:]
+        if cached_matches_uid:
+            return cached[1:]
+        return "", None, None, None
 
     def _should_refresh_live_matches(self, instance_id: str) -> bool:
         now = time.monotonic()
@@ -237,6 +364,8 @@ class RivalsPollWorker:
                 )
             except asyncio.CancelledError:
                 raise
+            except RivalsRateLimitError:
+                raise
             except Exception:
                 live_payload = None
             if any(
@@ -252,17 +381,12 @@ class RivalsPollWorker:
         instance_id: str,
         uid: int,
     ) -> None:
-        profile: Any = {}
-        try:
-            profile = await self._request_json(session, PROFILE_ENDPOINT, uid)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            # Match history is the essential endpoint; a profile outage should
-            # not stop rank/session updates for an already named account.
-            profile = {}
-        player_name, rank_level, rank_score = extract_profile_snapshot(profile)
-        profile_season, _profile_rank = _latest_rank_season(profile)
+        (
+            player_name,
+            rank_level,
+            rank_score,
+            profile_season,
+        ) = await self._load_profile_snapshot(session, instance_id, uid)
         matches_payload = await self._load_matches_payload(
             session, instance_id, uid, profile_season
         )
@@ -321,7 +445,8 @@ class RivalsPollWorker:
             )
 
     def _report_error(self, instance_id: str, error: Exception) -> None:
-        message = " ".join(str(error or "Unknown error").split())[:180]
+        message = " ".join(str(error).split()) or type(error).__name__
+        message = message[:180]
         if self._last_errors.get(instance_id) == message:
             return
         self._last_errors[instance_id] = message
@@ -330,14 +455,59 @@ class RivalsPollWorker:
             "Keeping the last known overlay state."
         )
 
-    async def poll_once(self, session: ClientSession) -> None:
+    def _begin_rate_limit_cooldown(self, error: RivalsRateLimitError) -> float:
+        self._rate_limit_failures = min(5, self._rate_limit_failures + 1)
+        fallback = min(
+            MAX_RATE_LIMIT_BACKOFF_SECONDS,
+            self.rate_limit_backoff_seconds
+            * (2 ** (self._rate_limit_failures - 1)),
+        )
+        requested = error.retry_after_seconds
+        delay = fallback if requested is None else requested
+        delay = max(
+            MIN_RATE_LIMIT_BACKOFF_SECONDS,
+            min(MAX_RATE_LIMIT_BACKOFF_SECONDS, delay),
+        )
+        self._rate_limit_until = max(
+            self._rate_limit_until,
+            time.monotonic() + delay,
+        )
+        return delay
+
+    def _rate_limit_detail(self, delay: float) -> RuntimeError:
+        minutes = max(1, math.ceil(delay / 60.0))
+        unit = "minute" if minutes == 1 else "minutes"
+        return RuntimeError(
+            f"Rivals Data rate limit reached; updates paused for about "
+            f"{minutes} {unit}"
+        )
+
+    async def poll_once(self, session: ClientSession) -> float:
+        cooldown_remaining = self._rate_limit_until - time.monotonic()
+        if cooldown_remaining > 0:
+            return cooldown_remaining
+
         async with self.store_lock:
             linked = linked_rivals_instances(self.state_path)
+        completed = False
         for instance_id, uid in linked:
             try:
                 await self._poll_instance(session, instance_id, uid)
             except asyncio.CancelledError:
                 raise
+            except RivalsRateLimitError as exc:
+                delay = self._begin_rate_limit_cooldown(exc)
+                detail = self._rate_limit_detail(delay)
+                async with self.store_lock:
+                    for paused_instance_id, paused_uid in linked:
+                        save_rivals_poll_failure(
+                            self.state_path,
+                            paused_instance_id,
+                            paused_uid,
+                            detail,
+                        )
+                self._report_error(instance_id, detail)
+                return delay
             except Exception as exc:
                 async with self.store_lock:
                     save_rivals_poll_failure(
@@ -348,23 +518,40 @@ class RivalsPollWorker:
                     )
                 self._report_error(instance_id, exc)
             else:
+                completed = True
                 if instance_id in self._last_errors:
                     self._last_errors.pop(instance_id, None)
                     self.logger(f"Rivals Data polling recovered for {instance_id}.")
+        if completed:
+            self._rate_limit_failures = 0
+            self._rate_limit_until = 0.0
+        return 0.0
 
     async def _run(self) -> None:
-        poll_seconds = max(30.0, min(60.0, float(self.config.get("poll_seconds", 45))))
-        timeout_seconds = max(
+        poll_seconds = _bounded_seconds(
+            self.config.get("poll_seconds", DEFAULT_POLL_SECONDS),
+            DEFAULT_POLL_SECONDS,
+            MIN_POLL_SECONDS,
+            MAX_POLL_SECONDS,
+        )
+        timeout_seconds = _bounded_seconds(
+            self.config.get("timeout_seconds", 12),
+            12.0,
             3.0,
-            min(30.0, float(self.config.get("timeout_seconds", 12))),
+            30.0,
         )
         timeout = ClientTimeout(total=timeout_seconds)
         headers = {
             "Accept": "application/json",
             "User-Agent": "Overlay-Studio/1.0 (local stream overlay)",
         }
-        self.logger(f"Rivals Data polling enabled every {poll_seconds:g} seconds.")
+        self.logger(
+            f"Rivals Data polling enabled every {poll_seconds:g} seconds; "
+            f"profile and live-history refreshes every "
+            f"{self.profile_refresh_seconds:g} and "
+            f"{self.live_refresh_seconds:g} seconds."
+        )
         async with ClientSession(timeout=timeout, headers=headers) as session:
             while True:
-                await self.poll_once(session)
-                await asyncio.sleep(poll_seconds)
+                cooldown = await self.poll_once(session)
+                await asyncio.sleep(max(poll_seconds, cooldown))

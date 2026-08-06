@@ -95,14 +95,15 @@ images can be `png`, `jpg`, `jpeg`, `gif`, `webp`, or `apng`.
 
 ## Rivals Rank data
 
-The Rivals Rank Tracker links a numeric Rivals Data player ID server-side and polls the
-unofficial profile and match endpoints at a bounded 30-to-60-second interval. Live
-match-history refreshes are limited to once per minute per overlay instance and fall
-back to cached history when live data is unavailable or private. New match IDs update
-the per-instance session record; a failed or malformed response leaves the last
-successful public state unchanged. The private player ID and match cursor are stored
-in `rivals.json` and are never included in `/api/rivals` responses or websocket
-messages.
+The Rivals Rank Tracker links a numeric Rivals Data player ID server-side and checks the
+unofficial service every two minutes by default. Profile and live match-history
+refreshes are limited to once every five minutes per overlay instance, with cached
+history used between them. A `429` response stops the current request chain and pauses
+all Rivals Data requests for at least five minutes, honoring a longer `Retry-After`
+value and increasing the cooldown after repeated limits. New match IDs update the
+per-instance session record; a failed or malformed response leaves the last successful
+public state unchanged. The private player ID and match cursor are stored in
+`rivals.json` and are never included in `/api/rivals` responses or websocket messages.
 
 Rivals Data is an undocumented fan service, not an official NetEase or Marvel Rivals
 API. Treat availability and response shape as best effort.
@@ -134,8 +135,10 @@ http://127.0.0.1:8473/overlays/spotify?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9
 - `media.preferred_source`: default is `spotify`; used to pick Spotify when multiple media apps are active.
 - `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
 - `rivals.enabled`: enables or disables Rivals Data polling.
-- `rivals.poll_seconds`: polling interval, clamped to 30 through 60 seconds; default is 45.
-- `rivals.live_refresh_seconds`: live match-history refresh interval, clamped to 60 through 300 seconds; default is 60.
+- `rivals.poll_seconds`: polling interval, clamped to 60 through 300 seconds; default is 120.
+- `rivals.profile_refresh_seconds`: profile refresh interval, clamped to 120 through 900 seconds; default is 300.
+- `rivals.live_refresh_seconds`: live match-history refresh interval, clamped to 60 through 900 seconds; default is 300.
+- `rivals.rate_limit_backoff_seconds`: initial `429` cooldown, clamped to 60 through 3600 seconds; default is 300 and doubles after repeated limits.
 - `rivals.timeout_seconds`: per-request timeout, clamped to 3 through 30 seconds.
 
 ## Optional EXE build

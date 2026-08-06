@@ -85,6 +85,10 @@ class RivalsCustomizerTests(unittest.TestCase):
         )
         self.assertIn("function gatherRivalsSettings()", self.script)
 
+    def test_rate_limit_status_explains_that_updates_are_paused(self) -> None:
+        self.assertIn("/rate limit|updates paused/i", self.script)
+        self.assertIn("Linked; updates temporarily paused", self.script)
+
 
 if __name__ == "__main__":
     unittest.main()

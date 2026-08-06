@@ -2173,6 +2173,11 @@ function renderRivals(state, linked = false, force = false, poll = null) {
   linkStatus.title = pollStatus === "error" ? String(poll?.detail || "") : "";
   if (!linked) {
     linkStatus.textContent = "No account linked";
+  } else if (
+    pollStatus === "error"
+    && /rate limit|updates paused/i.test(String(poll?.detail || ""))
+  ) {
+    linkStatus.textContent = "Linked; updates temporarily paused";
   } else if (pollStatus === "error") {
     linkStatus.textContent = "Linked; update unavailable";
   } else if (pollStatus === "waiting") {
