@@ -32,6 +32,10 @@ class CustomizerDisclosureTests(unittest.TestCase):
             "open": ("Goal progress",),
             "closed": ("Layout", "Appearance"),
         },
+        "platformBadgeView": {
+            "open": (),
+            "closed": ("Appearance",),
+        },
         "socialView": {
             "open": (),
             "closed": ("Layout", "Appearance"),
@@ -46,6 +50,10 @@ class CustomizerDisclosureTests(unittest.TestCase):
                 "Tile fine tuning",
                 "Outline and color",
             ),
+        },
+        "rivalsRankView": {
+            "open": ("Player and session",),
+            "closed": ("Content and layout", "Color palette"),
         },
         "counterView": {
             "open": ("Scoreboard",),
@@ -105,7 +113,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
                     )
                 total += 1
 
-        self.assertEqual(total, 21)
+        self.assertEqual(total, 25)
         self.assertEqual(
             self.markup.count('<details class="panel customizer-disclosure'),
             total,
@@ -116,7 +124,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
         self.assertIn('<div class="panel profile-panel">', self.markup)
         self.assertIn('<div class="panel social-grouped-accounts-panel">', self.markup)
         self.assertEqual(self.markup.count("<h2>Social accounts</h2>"), 2)
-        self.assertEqual(self.markup.count("<h2>OBS browser source</h2>"), 9)
+        self.assertEqual(self.markup.count("<h2>OBS browser source</h2>"), 11)
 
     def test_closed_disclosures_are_compact_and_have_clear_toggles(self) -> None:
         self.assertIn(".customizer-disclosure:not([open])", self.styles)

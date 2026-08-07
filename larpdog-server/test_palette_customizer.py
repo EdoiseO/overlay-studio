@@ -22,6 +22,14 @@ class PaletteCustomizerTests(unittest.TestCase):
             "goalPillTrack",
             "goalPillLabelColor",
         ),
+        "Rivals Rank": (
+            "rivalsShellColor",
+            "rivalsTextColor",
+            "rivalsAccentColor",
+            "rivalsWinColor",
+            "rivalsLossColor",
+        ),
+        "Platform Badge": ("platformBadgeColor",),
         "Social Bar and Rotator": (
             "socialColor",
             "socialShellColor",
@@ -57,7 +65,7 @@ class PaletteCustomizerTests(unittest.TestCase):
             for control_id in family
         ) + self.SOCIAL_GROUPED_COLORS
 
-        self.assertEqual(len(color_ids), 27)
+        self.assertEqual(len(color_ids), 33)
         self.assertEqual(self.markup.count('type="color"'), len(color_ids))
 
         for control_id in color_ids:

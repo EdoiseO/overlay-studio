@@ -246,6 +246,66 @@ main {
   transform: translateY(-1px);
 }
 
+.card-drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  box-shadow: 0 4px 12px var(--shadow);
+  cursor: grab;
+}
+
+.card-drag-handle:hover,
+.card-drag-handle:focus-visible {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.card-drag-handle:active {
+  cursor: grabbing;
+}
+
+.card-drag-grip {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 3px;
+}
+
+.card-drag-grip i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.overlay-card.is-dragging {
+  border-color: var(--accent);
+  opacity: 0.48;
+  transform: none;
+}
+
+.overlay-card.drop-before {
+  box-shadow: inset 4px 0 var(--accent), 0 8px 20px var(--shadow);
+}
+
+.overlay-card.drop-after {
+  box-shadow: inset -4px 0 var(--accent), 0 8px 20px var(--shadow);
+}
+
+.overlay-grid.is-reordering .add-card.drop-before {
+  border-color: var(--accent);
+  box-shadow: inset 4px 0 var(--accent);
+}
+
 .overlay-preview-button {
   position: relative;
   min-width: 0;
@@ -271,6 +331,10 @@ main {
   top: 50%;
   left: 50%;
   border: 0;
+  outline: 2px solid #1c2429;
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px #1c2429;
+  display: block;
   opacity: 0;
   pointer-events: none;
   background: var(--panel-alt);
@@ -679,6 +743,10 @@ body.server-running
   top: 50%;
   left: 50%;
   border: 0;
+  outline: 2px solid #1c2429;
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px #1c2429;
+  display: block;
   opacity: 0;
   pointer-events: none;
   background: #1c2429;
@@ -1348,6 +1416,151 @@ output {
   margin-top: 10px;
 }
 
+.rivals-account-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px 18px;
+}
+
+#rivalsRankView .detail-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 10px;
+}
+
+#rivalsRankView .detail-heading .library-button {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 80px;
+  padding-right: 11px;
+  padding-left: 11px;
+}
+
+#rivalsRankView .detail-title {
+  display: contents;
+}
+
+#rivalsRankView .detail-title span {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+#rivalsRankView .detail-title h1 {
+  grid-column: 1 / 3;
+  grid-row: 2;
+  font-size: 20px;
+  line-height: 28px;
+}
+
+#rivalsRankView .detail-heading .push-right {
+  grid-column: 3;
+  grid-row: 1;
+  margin-left: 0;
+  padding-right: 11px;
+  padding-left: 11px;
+}
+
+#rivalsRankView .customizer-dirty-badge {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+}
+
+.rivals-account-row > label,
+.rivals-status-grid dt,
+.rivals-session-actions > span {
+  color: var(--muted);
+}
+
+.rivals-link-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.rivals-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 18px 0 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.rivals-status-grid > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid var(--border);
+}
+
+.rivals-status-grid > div:first-child {
+  padding-left: 0;
+}
+
+.rivals-status-grid > div:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.rivals-status-grid dt {
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rivals-status-grid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 17px;
+}
+
+.rivals-status-grid dd[data-sync-status="error"] {
+  color: var(--warning);
+}
+
+.rivals-session-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rivals-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rivals-session-actions > span {
+  font-size: 10px;
+  line-height: 14px;
+}
+
+#rivalsRefreshStatus[data-paused="true"] {
+  color: var(--warning);
+}
+
+.toggle-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.toggle-line input {
+  width: 16px;
+  height: 16px;
+}
+
 .goal-progress-actions {
   display: flex;
   align-items: flex-end;
@@ -1736,6 +1949,22 @@ output {
   min-width: 0;
   display: grid;
   gap: 2px;
+}
+
+.field-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.field-copy > label {
+  color: var(--muted);
+}
+
+.field-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .color-control-copy > label {
@@ -2331,6 +2560,10 @@ dialog .primary-button {
 .large-preview-stage iframe {
   position: absolute;
   border: 0;
+  outline: 2px solid #1c2429;
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px #1c2429;
+  display: block;
   opacity: 0;
   pointer-events: none;
   transform-origin: left top;
@@ -2458,5 +2691,33 @@ dialog .primary-button {
 
   .social-grouped-row-heading {
     grid-column: 1;
+  }
+}
+
+@media (max-width: 620px) {
+  .rivals-account-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .rivals-status-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rivals-status-grid > div,
+  .rivals-status-grid > div:first-child,
+  .rivals-status-grid > div:last-child {
+    padding: 10px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rivals-status-grid > div:last-child {
+    border-bottom: 0;
+  }
+
+  .rivals-session-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

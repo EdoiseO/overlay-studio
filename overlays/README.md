@@ -102,11 +102,12 @@ larger than the object, then position that source in OBS.
 
 ## Built-in social overlays
 
-`social.html`, `social-rotator.html`, and `social-grouped.html` read their platform
-metadata and inline vector paths from `assets/social-platforms.js`. Social Bar and
-Social Rotator use the shared vector glyph factory. Social Grouped deliberately keeps
-its own single-SVG, three-layer renderer so overlapping logo and text outlines merge
-into one sticker instead of separate outlined tiles.
+`social.html`, `social-rotator.html`, `social-grouped.html`, and
+`platform-badge.html` read their platform metadata and inline vector paths from
+`assets/social-platforms.js`. Social Bar, Social Rotator, and Platform Badge use the
+shared vector glyph factory. Social Grouped deliberately keeps its own single-SVG,
+three-layer renderer so overlapping logo and text outlines merge into one sticker
+instead of separate outlined tiles.
 
 Built-in social marks are vector-only; no PNG logo directory is loaded at runtime.
 Icon backgrounds and shapes are drawn by the overlay around the centered vector path,
@@ -120,3 +121,19 @@ Use the shared `socialView` customizer for selection, colors, fonts, icon shapes
 and live drafts. Bar-specific controls choose the row layout, shared-handle mode,
 alignment, heading, and outline. Rotator-specific controls choose the shell shape,
 transition, interval, prefix, timer, and platform label.
+
+## Rivals Rank overlay
+
+`rivals-rank.html` reads public per-instance state from `/api/rivals?i=...` and listens
+only for addressed `rivals` websocket messages. Account IDs and match cursors belong in
+the server-side `rivals_store.py` record; never add them to the manifest, query string,
+customizer draft, HTTP response, or websocket payload. Eternity and One Above All share
+`assets/ranks/eternity-oaa.png` until separate approved artwork is available.
+
+## Platform Badge overlay
+
+Platform Badge uses its dedicated `platformBadgeView` customizer for one platform,
+handle, optional prefix, brand or custom nameplate color, width, height, corners, scale,
+font, and weight. Width is a safe minimum, so long handles expand the nameplate instead
+of being truncated. Handle ink is always computed from the active nameplate color rather
+than stored as a user setting.

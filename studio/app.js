@@ -22,6 +22,8 @@ const app = {
   goalKey: "",
   goalBarKey: "",
   goalPillKey: "",
+  rivalsSettingsKey: "",
+  rivalsManualRefreshUntil: {},
   customizerPreviewTimer: null,
   customizerPreviewReady: false,
   customizerPreviewExpanded: false,
@@ -43,6 +45,10 @@ const app = {
   pendingDeleteAsset: null,
   pendingRemoveInstanceId: null,
   pendingRenameInstanceId: null,
+  overlayDragInstanceId: null,
+  overlayDropTargetId: null,
+  overlayDropAfter: false,
+  overlayOrderSaving: false,
   socialGroupedBase: null,
 };
 
@@ -60,6 +66,17 @@ const GOAL_PILL_PRESETS = new Set([
   "a8d66e",
   "82b7e8",
 ]);
+const RIVALS_TIER_NAMES = Object.freeze({
+  bronze: "Bronze",
+  silver: "Silver",
+  gold: "Gold",
+  platinum: "Platinum",
+  diamond: "Diamond",
+  grandmaster: "Grandmaster",
+  celestial: "Celestial",
+  eternity: "Eternity",
+  "one-above-all": "One Above All",
+});
 const CURRENCY_OPTIONS = [
   ["US Dollar ($)", "$"],
   ["Australian Dollar (A$)", "A$"],
@@ -149,9 +166,11 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "goalView",
   "goalBarView",
   "goalPillView",
+  "platformBadgeView",
   "socialView",
   "socialGroupedView",
   "counterView",
+  "rivalsRankView",
 ]);
 const CUSTOMIZER_SPLIT_MEDIA = window.matchMedia("(min-width: 961px)");
 
@@ -306,6 +325,7 @@ async function saveActiveCustomizer() {
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
+    || instance.type === "platform-badge"
     || instance.type === "social-grouped"
   ) {
     return saveOverlaySettings();
@@ -318,6 +338,13 @@ async function saveActiveCustomizer() {
   }
   if (instance.type === "goal-pill") {
     return sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  }
+  if (instance.type === "rivals-rank") {
+    return sendRivals(
+      gatherRivalsSettings(),
+      "Rivals Rank saved and applied",
+      { hydrate: true, remember: true },
+    );
   }
   if (instance.type === "win-loss") {
     return sendCounter({
@@ -618,6 +645,7 @@ function materializeInstanceConfig(instance) {
     "audio",
     "nowPlaying",
     "social",
+    "platformBadge",
     "socialGrouped",
   ].forEach((key) => {
     materialized[key] = structuredClone(root[key] || {});
@@ -753,6 +781,9 @@ function customizerDraft(instance) {
   if (instance.type === "social" || instance.type === "social-rotator") {
     return { config: { social: gatherSocialSettings() } };
   }
+  if (instance.type === "platform-badge") {
+    return { config: { platformBadge: gatherPlatformBadgeSettings() } };
+  }
   if (instance.type === "social-grouped") {
     return { config: { socialGrouped: gatherSocialGroupedSettings() } };
   }
@@ -764,6 +795,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "goal-pill") {
     return { state: gatherGoalPillSettings() };
+  }
+  if (instance.type === "rivals-rank") {
+    return { config: { rivals: gatherRivalsSettings() } };
   }
   if (instance.type === "win-loss") {
     const saved =
@@ -1011,7 +1045,28 @@ function createCardAction(label, action, instanceId, className = "") {
   return button;
 }
 
-function createOverlayCard(instance, running) {
+function createCardDragHandle(instance) {
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "card-drag-handle";
+  handle.draggable = true;
+  handle.dataset.dragInstance = instance.id;
+  handle.title = "Drag to reorder";
+  handle.setAttribute(
+    "aria-label",
+    `Move ${instance.name}. Drag or use the arrow keys to reorder.`,
+  );
+  const grip = document.createElement("span");
+  grip.className = "card-drag-grip";
+  grip.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < 6; index += 1) {
+    grip.append(document.createElement("i"));
+  }
+  handle.append(grip);
+  return handle;
+}
+
+function createOverlayCard(instance, running, canReorder) {
   const manifest = manifestFor(instance.type);
   if (!manifest) return null;
   const card = document.createElement("article");
@@ -1028,6 +1083,7 @@ function createOverlayCard(instance, running) {
   const frame = document.createElement("iframe");
   frame.title = `Live ${instance.name} preview`;
   frame.tabIndex = -1;
+  frame.frameBorder = "0";
   frame.dataset.source = running ? studioPreviewUrl(instance) : "";
   frame.src = frame.dataset.source || "about:blank";
   frame.addEventListener("load", () => fitCardPreview(frame, manifest));
@@ -1064,6 +1120,7 @@ function createOverlayCard(instance, running) {
   );
   copy.append(name, description, meta, actions);
   card.append(previewButton, copy);
+  if (canReorder) card.append(createCardDragHandle(instance));
   cardPreviewObserver.observe(livePreview);
   requestAnimationFrame(() => {
     if (!fitCardPreview(frame, manifest)) {
@@ -1099,13 +1156,177 @@ function renderLibrary(state) {
     cardPreviewObserver.unobserve(host);
   });
   grid.replaceChildren();
-  instances().forEach((instance) => {
-    const card = createOverlayCard(instance, state.running);
+  const installed = instances();
+  installed.forEach((instance) => {
+    const card = createOverlayCard(instance, state.running, installed.length > 1);
     if (card) grid.append(card);
   });
   grid.append(createAddCard());
-  const count = instances().length;
+  const count = installed.length;
   byId("overlayCount").textContent = `${count} installed`;
+}
+
+function overlayOrderIds() {
+  return instances().map((instance) => instance.id);
+}
+
+function clearOverlayDropTarget() {
+  const grid = byId("overlayGrid");
+  grid.querySelectorAll(".drop-before, .drop-after").forEach((card) => {
+    card.classList.remove("drop-before", "drop-after");
+  });
+  app.overlayDropTargetId = null;
+  app.overlayDropAfter = false;
+}
+
+function finishOverlayCardDrag() {
+  const grid = byId("overlayGrid");
+  grid.classList.remove("is-reordering");
+  grid.querySelectorAll(".is-dragging").forEach((card) => {
+    card.classList.remove("is-dragging");
+  });
+  clearOverlayDropTarget();
+  app.overlayDragInstanceId = null;
+}
+
+function reorderedOverlayIds(draggedId, targetId, dropAfter) {
+  const current = overlayOrderIds();
+  if (!current.includes(draggedId) || targetId === draggedId) return current;
+  const reordered = current.filter((instanceId) => instanceId !== draggedId);
+  if (!targetId) {
+    reordered.push(draggedId);
+    return reordered;
+  }
+  const targetIndex = reordered.indexOf(targetId);
+  if (targetIndex < 0) return current;
+  reordered.splice(targetIndex + (dropAfter ? 1 : 0), 0, draggedId);
+  return reordered;
+}
+
+function focusOverlayDragHandle(instanceId) {
+  const handle = [...byId("overlayGrid").querySelectorAll("[data-drag-instance]")]
+    .find((candidate) => candidate.dataset.dragInstance === instanceId);
+  handle?.focus();
+}
+
+async function persistOverlayOrder(orderedIds, focusInstanceId = null) {
+  const current = overlayOrderIds();
+  if (
+    app.overlayOrderSaving
+    || orderedIds.length !== current.length
+    || orderedIds.every((instanceId, index) => instanceId === current[index])
+  ) {
+    if (focusInstanceId) focusOverlayDragHandle(focusInstanceId);
+    return;
+  }
+  app.overlayOrderSaving = true;
+  try {
+    const result = await callApi("reorder_overlay_instances", orderedIds);
+    if (!result.ok) {
+      showToast(result.detail || "Overlay order could not be saved");
+      return;
+    }
+    app.libraryKey = "";
+    renderState(result.state, false);
+    logActivity("Overlay order saved");
+    showToast("Overlay order saved");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.overlayOrderSaving = false;
+    if (focusInstanceId) {
+      requestAnimationFrame(() => focusOverlayDragHandle(focusInstanceId));
+    }
+  }
+}
+
+function beginOverlayCardDrag(event) {
+  const handle = event.target.closest("[data-drag-instance]");
+  if (!handle || app.overlayOrderSaving) {
+    event.preventDefault();
+    return;
+  }
+  const card = handle.closest(".overlay-card");
+  app.overlayDragInstanceId = handle.dataset.dragInstance;
+  app.overlayDropTargetId = app.overlayDragInstanceId;
+  byId("overlayGrid").classList.add("is-reordering");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", app.overlayDragInstanceId);
+  if (card) event.dataTransfer.setDragImage(card, card.offsetWidth - 20, 20);
+  requestAnimationFrame(() => card?.classList.add("is-dragging"));
+}
+
+function updateOverlayDropTarget(event) {
+  if (!app.overlayDragInstanceId) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearOverlayDropTarget();
+  const grid = byId("overlayGrid");
+  const target = event.target.closest(".overlay-card");
+  if (!target || target.classList.contains("add-card")) {
+    const addCard = grid.querySelector(".add-card");
+    addCard?.classList.add("drop-before");
+    return;
+  }
+  const targetId = target.dataset.instanceId;
+  app.overlayDropTargetId = targetId;
+  if (targetId === app.overlayDragInstanceId) return;
+  const bounds = target.getBoundingClientRect();
+  app.overlayDropAfter = event.clientX >= bounds.left + (bounds.width / 2);
+  target.classList.add(app.overlayDropAfter ? "drop-after" : "drop-before");
+}
+
+function dropOverlayCard(event) {
+  if (!app.overlayDragInstanceId) return;
+  event.preventDefault();
+  const draggedId = app.overlayDragInstanceId;
+  const orderedIds = reorderedOverlayIds(
+    draggedId,
+    app.overlayDropTargetId,
+    app.overlayDropAfter,
+  );
+  finishOverlayCardDrag();
+  persistOverlayOrder(orderedIds, draggedId);
+}
+
+function moveOverlayCardWithKeyboard(event) {
+  const handle = event.target.closest("[data-drag-instance]");
+  if (!handle || app.overlayOrderSaving) return;
+  const keys = new Set([
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+  ]);
+  if (!keys.has(event.key)) return;
+  event.preventDefault();
+  const current = overlayOrderIds();
+  const sourceIndex = current.indexOf(handle.dataset.dragInstance);
+  if (sourceIndex < 0) return;
+  const columns = Math.max(
+    1,
+    getComputedStyle(byId("overlayGrid"))
+      .gridTemplateColumns.trim().split(/\s+/).length,
+  );
+  const destinations = {
+    ArrowLeft: sourceIndex - 1,
+    ArrowRight: sourceIndex + 1,
+    ArrowUp: sourceIndex - columns,
+    ArrowDown: sourceIndex + columns,
+    Home: 0,
+    End: current.length - 1,
+  };
+  const destination = Math.max(
+    0,
+    Math.min(current.length - 1, destinations[event.key]),
+  );
+  if (destination === sourceIndex) return;
+  const reordered = [...current];
+  const [moved] = reordered.splice(sourceIndex, 1);
+  reordered.splice(destination, 0, moved);
+  persistOverlayOrder(reordered, moved);
 }
 
 function renderCatalog() {
@@ -1129,6 +1350,7 @@ function renderCatalog() {
     const frame = document.createElement("iframe");
     frame.title = `${manifest.name} preview`;
     frame.tabIndex = -1;
+    frame.frameBorder = "0";
     frame.loading = "lazy";
     frame.dataset.loaded = "false";
     frame.dataset.previewUrl = catalogPreviewUrl(manifest);
@@ -1231,10 +1453,18 @@ function renderActiveIdentity(instance) {
     byId("socialDetailName").textContent = instance.name;
     byId("socialSourceLabel").textContent = instance.name;
     byId("socialUrl").value = source;
+  } else if (instance.type === "platform-badge") {
+    byId("platformBadgeDetailName").textContent = instance.name;
+    byId("platformBadgeSourceLabel").textContent = instance.name;
+    byId("platformBadgeUrl").value = source;
   } else if (instance.type === "social-grouped") {
     byId("socialGroupedDetailName").textContent = instance.name;
     byId("socialGroupedSourceLabel").textContent = instance.name;
     byId("socialGroupedUrl").value = source;
+  } else if (instance.type === "rivals-rank") {
+    byId("rivalsRankDetailName").textContent = instance.name;
+    byId("rivalsRankSourceLabel").textContent = instance.name;
+    byId("rivalsRankUrl").value = source;
   }
 }
 
@@ -1890,6 +2120,127 @@ function renderGoalPill(goal, force = false) {
   syncGoalPillFormat();
 }
 
+function rivalsVisualState(state) {
+  return {
+    label: state?.label || "This session",
+    showName: state?.showName !== false,
+    shellColor: state?.shellColor || "141418",
+    textColor: state?.textColor || "ffffff",
+    accentColor: state?.accentColor || "f6f7fb",
+    winColor: state?.winColor || "5fd97a",
+    lossColor: state?.lossColor || "ff5f6d",
+    font: state?.font || "display",
+    weight: Number(state?.weight) || 800,
+    scale: Number(state?.scale) || 1,
+    corners: Number.isFinite(Number(state?.corners))
+      ? Number(state.corners)
+      : 18,
+    glow: Number.isFinite(Number(state?.glow)) ? Number(state.glow) : 1,
+  };
+}
+
+function formatRivalsRefreshWait(seconds) {
+  const remaining = Math.max(1, Math.ceil(Number(seconds) || 0));
+  if (remaining >= 60) {
+    const minutes = Math.max(1, Math.ceil(remaining / 60));
+    return `~${minutes} ${minutes === 1 ? "min" : "mins"}`;
+  }
+  return `${remaining}s`;
+}
+
+function renderRivals(state, linked = false, force = false, poll = null) {
+  const resolved = state || app.state?.rivalsDefaults || {};
+  const visual = rivalsVisualState(resolved);
+  const settingsKey = JSON.stringify(visual);
+  if (force || (!app.customizerDirty && settingsKey !== app.rivalsSettingsKey)) {
+    app.rivalsSettingsKey = settingsKey;
+    byId("rivalsLabel").value = visual.label;
+    byId("rivalsShowName").checked = visual.showName;
+    setColor("rivalsShellColor", visual.shellColor);
+    setColor("rivalsTextColor", visual.textColor);
+    setColor("rivalsAccentColor", visual.accentColor);
+    setColor("rivalsWinColor", visual.winColor);
+    setColor("rivalsLossColor", visual.lossColor);
+    byId("rivalsFont").value = visual.font;
+    byId("rivalsWeight").value = String(visual.weight);
+    byId("rivalsScale").value = visual.scale;
+    byId("rivalsScaleOutput").value = visual.scale.toFixed(2);
+    byId("rivalsCorners").value = visual.corners;
+    byId("rivalsCornersOutput").value = String(visual.corners);
+    byId("rivalsGlow").value = visual.glow;
+    byId("rivalsGlowOutput").value = visual.glow.toFixed(2);
+  }
+
+  const tier = RIVALS_TIER_NAMES[resolved.tier] || "Bronze";
+  const division = ["eternity", "one-above-all"].includes(resolved.tier)
+    ? ""
+    : ` ${Math.max(1, Math.min(3, Number(resolved.division) || 3))}`;
+  const score = Math.max(0, Number(resolved.score) || 0);
+  const scoreText = Number.isInteger(score) ? String(score) : score.toFixed(2);
+  const linkStatus = byId("rivalsLinkStatus");
+  const pollStatus = String(poll?.status || "");
+  const pollDetail = String(poll?.detail || "");
+  linkStatus.dataset.syncStatus = linked ? pollStatus : "unlinked";
+  linkStatus.title = pollDetail;
+  if (!linked && pollStatus === "error") {
+    linkStatus.textContent = "Account state unavailable";
+  } else if (!linked) {
+    linkStatus.textContent = "No account linked";
+  } else if (
+    pollStatus === "error"
+    && /rate limit|updates paused/i.test(pollDetail)
+  ) {
+    linkStatus.textContent = "Linked; updates temporarily paused";
+  } else if (pollStatus === "error") {
+    linkStatus.textContent = "Linked; update unavailable";
+  } else if (pollStatus === "queued") {
+    linkStatus.textContent = "Linked; update queued";
+  } else if (pollStatus === "waiting") {
+    linkStatus.textContent = "Linked; waiting for first update";
+  } else {
+    linkStatus.textContent =
+      `Linked${resolved.playerName ? ` as ${resolved.playerName}` : ""}`;
+  }
+  byId("rivalsCurrentRank").textContent = `${tier}${division} | ${scoreText} RS`;
+  const wins = Math.max(0, Math.round(Number(resolved.sessionWins) || 0));
+  const losses = Math.max(0, Math.round(Number(resolved.sessionLosses) || 0));
+  byId("rivalsSessionRecord").textContent =
+    `${wins} ${wins === 1 ? "win" : "wins"} | `
+    + `${losses} ${losses === 1 ? "loss" : "losses"}`;
+  const now = Date.now() / 1000;
+  const instanceId = activeInstance()?.id || "";
+  const providerRetryAt = Math.max(0, Number(poll?.retryAt) || 0);
+  let localRetryAt = Math.max(
+    0,
+    Number(app.rivalsManualRefreshUntil[instanceId]) || 0,
+  );
+  if (localRetryAt <= now) {
+    delete app.rivalsManualRefreshUntil[instanceId];
+    localRetryAt = 0;
+  }
+  const refreshAt = Math.max(
+    providerRetryAt,
+    localRetryAt,
+  );
+  const refreshPaused = linked && refreshAt > now;
+  const refreshStatus = byId("rivalsRefreshStatus");
+  refreshStatus.dataset.paused = String(refreshPaused);
+  if (!linked) {
+    refreshStatus.textContent = "Link an account to request an update.";
+  } else if (providerRetryAt > now) {
+    refreshStatus.textContent =
+      `Updates paused, ${formatRivalsRefreshWait(providerRetryAt - now)} remaining.`;
+  } else if (localRetryAt > now) {
+    refreshStatus.textContent =
+      `Refresh available in ${formatRivalsRefreshWait(localRetryAt - now)}.`;
+  } else {
+    refreshStatus.textContent = "Manual refresh is available once per minute.";
+  }
+  byId("refreshRivalsButton").disabled = !linked || refreshPaused || app.busy;
+  byId("resetRivalsSessionButton").disabled = !linked || app.busy;
+  byId("unlinkRivalsButton").disabled = !linked || app.busy;
+}
+
 function renderSocialAccounts(accounts, overlayType) {
   const byPlatform = new Map(
     (Array.isArray(accounts) ? accounts : []).map((account) => [
@@ -2136,6 +2487,81 @@ function gatherSocialSettings() {
     prefix: byId("socialPrefix").value,
     timer: byId("socialTimer").checked,
     showPlatform: byId("socialShowPlatform").checked,
+  };
+}
+
+function populatePlatformBadgePlatformSelect() {
+  const select = byId("platformBadgePlatform");
+  const previous = select.value;
+  select.replaceChildren();
+  SOCIAL_PLATFORMS.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform.id;
+    option.textContent = platform.name;
+    select.append(option);
+  });
+  select.value = SOCIAL_PLATFORMS.some((platform) => platform.id === previous)
+    ? previous
+    : "twitch";
+}
+
+function syncPlatformBadgeColorControl() {
+  const useBrandColor = byId("platformBadgeUseBrandColor").checked;
+  const section = byId("platformBadgeCustomColorSection");
+  section.hidden = useBrandColor;
+  section.querySelectorAll("input").forEach((control) => {
+    control.disabled = useBrandColor;
+  });
+}
+
+function renderPlatformBadge(platformBadge) {
+  const defaults = app.state?.defaults?.platformBadge || {};
+  const config = { ...defaults, ...(platformBadge || {}) };
+  const platform = SOCIAL_PLATFORMS.some(
+    (item) => item.id === config.platform,
+  ) ? config.platform : "twitch";
+  byId("platformBadgePlatform").value = platform;
+  byId("platformBadgeHandle").value = config.handle || "yourname";
+  byId("platformBadgePrefix").value = config.prefix || "";
+  byId("platformBadgeUseBrandColor").checked = config.useBrandColor !== false;
+  setColor("platformBadgeColor", config.badgeColor || "9146ff");
+  byId("platformBadgeCorners").value = Number(config.corners ?? 4);
+  byId("platformBadgeCornersOutput").value = String(
+    Number(config.corners ?? 4),
+  );
+  byId("platformBadgeWidth").value = Number(config.width ?? 340);
+  byId("platformBadgeWidthOutput").value = String(
+    Number(config.width ?? 340),
+  );
+  byId("platformBadgeHeight").value = Number(config.height ?? 96);
+  byId("platformBadgeHeightOutput").value = String(
+    Number(config.height ?? 96),
+  );
+  byId("platformBadgeScale").value = Number(config.scale ?? 1);
+  byId("platformBadgeScaleOutput").value = Number(
+    config.scale ?? 1,
+  ).toFixed(2);
+  byId("platformBadgeFont").value = config.font || "display";
+  byId("platformBadgeWeight").value = Number(config.weight ?? 700);
+  byId("platformBadgeWeightOutput").value = String(
+    Number(config.weight ?? 700),
+  );
+  syncPlatformBadgeColorControl();
+}
+
+function gatherPlatformBadgeSettings() {
+  return {
+    platform: byId("platformBadgePlatform").value,
+    handle: byId("platformBadgeHandle").value,
+    prefix: byId("platformBadgePrefix").value,
+    useBrandColor: byId("platformBadgeUseBrandColor").checked,
+    badgeColor: byId("platformBadgeColor").value.slice(1),
+    corners: Number(byId("platformBadgeCorners").value),
+    width: Number(byId("platformBadgeWidth").value),
+    height: Number(byId("platformBadgeHeight").value),
+    scale: Number(byId("platformBadgeScale").value),
+    font: byId("platformBadgeFont").value,
+    weight: Number(byId("platformBadgeWeight").value),
   };
 }
 
@@ -2604,6 +3030,8 @@ function fillConfig(config) {
     || activeInstance()?.type === "social-rotator"
   ) {
     renderSocial(config.social, activeInstance().type);
+  } else if (activeInstance()?.type === "platform-badge") {
+    renderPlatformBadge(config.platformBadge);
   } else if (activeInstance()?.type === "social-grouped") {
     renderSocialGrouped(config.socialGrouped);
   }
@@ -2697,6 +3125,18 @@ function renderState(state, hydrate = false) {
     selected?.type === "goal-pill"
       ? state.goals?.[selected.id]
       : state.goalPillDefaults,
+  );
+  renderRivals(
+    selected?.type === "rivals-rank"
+      ? state.rivals?.[selected.id]
+      : state.rivalsDefaults,
+    selected?.type === "rivals-rank"
+      ? state.rivalsLinked?.[selected.id] === true
+      : false,
+    false,
+    selected?.type === "rivals-rank"
+      ? state.rivalsPolls?.[selected.id]
+      : null,
   );
   if (hydrate) {
     fillConfig(
@@ -2880,6 +3320,8 @@ async function saveOverlaySettings(options = {}) {
     let submitted;
     if (instance.type === "social" || instance.type === "social-rotator") {
       submitted = { social: gatherSocialSettings() };
+    } else if (instance.type === "platform-badge") {
+      submitted = { platformBadge: gatherPlatformBadgeSettings() };
     } else if (instance.type === "social-grouped") {
       submitted = { socialGrouped: gatherSocialGroupedSettings() };
     } else {
@@ -3021,6 +3463,110 @@ function gatherGoalPillSettings() {
   };
 }
 
+function gatherRivalsSettings() {
+  return {
+    label: byId("rivalsLabel").value,
+    showName: byId("rivalsShowName").checked,
+    shellColor: byId("rivalsShellColor").value.slice(1),
+    textColor: byId("rivalsTextColor").value.slice(1),
+    accentColor: byId("rivalsAccentColor").value.slice(1),
+    winColor: byId("rivalsWinColor").value.slice(1),
+    lossColor: byId("rivalsLossColor").value.slice(1),
+    font: byId("rivalsFont").value,
+    weight: Number(byId("rivalsWeight").value),
+    scale: Number(byId("rivalsScale").value),
+    corners: Number(byId("rivalsCorners").value),
+    glow: Number(byId("rivalsGlow").value),
+  };
+}
+
+async function sendRivals(payload, message, options = {}) {
+  const instance = activeInstance();
+  if (!instance || instance.type !== "rivals-rank" || app.busy) return false;
+  app.busy = true;
+  renderRivals(
+    app.state?.rivals?.[instance.id],
+    app.state?.rivalsLinked?.[instance.id] === true,
+    false,
+    app.state?.rivalsPolls?.[instance.id],
+  );
+  try {
+    const result = await callApi("update_rivals", payload, instance.id);
+    if (!result.ok) {
+      showToast(result.detail || "Rivals Rank update failed");
+      return false;
+    }
+    app.state.rivals = app.state.rivals || {};
+    app.state.rivalsLinked = app.state.rivalsLinked || {};
+    app.state.rivalsPolls = app.state.rivalsPolls || {};
+    app.state.rivals[instance.id] = result.rivals;
+    app.state.rivalsLinked[instance.id] = result.linked === true;
+    app.state.rivalsPolls[instance.id] = result.poll || {};
+    if (typeof options.onResult === "function") options.onResult(result);
+    renderRivals(
+      result.rivals,
+      result.linked,
+      options.hydrate === true,
+      result.poll,
+    );
+    const resolvedMessage = typeof message === "function"
+      ? message(result)
+      : message;
+    if (resolvedMessage) {
+      logActivity(resolvedMessage);
+      showToast(resolvedMessage);
+    }
+    if (options.remember) rememberSavedCustomizer();
+    return true;
+  } catch (error) {
+    showToast(String(error.message || error));
+    return false;
+  } finally {
+    app.busy = false;
+    renderRivals(
+      app.state?.rivals?.[instance.id],
+      app.state?.rivalsLinked?.[instance.id] === true,
+      false,
+      app.state?.rivalsPolls?.[instance.id],
+    );
+  }
+}
+
+async function linkRivalsAccount() {
+  const uid = byId("rivalsUid").value.trim();
+  if (!uid) {
+    showToast("Enter a Rivals Data player ID or profile URL");
+    byId("rivalsUid").focus();
+    return;
+  }
+  const linked = await sendRivals(
+    { uid },
+    "Rivals Data account linked",
+  );
+  if (linked) {
+    const instanceId = activeInstance()?.id || "";
+    if (instanceId) delete app.rivalsManualRefreshUntil[instanceId];
+    byId("rivalsUid").value = "";
+  }
+}
+
+async function refreshRivalsAccount() {
+  const instanceId = activeInstance()?.id || "";
+  await sendRivals(
+    { action: "refresh" },
+    (result) => result.refresh?.detail || "Rivals refresh requested",
+    {
+      onResult(result) {
+        const refresh = result.refresh || {};
+        const retryAt = Math.max(0, Number(refresh.retryAt) || 0);
+        if (retryAt > 0 && instanceId) {
+          app.rivalsManualRefreshUntil[instanceId] = retryAt;
+        }
+      },
+    },
+  );
+}
+
 async function sendGoal(payload, message = "Goal updated") {
   const instance = activeInstance();
   if (!instance || !isGoalOverlayType(instance.type) || app.busy) return false;
@@ -3103,6 +3649,15 @@ function openInstanceSettings(instanceId, skipWarning = false) {
       app.state?.goals?.[instance.id] || app.state?.goalPillDefaults,
       true,
     );
+  } else if (instance.type === "rivals-rank") {
+    app.rivalsSettingsKey = "";
+    byId("rivalsUid").value = "";
+    renderRivals(
+      app.state?.rivals?.[instance.id] || app.state?.rivalsDefaults,
+      app.state?.rivalsLinked?.[instance.id] === true,
+      true,
+      app.state?.rivalsPolls?.[instance.id],
+    );
   } else if (
     instance.type === "social"
     || instance.type === "social-rotator"
@@ -3110,6 +3665,10 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     renderSocial(
       materializeInstanceConfig(instance).social,
       instance.type,
+    );
+  } else if (instance.type === "platform-badge") {
+    renderPlatformBadge(
+      materializeInstanceConfig(instance).platformBadge,
     );
   } else if (instance.type === "social-grouped") {
     renderSocialGrouped(
@@ -3218,6 +3777,7 @@ function bindEvents() {
   initializeRangeControls();
   initializeCurrencySelects();
   bindDanceDropZone();
+  populatePlatformBadgePlatformSelect();
   populateSocialGroupedPlatformSelect();
   const customizerFrame = byId("customizerPreviewFrame");
   const customizerStage = byId("customizerPreviewStage");
@@ -3420,6 +3980,17 @@ function bindEvents() {
     byId("goalPillGlowOutput").value =
       Number(byId("goalPillGlow").value).toFixed(2);
   });
+  byId("rivalsScale").addEventListener("input", () => {
+    byId("rivalsScaleOutput").value =
+      Number(byId("rivalsScale").value).toFixed(2);
+  });
+  byId("rivalsCorners").addEventListener("input", () => {
+    byId("rivalsCornersOutput").value = byId("rivalsCorners").value;
+  });
+  byId("rivalsGlow").addEventListener("input", () => {
+    byId("rivalsGlowOutput").value =
+      Number(byId("rivalsGlow").value).toFixed(2);
+  });
   byId("socialScale").addEventListener("input", () => {
     byId("socialScaleOutput").value =
       Number(byId("socialScale").value).toFixed(2);
@@ -3568,6 +4139,10 @@ function bindEvents() {
     scheduleCustomizerChange(0);
     showToast(`${platform?.name || "Social account"} removed`);
   });
+  byId("platformBadgeUseBrandColor").addEventListener(
+    "change",
+    syncPlatformBadgeColorControl,
+  );
   byId("goalFormat").addEventListener("change", syncGoalFormat);
   byId("goalBarFormat").addEventListener("change", syncGoalBarFormat);
   byId("goalBarLayout").addEventListener("change", syncGoalBarLayout);
@@ -3592,9 +4167,15 @@ function bindEvents() {
     "goalPillShellColor",
     "goalPillTrack",
     "goalPillLabelColor",
+    "rivalsShellColor",
+    "rivalsTextColor",
+    "rivalsAccentColor",
+    "rivalsWinColor",
+    "rivalsLossColor",
     "socialColor",
     "socialShellColor",
     "socialTextColor",
+    "platformBadgeColor",
     "socialGroupedOuterColor",
     "socialGroupedEdgeColor",
     "socialGroupedTextColor",
@@ -3616,6 +4197,10 @@ function bindEvents() {
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
+  byId("savePlatformBadgeButton").addEventListener(
+    "click",
+    () => saveOverlaySettings(),
+  );
   byId("saveSocialButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSocialGroupedButton").addEventListener(
     "click",
@@ -3629,6 +4214,34 @@ function bindEvents() {
   });
   byId("saveGoalPillSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  });
+  byId("saveRivalsSettingsButton").addEventListener("click", () => {
+    sendRivals(
+      gatherRivalsSettings(),
+      "Rivals Rank saved and applied",
+      { hydrate: true, remember: true },
+    );
+  });
+  byId("linkRivalsAccountButton").addEventListener(
+    "click",
+    linkRivalsAccount,
+  );
+  byId("rivalsUid").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    linkRivalsAccount();
+  });
+  byId("refreshRivalsButton").addEventListener(
+    "click",
+    refreshRivalsAccount,
+  );
+  byId("resetRivalsSessionButton").addEventListener("click", () => {
+    sendRivals({ action: "reset-session" }, "Rivals session reset");
+  });
+  byId("unlinkRivalsButton").addEventListener("click", () => {
+    const instanceId = activeInstance()?.id || "";
+    if (instanceId) delete app.rivalsManualRefreshUntil[instanceId];
+    sendRivals({ action: "unlink" }, "Rivals Data account unlinked");
   });
   byId("resetDanceButton").addEventListener("click", () => {
     const defaults = app.state.defaults;
@@ -3661,6 +4274,10 @@ function bindEvents() {
     byId("flowGlow").value = defaults.glow;
     byId("flowGlowOutput").value = Number(defaults.glow).toFixed(2);
     logActivity("Now Playing Flow fields reset; save to apply");
+  });
+  byId("resetPlatformBadgeButton").addEventListener("click", () => {
+    renderPlatformBadge(app.state.defaults.platformBadge);
+    logActivity("Platform Badge fields reset; save to apply");
   });
   byId("resetSocialButton").addEventListener("click", () => {
     renderSocial(app.state.defaults.social, activeInstance()?.type);
@@ -3698,6 +4315,20 @@ function bindEvents() {
     renderGoalPill(app.state?.goalPillDefaults, true);
     app.goalPillKey = JSON.stringify(current || {});
     logActivity("Goal Pill fields reset; save to apply");
+  });
+  byId("resetRivalsFieldsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    const current =
+      app.state?.rivals?.[instance?.id]
+      || app.state?.rivalsDefaults
+      || {};
+    renderRivals(
+      { ...current, ...rivalsVisualState(app.state?.rivalsDefaults) },
+      app.state?.rivalsLinked?.[instance?.id] === true,
+      true,
+      app.state?.rivalsPolls?.[instance?.id],
+    );
+    logActivity("Rivals Rank fields reset; save to apply");
   });
 
   document.querySelectorAll("[data-counter-action]").forEach((button) => {
@@ -3773,6 +4404,14 @@ function bindEvents() {
   });
 
   const overlayGrid = byId("overlayGrid");
+  overlayGrid.addEventListener("dragstart", beginOverlayCardDrag);
+  overlayGrid.addEventListener("dragover", updateOverlayDropTarget);
+  overlayGrid.addEventListener("drop", dropOverlayCard);
+  overlayGrid.addEventListener("dragend", finishOverlayCardDrag);
+  overlayGrid.addEventListener("keydown", moveOverlayCardWithKeyboard);
+  overlayGrid.addEventListener("dragleave", (event) => {
+    if (!overlayGrid.contains(event.relatedTarget)) clearOverlayDropTarget();
+  });
   overlayGrid.addEventListener("click", (event) => {
     const preview = event.target.closest("[data-preview-instance]");
     if (preview) {

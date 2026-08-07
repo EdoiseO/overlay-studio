@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,8 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from overlay_config import (  # noqa: E402
     add_overlay_instance,
+    load_overlay_config,
     materialize_instance_config,
     normalize_overlay_config,
+    reorder_overlay_instances,
+    save_overlay_config,
     update_instance_config,
 )
 
@@ -132,6 +136,87 @@ class DanceProfileConfigTests(unittest.TestCase):
         )
         self.assertEqual(instance["audio"]["sensitivity"], 2.1)
         self.assertEqual(instance["nowPlaying"]["fallbackBpm"], 150)
+
+
+class PlatformBadgeConfigTests(unittest.TestCase):
+    def test_platform_badge_defaults_are_materialized(self) -> None:
+        config = normalize_overlay_config({})
+
+        self.assertEqual(
+            config["platformBadge"],
+            {
+                "platform": "twitch",
+                "handle": "yourname",
+                "prefix": "",
+                "useBrandColor": True,
+                "badgeColor": "9146ff",
+                "corners": 4,
+                "width": 340,
+                "height": 96,
+                "scale": 1.0,
+                "font": "display",
+                "weight": 700,
+            },
+        )
+
+    def test_platform_badge_round_trips_and_clamps_instance_settings(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "platform-badge",
+            "platform-badge-main",
+            "Platform Badge",
+        )
+
+        updated = update_instance_config(
+            config,
+            "platform-badge-main",
+            {
+                "platformBadge": {
+                    "platform": "snapchat",
+                    "handle": "  creator   name  ",
+                    "prefix": "  @  ",
+                    "useBrandColor": "false",
+                    "badgeColor": "#ABCDEF",
+                    "corners": 99,
+                    "width": 999,
+                    "height": 10,
+                    "scale": 0.1,
+                    "font": "poppins",
+                    "weight": 1200,
+                }
+            },
+        )
+        badge = materialize_instance_config(
+            normalize_overlay_config(updated),
+            "platform-badge-main",
+        )["platformBadge"]
+
+        self.assertEqual(badge["platform"], "snapchat")
+        self.assertEqual(badge["handle"], "creator name")
+        self.assertEqual(badge["prefix"], "@")
+        self.assertFalse(badge["useBrandColor"])
+        self.assertEqual(badge["badgeColor"], "abcdef")
+        self.assertEqual(badge["corners"], 24)
+        self.assertEqual(badge["width"], 720)
+        self.assertEqual(badge["height"], 48)
+        self.assertEqual(badge["scale"], 0.5)
+        self.assertEqual(badge["font"], "poppins")
+        self.assertEqual(badge["weight"], 900)
+
+    def test_platform_badge_rejects_unknown_choices_and_bad_color(self) -> None:
+        badge = normalize_overlay_config(
+            {
+                "platformBadge": {
+                    "platform": "unknown",
+                    "font": "comic-sans",
+                    "badgeColor": "not-a-color",
+                }
+            }
+        )["platformBadge"]
+
+        self.assertEqual(badge["platform"], "twitch")
+        self.assertEqual(badge["font"], "display")
+        self.assertEqual(badge["badgeColor"], "9146ff")
 
 
 class SocialOverlayConfigTests(unittest.TestCase):
@@ -355,6 +440,57 @@ class SocialOverlayConfigTests(unittest.TestCase):
         self.assertEqual(grouped["join"], "miter")
         self.assertEqual(grouped["outlineOpacity"], 1)
         self.assertFalse(grouped["shadow"])
+
+
+class OverlayOrderConfigTests(unittest.TestCase):
+    def setUp(self) -> None:
+        config = normalize_overlay_config({"instances": {}})
+        for instance_id, overlay_type, name in (
+            ("dance-one", "larpdog-dance", "Dance One"),
+            ("social-one", "social", "Social One"),
+            ("goal-one", "goal", "Goal One"),
+        ):
+            config = add_overlay_instance(
+                config,
+                overlay_type,
+                instance_id,
+                name,
+            )
+        self.config = config
+
+    def test_reorders_instances_without_changing_their_values(self) -> None:
+        reordered = reorder_overlay_instances(
+            self.config,
+            ["goal-one", "dance-one", "social-one"],
+        )
+
+        self.assertEqual(
+            list(reordered["instances"]),
+            ["goal-one", "dance-one", "social-one"],
+        )
+        self.assertEqual(
+            reordered["instances"]["dance-one"],
+            self.config["instances"]["dance-one"],
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "overlay-config.json"
+            save_overlay_config(path, reordered)
+            self.assertEqual(
+                list(load_overlay_config(path)["instances"]),
+                ["goal-one", "dance-one", "social-one"],
+            )
+
+    def test_rejects_partial_duplicate_or_unknown_orders(self) -> None:
+        invalid_orders = (
+            ["dance-one", "social-one"],
+            ["dance-one", "dance-one", "goal-one"],
+            ["dance-one", "social-one", "missing"],
+            "dance-one,social-one,goal-one",
+        )
+        for order in invalid_orders:
+            with self.subTest(order=order):
+                with self.assertRaisesRegex(ValueError, "[Oo]verlay order"):
+                    reorder_overlay_instances(self.config, order)
 
 
 if __name__ == "__main__":
