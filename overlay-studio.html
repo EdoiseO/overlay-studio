@@ -327,6 +327,7 @@ const ROUTE_ASSET = location.pathname.includes("/overlays/larpdog-dance")
   : location.pathname.includes("/overlays/spotify")
     ? "player"
     : "";
+const SPOTIFY_ONLY_ROUTE = ROUTE_ASSET === "player";
 const assetParam = (Q.get("asset") || Q.get("only") || ROUTE_ASSET || CONFIG.ui.asset).toLowerCase();
 CONFIG.ui.asset = assetParam === "song" || assetParam === "card" ? "player" : assetParam;
 if (!["both", "dog", "player"].includes(CONFIG.ui.asset)) CONFIG.ui.asset = "both";
@@ -741,7 +742,7 @@ function connectOverlayStudioServer() {
       window.__larpdog.serverConnected = false;
       window.__larpdog.serverClosed = true;
       finish(false);
-      if (CONFIG.ui.asset !== "dog") {
+      if (SPOTIFY_ONLY_ROUTE) {
         showSpotifyWaiting(lastSpotifyServerTrack);
       }
       scheduleOverlayStudioReconnect();
@@ -1036,7 +1037,7 @@ function showSpotifyWaiting(track = null, status = "Waiting for Spotify") {
 
 function handleServerTrack(message) {
   const hasSpotifyRouting = typeof message.spotifyStatus === "string";
-  if (CONFIG.ui.asset === "dog" || !hasSpotifyRouting) {
+  if (!SPOTIFY_ONLY_ROUTE || !hasSpotifyRouting) {
     if (message.isPlaying) showSong(serverTrack(message));
     else showIdle();
     return;
@@ -1205,7 +1206,7 @@ if (CUSTOMIZER_MODE) {
     startStandaloneSources();
     return;
   }
-  if (CONFIG.ui.asset !== "dog") showSpotifyWaiting();
+  if (SPOTIFY_ONLY_ROUTE) showSpotifyWaiting();
   await connectOverlayStudioServer();
 })();
 </script>

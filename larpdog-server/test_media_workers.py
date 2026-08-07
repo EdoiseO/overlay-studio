@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import datetime as dt
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from aiohttp.test_utils import TestClient, TestServer
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import main  # noqa: E402
+from overlay_config import (  # noqa: E402
+    normalize_overlay_config,
+    save_overlay_config,
+)
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -266,6 +275,12 @@ class MediaOverlayContractTests(unittest.TestCase):
         cls.overlay = (ROOT_DIR / "overlay-studio.html").read_text(
             encoding="utf-8"
         )
+        cls.spotify_stub = (ROOT_DIR / "overlays" / "spotify.html").read_text(
+            encoding="utf-8"
+        )
+        cls.server = (ROOT_DIR / "larpdog-server" / "main.py").read_text(
+            encoding="utf-8"
+        )
         cls.studio = (ROOT_DIR / "studio" / "index.html").read_text(
             encoding="utf-8"
         )
@@ -286,6 +301,36 @@ class MediaOverlayContractTests(unittest.TestCase):
         self.assertIn("setProgress(progressMs, durationMs, playing = true)", self.overlay)
         self.assertIn(".card.held", self.overlay)
 
+    def test_only_explicit_spotify_routes_use_spotify_routing(self) -> None:
+        self.assertIn(
+            'const SPOTIFY_ONLY_ROUTE = ROUTE_ASSET === "player";',
+            self.overlay,
+        )
+        handler = self.overlay.split("function handleServerTrack", 1)[1].split(
+            "async function pollFile",
+            1,
+        )[0]
+        self.assertIn(
+            "if (!SPOTIFY_ONLY_ROUTE || !hasSpotifyRouting)",
+            handler,
+        )
+        self.assertNotIn('CONFIG.ui.asset === "dog"', handler)
+        self.assertIn("if (SPOTIFY_ONLY_ROUTE) showSpotifyWaiting();", self.overlay)
+        self.assertEqual(self.overlay.count("if (SPOTIFY_ONLY_ROUTE)"), 2)
+        self.assertNotIn('CONFIG.ui.asset !== "dog"', self.overlay)
+        self.assertLess(
+            self.overlay.index("const SPOTIFY_ONLY_ROUTE"),
+            self.overlay.index("const assetParam"),
+        )
+
+    def test_spotify_catalog_file_documents_manifest_stub_contract(self) -> None:
+        self.assertIn("Manifest-only catalog stub", self.spotify_stub)
+        self.assertIn("serve overlay-studio.html", self.spotify_stub)
+        self.assertIn(
+            "Top-level track fields belong to the general Windows-media route",
+            self.server,
+        )
+
     def test_studio_explains_media_and_audio_sources(self) -> None:
         self.assertIn(
             "Other media apps are ignored, and no Spotify login is required.",
@@ -299,6 +344,49 @@ class MediaOverlayContractTests(unittest.TestCase):
             "including supported browsers and music apps",
             self.studio,
         )
+
+
+class MediaOverlayRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        root = Path(self.temporary.name)
+        server_dir = root / "larpdog-server"
+        overlays_dir = root / "overlays"
+        server_dir.mkdir()
+        overlays_dir.mkdir()
+        shutil.copyfile(
+            ROOT_DIR / "overlay-studio.html",
+            root / "overlay-studio.html",
+        )
+        shutil.copyfile(
+            ROOT_DIR / "overlays" / "spotify.html",
+            overlays_dir / "spotify.html",
+        )
+        overlay_config = normalize_overlay_config({})
+        save_overlay_config(server_dir / "overlay-config.json", overlay_config)
+        config = copy.deepcopy(main.DEFAULT_CONFIG)
+        config["server"]["overlay_path"] = "../overlay-studio.html"
+        for worker_name in ("audio", "media", "rivals"):
+            config[worker_name]["enabled"] = False
+        self.client = TestClient(TestServer(main.create_app(config, server_dir)))
+        await self.client.start_server()
+
+    async def asyncTearDown(self) -> None:
+        await self.client.close()
+        self.temporary.cleanup()
+
+    async def test_spotify_html_route_serves_combined_overlay_implementation(
+        self,
+    ) -> None:
+        response = await self.client.get(
+            "/overlays/spotify.html?i=spotify-overlay"
+        )
+        markup = await response.text()
+
+        self.assertEqual(response.status, 200)
+        self.assertIn("function handleServerTrack(message)", markup)
+        self.assertIn('id="stage"', markup)
+        self.assertNotIn("Spotify Overlay manifest", markup)
 
 
 if __name__ == "__main__":

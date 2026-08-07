@@ -764,6 +764,8 @@ class MediaSessionWorker:
         spotify_session = self._select_session("strict", sessions)
         general_session = self._select_session("general", sessions)
 
+        # Top-level track fields belong to the general Windows-media route for
+        # legacy/root overlays. Spotify-only consumers use the fields below.
         if general_session is None:
             payload = self._empty_track()
         else:
