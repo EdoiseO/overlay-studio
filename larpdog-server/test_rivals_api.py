@@ -104,6 +104,10 @@ class RivalsApiTests(unittest.IsolatedAsyncioTestCase):
         linked_payload = await linked.json()
         self.assertTrue(linked_payload["linked"])
         self.assertEqual(linked_payload["poll"]["status"], "waiting")
+        self.assertEqual(
+            linked_payload["poll"]["detail"],
+            "Waiting for the first Rivals Data update",
+        )
         self.assertEqual(linked_payload["state"]["label"], "Ranked run")
         self.assertEqual(linked_payload["state"]["shellColor"], "20242a")
 

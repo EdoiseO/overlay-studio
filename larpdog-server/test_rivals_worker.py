@@ -24,6 +24,7 @@ from rivals_worker import (  # noqa: E402
     MATCHES_ENDPOINT,
     MATCHES_REFRESH_ENDPOINT,
     PROFILE_ENDPOINT,
+    REFRESH_GATE_TOLERANCE_RATIO,
     RivalsProviderBackoffError,
     RivalsRateLimitError,
     RivalsRequestBudgetError,
@@ -233,6 +234,12 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 ("rank-two", "502565567"),
             ):
                 update_rivals_record(path, instance_id, {"uid": uid}, now=100)
+            save_rivals_poll_failures(
+                path,
+                [("rank-one", 396536339)],
+                RuntimeError("Rivals Data returned HTTP 503"),
+                now=110,
+            )
             logs: list[str] = []
             worker = RivalsPollWorker(
                 path,
@@ -253,11 +260,17 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 load_rate_limit_state(path),
                 {"until": 0, "failures": 0},
             )
-            for instance_id in ("rank-one", "rank-two"):
-                poll = rivals_status(path, instance_id)["poll"]
-                self.assertEqual(poll["status"], "waiting")
-                self.assertIn("Local request budget", poll["detail"])
+            provider_poll = rivals_status(path, "rank-one")["poll"]
+            self.assertEqual(provider_poll["status"], "error")
+            self.assertEqual(
+                provider_poll["detail"],
+                "Rivals Data returned HTTP 503",
+            )
+            queued_poll = rivals_status(path, "rank-two")["poll"]
+            self.assertEqual(queued_poll["status"], "queued")
+            self.assertIn("Local request budget", queued_poll["detail"])
             self.assertIn("provider cooldown was not changed", logs[0])
+            self.assertIn("provider error status(es) were preserved", logs[0])
 
     def test_extracts_nested_profile_and_match_payloads(self) -> None:
         self.assertEqual(
@@ -330,12 +343,58 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         worker._set_adaptive_cadence(4)
         hourly_worst_case = 4 * (
-            3600 / worker._effective_profile_refresh_seconds
-            + 2 * 3600 / worker._effective_live_refresh_seconds
+            3600
+            / (
+                worker._effective_profile_refresh_seconds
+                * REFRESH_GATE_TOLERANCE_RATIO
+            )
+            + 2
+            * 3600
+            / (
+                worker._effective_live_refresh_seconds
+                * REFRESH_GATE_TOLERANCE_RATIO
+            )
         )
-        self.assertAlmostEqual(worker._effective_profile_refresh_seconds, 800)
-        self.assertAlmostEqual(worker._effective_live_refresh_seconds, 320)
+        self.assertAlmostEqual(
+            worker._effective_profile_refresh_seconds,
+            888.8888888888889,
+        )
+        self.assertAlmostEqual(
+            worker._effective_live_refresh_seconds,
+            355.55555555555554,
+        )
         self.assertLessEqual(hourly_worst_case, 108.000001)
+
+    def test_live_refresh_gate_averages_two_minutes_with_jitter(self) -> None:
+        worker = RivalsPollWorker(
+            Path("unused.json"),
+            mock.AsyncMock(),
+            {},
+            store_lock=asyncio.Lock(),
+            logger=lambda _message: None,
+        )
+        uid = 396536339
+        increments = [108.0, 132.0] * 7 + [120.0]
+        timestamps = [0.0]
+        for increment in increments:
+            timestamps.append(timestamps[-1] + increment)
+        request_times: list[float] = []
+
+        with mock.patch(
+            "rivals_worker.time.monotonic",
+            side_effect=timestamps,
+        ):
+            for timestamp in timestamps:
+                if worker._should_refresh_live_matches(uid):
+                    request_times.append(timestamp)
+                    worker._match_snapshots[uid] = []
+
+        intervals = [
+            current - previous
+            for previous, current in zip(request_times, request_times[1:])
+        ]
+        self.assertEqual(request_times[-1], 1800)
+        self.assertAlmostEqual(sum(intervals) / len(intervals), 120)
 
     async def test_profile_snapshot_is_reused_between_refreshes(self) -> None:
         worker = RivalsPollWorker(

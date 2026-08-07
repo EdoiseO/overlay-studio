@@ -2193,13 +2193,10 @@ function renderRivals(state, linked = false, force = false, poll = null) {
     linkStatus.textContent = "Linked; updates temporarily paused";
   } else if (pollStatus === "error") {
     linkStatus.textContent = "Linked; update unavailable";
-  } else if (
-    pollStatus === "waiting"
-    && /local request budget|pacing updates/i.test(pollDetail)
-  ) {
+  } else if (pollStatus === "queued") {
     linkStatus.textContent = "Linked; update queued";
   } else if (pollStatus === "waiting") {
-    linkStatus.textContent = "Linked; waiting for update";
+    linkStatus.textContent = "Linked; waiting for first update";
   } else {
     linkStatus.textContent =
       `Linked${resolved.playerName ? ` as ${resolved.playerName}` : ""}`;

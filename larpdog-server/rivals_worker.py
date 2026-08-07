@@ -51,6 +51,7 @@ MANUAL_REFRESH_SECONDS = 60.0
 STARTUP_DELAY_MIN_SECONDS = 5.0
 STARTUP_DELAY_MAX_SECONDS = 15.0
 POLL_JITTER_RATIO = 0.1
+REFRESH_GATE_TOLERANCE_RATIO = 1.0 - POLL_JITTER_RATIO
 INVALID_JSON_BACKOFF_THRESHOLD = 3
 REQUEST_BUDGET_HEADROOM_RATIO = 0.9
 MATCH_REQUESTS_PER_REFRESH = 2
@@ -407,10 +408,17 @@ class RivalsPollWorker:
                 self.max_requests_per_hour * REQUEST_BUDGET_HEADROOM_RATIO,
             )
             worst_case_per_account = (
-                3600.0 / self.profile_refresh_seconds
+                3600.0
+                / (
+                    self.profile_refresh_seconds
+                    * REFRESH_GATE_TOLERANCE_RATIO
+                )
                 + MATCH_REQUESTS_PER_REFRESH
                 * 3600.0
-                / self.live_refresh_seconds
+                / (
+                    self.live_refresh_seconds
+                    * REFRESH_GATE_TOLERANCE_RATIO
+                )
             )
             scale = max(
                 1.0,
@@ -516,7 +524,11 @@ class RivalsPollWorker:
             not force
             and cached is not None
             and previous is not None
-            and now - previous < self._effective_profile_refresh_seconds
+            and now - previous
+            < (
+                self._effective_profile_refresh_seconds
+                * REFRESH_GATE_TOLERANCE_RATIO
+            )
         ):
             return cached
 
@@ -564,7 +576,11 @@ class RivalsPollWorker:
             not force
             and uid in self._match_snapshots
             and previous is not None
-            and now - previous < self._effective_live_refresh_seconds
+            and now - previous
+            < (
+                self._effective_live_refresh_seconds
+                * REFRESH_GATE_TOLERANCE_RATIO
+            )
         ):
             return False
         self._last_live_refresh_at[uid] = now
@@ -823,14 +839,21 @@ class RivalsPollWorker:
                     for queued_instance in grouped[queued_uid]
                 ]
                 async with self.store_lock:
-                    save_rivals_poll_waits(
+                    queued_instances = save_rivals_poll_waits(
                         self.state_path,
                         queued,
                         detail,
                     )
+                retained_errors = len(queued) - len(queued_instances)
+                retained_note = (
+                    f" {retained_errors} provider error status(es) were preserved."
+                    if retained_errors
+                    else ""
+                )
                 self.logger(
-                    f"{detail}. {len(queued)} linked overlay(s) remain queued; "
-                    "provider cooldown was not changed."
+                    f"{detail}. {len(queued_instances)} linked overlay(s) remain "
+                    "queued; provider cooldown was not changed."
+                    f"{retained_note}"
                 )
                 return delay
             except (

@@ -32,6 +32,7 @@ from rivals_store import (  # noqa: E402
     save_rate_limit_state,
     save_rivals_poll,
     save_rivals_poll_failures,
+    save_rivals_poll_waits,
     update_rivals_record,
 )
 
@@ -297,6 +298,29 @@ class RivalsStoreTests(unittest.TestCase):
                 [101, 102, 3700],
             )
 
+    def test_legacy_request_budget_moves_to_sidecar_on_state_save(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "requestBudget": {"requests": [100, 101]},
+                        "instances": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            save_rate_limit_state(path, 0, 1)
+
+            persisted = json.loads(path.read_text(encoding="utf-8"))
+            self.assertNotIn("requestBudget", persisted)
+            self.assertEqual(
+                load_request_budget_state(path, now=102),
+                [100, 101],
+            )
+            self.assertTrue(request_budget_path(path).exists())
+
     def test_oversized_state_is_never_loaded_or_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "rivals.json"
@@ -382,6 +406,30 @@ class RivalsStoreTests(unittest.TestCase):
 
             self.assertEqual(changed, ["rank-0", "rank-1", "rank-2"])
             self.assertEqual(write.call_count, 1)
+
+    def test_budget_wait_never_downgrades_provider_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            uid = 396536339
+            update_rivals_record(path, "rank-card", {"uid": str(uid)}, now=100)
+            save_rivals_poll_failures(
+                path,
+                [("rank-card", uid)],
+                RuntimeError("Rivals Data returned HTTP 503"),
+                now=110,
+            )
+
+            changed = save_rivals_poll_waits(
+                path,
+                [("rank-card", uid)],
+                "Local request budget is pacing updates",
+                now=120,
+            )
+
+            self.assertEqual(changed, [])
+            poll = rivals_status(path, "rank-card")["poll"]
+            self.assertEqual(poll["status"], "error")
+            self.assertEqual(poll["detail"], "Rivals Data returned HTTP 503")
 
     def test_link_reset_poll_and_remove_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:

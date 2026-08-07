@@ -81,7 +81,7 @@ MAX_REQUEST_BUDGET_ENTRIES = 120
 MAX_REQUEST_BUDGET_FILE_BYTES = 32 * 1024
 MAX_EPOCH_SECONDS = 4_102_444_800
 REQUEST_BUDGET_WINDOW_SECONDS = 60 * 60
-POLL_STATUSES = {"unlinked", "waiting", "ok", "error"}
+POLL_STATUSES = {"unlinked", "waiting", "queued", "ok", "error"}
 COMPETITIVE_GAME_MODE_ID = 2
 COMPETITIVE_PLAY_MODE_ID = 200
 RANK_SCORE_BASE = 3000.0
@@ -329,6 +329,11 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
     if uid is None:
         poll_status = "unlinked"
     poll_error = " ".join(str(source.get("lastPollError") or "").split())
+    if (
+        poll_status == "waiting"
+        and "local request budget" in poll_error.lower()
+    ):
+        poll_status = "queued"
     return {
         "uid": uid,
         "lastSeenMatchUid": last_seen,
@@ -342,7 +347,7 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
         ),
         "lastPollError": (
             poll_error[:180]
-            if poll_status in {"error", "waiting"}
+            if poll_status in {"error", "waiting", "queued"}
             else ""
         ),
     }
@@ -392,7 +397,6 @@ def normalize_rivals_document(raw: Any) -> dict[str, Any]:
             instances[candidate] = _normalize_record(record)
     return {
         "rateLimit": _normalize_rate_limit(source.get("rateLimit")),
-        "requestBudget": _normalize_request_budget(source.get("requestBudget")),
         "instances": instances,
     }
 
@@ -449,6 +453,18 @@ def request_budget_path(path: Path) -> Path:
     return path.with_name(f"{path.stem}-request-budget.json")
 
 
+def _read_legacy_request_budget(path: Path) -> list[int]:
+    if not path.exists():
+        return []
+    _state_file_size(path)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    source = raw if isinstance(raw, dict) else {}
+    return _normalize_request_budget(source.get("requestBudget"))["requests"]
+
+
 def _read_request_budget(path: Path) -> list[int]:
     sidecar = request_budget_path(path)
     if sidecar.exists():
@@ -460,7 +476,7 @@ def _read_request_budget(path: Path) -> list[int]:
             return []
         return _normalize_request_budget(raw)["requests"]
     # Carry forward the old in-document ledger on the first upgraded run.
-    return load_rivals_document(path)["requestBudget"]["requests"]
+    return _read_legacy_request_budget(path)
 
 
 def _write_request_budget(path: Path, requests: Iterable[int]) -> None:
@@ -473,6 +489,18 @@ def _write_request_budget(path: Path, requests: Iterable[int]) -> None:
         encoding="utf-8",
     )
     temporary_path.replace(sidecar)
+
+
+def _migrate_legacy_request_budget(path: Path) -> None:
+    sidecar = request_budget_path(path)
+    if sidecar.exists():
+        return
+    with _REQUEST_BUDGET_LOCK:
+        if sidecar.exists():
+            return
+        requests = _read_legacy_request_budget(path)
+        if requests:
+            _write_request_budget(path, requests)
 
 
 def load_request_budget_state(
@@ -511,11 +539,16 @@ def _public_poll_status(
     timestamp = int(time.time()) if now is None else max(0, int(now))
     paused_until = _normalize_rate_limit(rate_limit).get("until", 0)
     paused = private["uid"] is not None and paused_until > timestamp
+    status = "error" if paused else private["pollStatus"]
     detail = private["lastPollError"]
-    if paused and not detail:
+    if paused and (private["pollStatus"] != "error" or not detail):
         detail = "Rivals Data updates are temporarily paused"
+    elif status == "waiting" and not detail:
+        detail = "Waiting for the first Rivals Data update"
+    elif status == "queued" and not detail:
+        detail = "Local request budget is pacing updates"
     return {
-        "status": "error" if paused else private["pollStatus"],
+        "status": status,
         "lastAttemptAt": private["lastPollAt"],
         "detail": detail,
         "retryAt": paused_until if paused else 0,
@@ -571,6 +604,7 @@ def linked_rivals_uid(path: Path, instance_id: str) -> int | None:
 
 def _write_rivals_document(path: Path, document: dict[str, Any]) -> None:
     _state_file_size(path)
+    _migrate_legacy_request_budget(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
     normalized = normalize_rivals_document(document)
@@ -923,7 +957,9 @@ def save_rivals_poll_waits(
         if record["private"]["uid"] != expected_uid:
             continue
         private = dict(record["private"])
-        private["pollStatus"] = "waiting"
+        if private["pollStatus"] == "error":
+            continue
+        private["pollStatus"] = "queued"
         private["lastPollAt"] = timestamp
         private["lastPollError"] = message
         document["instances"][candidate] = _normalize_record(
