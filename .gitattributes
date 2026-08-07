@@ -1,0 +1,6 @@
+# Keep repository text and cross-platform working trees on one line ending.
+* text=auto eol=lf
+
+# Windows command scripts are the only intentional CRLF exception.
+*.bat text eol=crlf
+*.cmd text eol=crlf
