@@ -329,11 +329,6 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
     if uid is None:
         poll_status = "unlinked"
     poll_error = " ".join(str(source.get("lastPollError") or "").split())
-    if (
-        poll_status == "waiting"
-        and "local request budget" in poll_error.lower()
-    ):
-        poll_status = "queued"
     return {
         "uid": uid,
         "lastSeenMatchUid": last_seen,
@@ -604,6 +599,8 @@ def linked_rivals_uid(path: Path, instance_id: str) -> int | None:
 
 def _write_rivals_document(path: Path, document: dict[str, Any]) -> None:
     _state_file_size(path)
+    # Lock ordering invariant: callers must not hold _REQUEST_BUDGET_LOCK.
+    # Legacy-ledger migration acquires that non-reentrant lock before writing.
     _migrate_legacy_request_budget(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")

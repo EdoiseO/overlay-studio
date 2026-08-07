@@ -259,6 +259,32 @@ class RivalsStoreTests(unittest.TestCase):
 
             self.assertEqual(second["rateLimit"]["failures"], 2)
 
+    def test_poll_status_normalization_does_not_parse_error_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "instances": {
+                            "rivals-rank": {
+                                "private": {
+                                    "uid": 396536339,
+                                    "pollStatus": "waiting",
+                                    "lastPollError": (
+                                        "Local request budget is pacing updates"
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            record = load_rivals_record(path, "rivals-rank")
+
+            self.assertEqual(record["private"]["pollStatus"], "waiting")
+
     def test_request_budget_is_persisted_as_a_rolling_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "rivals.json"
