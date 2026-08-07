@@ -157,6 +157,8 @@
     0% { scale: 1; } 42% { scale: 1.03; } 100% { scale: 1; }
   }
   .card.bumped { animation: bump .5s cubic-bezier(.22,.9,.28,1); }
+  .card.awaiting { opacity: .62; filter: saturate(.4); }
+  .card.awaiting .badge img { opacity: .45; }
 
   @keyframes badge-pop {
     0% { scale: 1; } 45% { scale: 1.16; } 100% { scale: 1; }
@@ -193,7 +195,14 @@
 
   const query = new URLSearchParams(location.search);
   const instanceId = query.get("i") || "";
-  if (query.get("preview") === "studio" || location.protocol === "file:") {
+  /* Studio previews and standalone file opens have no server to fetch from,
+     so they seed the demo card. A live OBS source must not: render() runs
+     before the API response lands, and showing a placeholder Grandmaster card
+     for that moment is exactly the fabricated-data problem this avoids. */
+  const previewMode = query.get("preview") === "studio"
+    || query.get("customizer") === "1"
+    || location.protocol === "file:";
+  if (previewMode) {
     document.documentElement.classList.add("overlay-studio-preview");
   }
 
@@ -255,6 +264,7 @@
      instance, fed by a poller against the Rivals Data API (see the
      handoff notes for the exact contract). */
   const state = {
+    ready: previewMode,
     playerName: "yourname",
     tier: "grandmaster",
     division: 2,
@@ -296,6 +306,20 @@
     playerNameEl.hidden = !state.showName;
     playerNameEl.textContent = state.playerName || "";
 
+    // Until a poll has actually returned rank data, showing the default
+    // Bronze III / 0 RS would be a plausible-looking lie on stream. Say so.
+    card.classList.toggle("awaiting", !state.ready);
+    if (!state.ready) {
+      badgeImg.alt = "Rank not loaded yet";
+      playerNameEl.hidden = true;
+      tierLineEl.textContent = "Waiting for rank";
+      scoreLineEl.textContent = "No data yet";
+      sessionLabelEl.textContent = state.label || "This session";
+      sessionWinsEl.textContent = "-";
+      sessionLossesEl.textContent = "-";
+      return;
+    }
+
     const division = meta.divisions > 0
       ? clamp(Math.round(state.division), 1, meta.divisions)
       : 0;
@@ -323,6 +347,7 @@
     const prevTier = state.tier;
     const prevDivision = state.division;
 
+    if (typeof patch.ready === "boolean") state.ready = patch.ready;
     if (typeof patch.playerName === "string") state.playerName = patch.playerName.slice(0, 32);
     if (typeof patch.tier === "string" && TIERS[patch.tier]) state.tier = patch.tier;
     if (patch.division !== undefined) state.division = clamp(Number(patch.division), 0, 3);

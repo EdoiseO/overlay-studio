@@ -12,6 +12,9 @@ from typing import Any, Iterable
 
 
 DEFAULT_RIVALS_STATE: dict[str, Any] = {
+    # "ready" stays False until a poll actually returns rank data, so the
+    # overlay can distinguish "no data yet" from a genuine Bronze III.
+    "ready": False,
     "playerName": "Player",
     "tier": "bronze",
     "division": 3,
@@ -216,6 +219,7 @@ def normalize_rivals_state(raw: Any) -> dict[str, Any]:
     if font not in FONT_CHOICES:
         font = defaults["font"]
     return {
+        "ready": _boolean(source.get("ready"), defaults["ready"]),
         "playerName": _text(
             source.get("playerName"), defaults["playerName"], 32
         ),
@@ -351,9 +355,26 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
 def _normalize_record(raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
     state_source = source.get("state") if isinstance(source.get("state"), dict) else source
+    private = _normalize_private(source.get("private"))
+    state = normalize_rivals_state(state_source)
+    # Records written before "ready" existed need a conservative migration.
+    # lastPollAt alone is not evidence: queued and failed attempts update it too.
+    # Preserve a completed legacy poll, or unmistakably non-default rank data
+    # retained after a later error, without turning a 403-only record into a
+    # plausible-looking Bronze III card.
+    legacy_rank_changed = any(
+        state[key] != DEFAULT_RIVALS_STATE[key]
+        for key in ("tier", "division", "score")
+    )
+    legacy_rank_evidence = (
+        private["lastPollAt"] > 0
+        and (private["pollStatus"] == "ok" or legacy_rank_changed)
+    )
+    if "ready" not in state_source and legacy_rank_evidence:
+        state["ready"] = True
     return {
-        "state": normalize_rivals_state(state_source),
-        "private": _normalize_private(source.get("private")),
+        "state": state,
+        "private": private,
     }
 
 
@@ -716,6 +737,7 @@ def update_rivals_record(
             state = normalize_rivals_state(
                 {
                     **state,
+                    "ready": False,
                     "playerName": DEFAULT_RIVALS_STATE["playerName"],
                     "tier": DEFAULT_RIVALS_STATE["tier"],
                     "division": DEFAULT_RIVALS_STATE["division"],
@@ -734,6 +756,7 @@ def update_rivals_record(
         state = normalize_rivals_state(
             {
                 **state,
+                "ready": False,
                 "playerName": DEFAULT_RIVALS_STATE["playerName"],
                 "tier": DEFAULT_RIVALS_STATE["tier"],
                 "division": DEFAULT_RIVALS_STATE["division"],
@@ -817,6 +840,11 @@ def apply_rivals_poll(
         state["playerName"] = _text(
             player_name, state["playerName"], 32
         )
+    # Only claim the card is real once a poll actually produced rank data.
+    # Without this the overlay renders DEFAULT_RIVALS_STATE (Bronze III, 0 RS)
+    # as if it were fetched, which is worse on stream than showing nothing.
+    if mark_success and effective_level is not None:
+        state["ready"] = True
 
     prior_seen = set(private["seenMatchUids"])
     baseline = not prior_seen and not private["lastSeenMatchUid"]

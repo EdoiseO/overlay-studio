@@ -33,6 +33,7 @@ from rivals_store import (  # noqa: E402
     save_rivals_poll,
     save_rivals_poll_failures,
     save_rivals_poll_waits,
+    save_rivals_polls,
     update_rivals_record,
 )
 
@@ -258,6 +259,117 @@ class RivalsStoreTests(unittest.TestCase):
             second = load_rivals_document(path)
 
             self.assertEqual(second["rateLimit"]["failures"], 2)
+
+    def test_legacy_records_keep_their_rank_visible_after_upgrade(self) -> None:
+        # Saved before "ready" existed: a completed poll proves the rank data
+        # is real, so upgrading must not blank a working card.
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "instances": {
+                            "card": {
+                                "state": {
+                                    "playerName": "iiTzEdo",
+                                    "tier": "grandmaster",
+                                    "division": 2,
+                                    "score": 56.72,
+                                },
+                                "private": {
+                                    "uid": 396536339,
+                                    # A later error must not hide rank data that
+                                    # an earlier successful poll already saved.
+                                    "pollStatus": "error",
+                                    "lastPollAt": 1786000000,
+                                    "lastPollError": "HTTP 403",
+                                },
+                            },
+                            "completed-bronze": {
+                                "state": {"tier": "bronze", "division": 3},
+                                "private": {
+                                    "uid": 111111111,
+                                    "pollStatus": "ok",
+                                    "lastPollAt": 1786000000,
+                                },
+                            },
+                            "never-polled": {
+                                "state": {"tier": "bronze", "division": 3},
+                                "private": {
+                                    "uid": 502565567,
+                                    "pollStatus": "waiting",
+                                    "lastPollAt": 0,
+                                },
+                            },
+                            "failed-only": {
+                                "state": {"tier": "bronze", "division": 3},
+                                "private": {
+                                    "uid": 222222222,
+                                    "pollStatus": "error",
+                                    "lastPollAt": 1786000000,
+                                    "lastPollError": "HTTP 403",
+                                },
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            upgraded = rivals_status(path, "card")["state"]
+            self.assertTrue(upgraded["ready"])
+            self.assertEqual(upgraded["tier"], "grandmaster")
+            self.assertEqual(upgraded["score"], 56.72)
+
+            # A completed legacy poll may represent a genuine Bronze III.
+            self.assertTrue(
+                rivals_status(path, "completed-bronze")["state"]["ready"]
+            )
+
+            # A legacy record that never completed a poll stays unready.
+            self.assertFalse(rivals_status(path, "never-polled")["state"]["ready"])
+
+            # Failed attempts also carry a timestamp; that alone must not turn
+            # the untouched placeholder state into a real-looking rank.
+            self.assertFalse(rivals_status(path, "failed-only")["state"]["ready"])
+
+    def test_ready_flag_tracks_whether_rank_data_was_ever_fetched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            update_rivals_record(path, "card", {"uid": "396536339"}, now=100)
+            self.assertFalse(rivals_status(path, "card")["state"]["ready"])
+
+            # A cycle that fetched nothing must not claim the card is real.
+            save_rivals_polls(
+                path,
+                ["card"],
+                396536339,
+                rank_level=None,
+                rank_score=None,
+                matches=[],
+                mark_success=False,
+                now=200,
+            )
+            self.assertFalse(rivals_status(path, "card")["state"]["ready"])
+
+            save_rivals_polls(
+                path,
+                ["card"],
+                396536339,
+                player_name="iiTzEdo",
+                rank_level=17,
+                rank_score=4656.72,
+                matches=[],
+                now=300,
+            )
+            self.assertTrue(rivals_status(path, "card")["state"]["ready"])
+
+            # Resetting the session keeps the rank; unlinking discards it.
+            update_rivals_record(path, "card", {"action": "reset-session"}, now=400)
+            self.assertTrue(rivals_status(path, "card")["state"]["ready"])
+
+            update_rivals_record(path, "card", {"action": "unlink"}, now=500)
+            self.assertFalse(rivals_status(path, "card")["state"]["ready"])
 
     def test_poll_status_normalization_does_not_parse_error_prose(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:

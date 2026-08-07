@@ -106,6 +106,19 @@ class RivalsCustomizerTests(unittest.TestCase):
         self.assertIn("Refresh available in", self.script)
         self.assertIn("Updates paused,", self.script)
 
+    def test_live_overlay_starts_unready_instead_of_showing_demo_rank(
+        self,
+    ) -> None:
+        # render() runs before the first API response, so a live OBS source
+        # must not seed the demo Grandmaster card even briefly.
+        self.assertIn("ready: previewMode", self.overlay)
+        self.assertIn('query.get("preview") === "studio"', self.overlay)
+        self.assertIn('query.get("customizer") === "1"', self.overlay)
+        self.assertIn('location.protocol === "file:"', self.overlay)
+        self.assertNotIn("ready: true", self.overlay)
+        self.assertIn("Waiting for rank", self.overlay)
+        self.assertIn("No data yet", self.overlay)
+
 
 if __name__ == "__main__":
     unittest.main()

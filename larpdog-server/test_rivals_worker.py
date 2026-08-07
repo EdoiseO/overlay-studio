@@ -24,7 +24,9 @@ from rivals_worker import (  # noqa: E402
     MATCHES_ENDPOINT,
     MATCHES_REFRESH_ENDPOINT,
     PROFILE_ENDPOINT,
+    ERROR_RELOG_INTERVAL_SECONDS,
     REFRESH_GATE_TOLERANCE_RATIO,
+    SITE_ORIGIN,
     RivalsProviderBackoffError,
     RivalsRateLimitError,
     RivalsRequestBudgetError,
@@ -473,9 +475,11 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
                 side_effect=RivalsRateLimitError()
             )
 
+            # cooldown_remaining, _begin_provider_cooldown, _report_error,
+            # then cooldown_remaining again on the second cycle.
             with mock.patch(
                 "rivals_worker.time.monotonic",
-                side_effect=[100.0, 100.0, 101.0],
+                side_effect=[100.0, 100.0, 100.0, 101.0],
             ):
                 first_delay = await worker.poll_once(mock.MagicMock())
                 second_delay = await worker.poll_once(mock.MagicMock())
@@ -1065,6 +1069,71 @@ class RivalsWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["state"]["tier"], "one-above-all")
             self.assertEqual(result["state"]["division"], 0)
             self.assertEqual(result["state"]["score"], 123)
+
+    async def test_outgoing_requests_carry_the_site_origin_headers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {},
+                store_lock=asyncio.Lock(),
+                logger=lambda _message: None,
+            )
+            captured: dict[str, str] = {}
+
+            class RecordingSession:
+                def __init__(self, **kwargs: object) -> None:
+                    captured.update(kwargs.get("headers") or {})
+
+                async def __aenter__(self) -> RecordingSession:
+                    raise AssertionError("stop before any network call")
+
+                async def __aexit__(self, *_exc: object) -> bool:
+                    return False
+
+            with mock.patch("rivals_worker.ClientSession", RecordingSession):
+                with self.assertRaises(AssertionError):
+                    await worker._run()
+
+            self.assertEqual(captured.get("Origin"), SITE_ORIGIN)
+            self.assertEqual(captured.get("Referer"), f"{SITE_ORIGIN}/")
+            self.assertEqual(captured.get("Content-Type"), "application/json")
+            # The User-Agent must stay identifiable rather than imitating a
+            # browser, so the provider can recognise and block this client.
+            self.assertIn("Overlay-Studio", captured.get("User-Agent", ""))
+
+    async def test_identical_errors_are_suppressed_then_relogged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            logs: list[str] = []
+            worker = RivalsPollWorker(
+                path,
+                mock.AsyncMock(),
+                {},
+                store_lock=asyncio.Lock(),
+                logger=logs.append,
+            )
+            failure = RuntimeError("Rivals Data returned HTTP 403")
+
+            # Once the backoff ladder saturates every message is identical, so
+            # plain deduplication would hide a permanently stuck tracker.
+            with mock.patch(
+                "rivals_worker.time.monotonic",
+                side_effect=[
+                    1000.0,
+                    1000.0 + ERROR_RELOG_INTERVAL_SECONDS - 1,
+                    1000.0 + ERROR_RELOG_INTERVAL_SECONDS + 1,
+                ],
+            ):
+                worker._report_error("rank-card", failure)
+                worker._report_error("rank-card", failure)
+                worker._report_error("rank-card", failure)
+
+            self.assertEqual(len(logs), 2)
+            self.assertNotIn("Still failing", logs[0])
+            self.assertIn("Still failing", logs[1])
+            self.assertIn("HTTP 403", logs[1])
 
 
 if __name__ == "__main__":

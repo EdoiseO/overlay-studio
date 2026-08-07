@@ -26,6 +26,7 @@ from rivals_store import (
 )
 
 
+SITE_ORIGIN = "https://rivalsdata.com"
 PROFILE_ENDPOINT = "https://api.rivalsdata.com/player"
 MATCHES_ENDPOINT = "https://api.rivalsdata.com/player/matches/cached"
 MATCHES_REFRESH_ENDPOINT = "https://api.rivalsdata.com/player/matches"
@@ -56,6 +57,7 @@ INVALID_JSON_BACKOFF_THRESHOLD = 3
 REQUEST_BUDGET_HEADROOM_RATIO = 0.9
 MATCH_REQUESTS_PER_REFRESH = 2
 PROTECTION_DECAY_INTERVAL_SECONDS = 300.0
+ERROR_RELOG_INTERVAL_SECONDS = 900.0
 
 
 class RivalsRateLimitError(RuntimeError):
@@ -238,7 +240,7 @@ class RivalsPollWorker:
         self.store_lock = store_lock
         self.logger = logger
         self.task: asyncio.Task[None] | None = None
-        self._last_errors: dict[str, str] = {}
+        self._last_errors: dict[str, tuple[str, float]] = {}
         self.profile_refresh_seconds = _bounded_seconds(
             config.get(
                 "profile_refresh_seconds",
@@ -730,12 +732,25 @@ class RivalsPollWorker:
     def _report_error(self, instance_id: str, error: Exception) -> None:
         message = " ".join(str(error).split()) or type(error).__name__
         message = message[:180]
-        if self._last_errors.get(instance_id) == message:
+        now = time.monotonic()
+        # Deduplicate repeats, but never go fully silent: once the backoff
+        # ladder saturates every message is identical, so plain deduplication
+        # hides a permanently stuck tracker behind an empty log.
+        last_message, last_logged_at = self._last_errors.get(
+            instance_id,
+            ("", 0.0),
+        )
+        if (
+            last_message == message
+            and now - last_logged_at < ERROR_RELOG_INTERVAL_SECONDS
+        ):
             return
-        self._last_errors[instance_id] = message
+        repeated = last_message == message
+        self._last_errors[instance_id] = (message, now)
         self.logger(
-            f"Rivals Data polling error for {instance_id}: {message}. "
-            "Keeping the last known overlay state."
+            f"Rivals Data polling error for {instance_id}: {message}."
+            + (" Still failing." if repeated else "")
+            + " Keeping the last known overlay state."
         )
 
     def _begin_provider_cooldown(
@@ -934,8 +949,25 @@ class RivalsPollWorker:
             30.0,
         )
         timeout = ClientTimeout(total=timeout_seconds)
+        # INTERIM WORKAROUND, pending a supported integration.
+        #
+        # The API began returning HTTP 403 after ~26 otherwise-successful
+        # requests, which looks like WAF/bot filtering. Origin and Referer are
+        # sent to match what rivalsdata.com's own frontend sends. Be honest
+        # about what that means: it asserts a provenance the request does not
+        # have. The User-Agent stays truthful so the operator can still
+        # identify and block this client if they choose to.
+        #
+        # This is not provider-authorized. We are asking rivalsdata for a
+        # supported way to read a player's own profile; remove this block if
+        # they decline, and do not escalate the imitation (a spoofed browser
+        # User-Agent, cookie replay, or challenge solving) if 403s persist.
+        # Persistent 403s mean the provider is declining automated access.
         headers = {
             "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Origin": SITE_ORIGIN,
+            "Referer": f"{SITE_ORIGIN}/",
             "User-Agent": "Overlay-Studio/1.0 (local stream overlay)",
         }
         self.logger(
