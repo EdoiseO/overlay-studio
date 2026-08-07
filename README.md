@@ -12,9 +12,9 @@ local OBS browser-source overlays.
 | Overlay | Purpose |
 | --- | --- |
 | **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
-| **Spotify Overlay** | Shows live Windows now-playing metadata, album artwork, and playback progress. |
+| **Spotify Overlay** | Shows Spotify desktop metadata, artwork, and progress through Windows media controls; other media apps are ignored. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
-| **Now Playing Flow** | Presents the current media-session artwork with audio-reactive progress bars. |
+| **Now Playing Flow** | Presents the active Windows media-session artwork from Spotify, browsers, or other supported apps. |
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
@@ -29,7 +29,7 @@ local OBS browser-source overlays.
 - Windows 10 or Windows 11
 - Microsoft Edge WebView2 Runtime
 - OBS Studio for streaming
-- Spotify desktop, or another app that publishes Windows media-session metadata
+- Spotify desktop for Spotify Overlay; another Windows media-session app can drive Now Playing Flow
 
 Current Windows 11 and Microsoft Edge installations normally include WebView2 already.
 Python is only required when running from source or rebuilding the executable.
@@ -97,10 +97,18 @@ remains available in Browse overlays.
 ## Now Playing Flow
 
 Open **Now Playing Flow** to customize its library name, size, and artwork-colored
-glow. It intentionally shows only the current track. Spotify queue cards can be added
-after account authorization is introduced through the Connections area in Settings.
-Saving applies the new appearance to connected Studio previews and OBS browser sources
-without changing their URL.
+glow. It intentionally shows only the active Windows media session and may display
+Spotify, a browser, or another supported media app. Saving applies the new appearance
+to connected Studio previews and OBS browser sources without changing their URL.
+
+**Spotify Overlay** is deliberately stricter: it accepts only the Spotify desktop
+Windows media session. It does not use a Spotify account, OAuth, developer app, token,
+or browser extension. When Spotify is paused or closed, the last Spotify track remains
+visible as a dimmed, stopped card until Spotify returns.
+
+Audio-reactive visuals listen to the complete current Windows output device by design.
+Game, browser, voice, and stream audio can all drive them; this is separate from which
+application supplies the track title and artwork.
 
 ## Goal Widget
 
@@ -416,6 +424,10 @@ Server configuration and standalone development details are in
 - **OBS shows the old version:** Refresh the Browser Source cache or toggle the source.
 - **Spotify is waiting for a song:** Start playback in the Spotify desktop app and make
   sure it appears in the Windows media controls.
+- **Now Playing Flow shows a browser title:** This overlay intentionally follows the
+  active Windows media app. Use Spotify Overlay when only Spotify should be shown.
+- **Audio-reactive visuals move during a game or stream:** They listen to the complete
+  Windows output device by design, not only Spotify audio.
 - **A custom file cannot be selected:** Confirm its extension is listed under
   [Custom media](#custom-media).
 - **The desktop window is blank:** Install or repair the Microsoft Edge WebView2

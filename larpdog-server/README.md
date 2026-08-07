@@ -35,7 +35,7 @@ py -3 -m venv .venv
 run.bat
 ```
 
-The server reads now-playing data from Windows media sessions, so Spotify desktop playback works without a Spotify developer app, OAuth login, refresh token, or browser extension.
+The server reads now-playing data from Windows media sessions. Spotify Overlay accepts only the Spotify desktop session, while Now Playing Flow follows the preferred session and otherwise falls back to the active browser or media app. Neither requires a Spotify developer app, OAuth login, refresh token, or browser extension.
 
 To verify Windows media metadata before starting the server, run:
 
@@ -62,7 +62,7 @@ position the Browser Source in the scene. The legacy combined overlay and explic
 `?pos=bottom-left`, `bottom-right`, `top-left`, or `top-right` links keep their original
 corner anchoring.
 
-Then start Spotify desktop playback on this PC. The overlay receives track changes and audio pulses from the local server. If the server is closed, the edited overlay falls back to its original standalone behavior.
+Then start Spotify desktop playback on this PC. Spotify Overlay receives only Spotify track changes. Now Playing Flow can show any supported Windows media session. Audio pulses come from the complete Windows output device, so games, browsers, voice, and stream audio all contribute by design. Server-hosted overlays reconnect automatically after a disconnect; standalone file/token behavior is available only through direct `file:` use or explicit query options such as `?noserver`.
 
 ## Custom Dance media
 
@@ -140,10 +140,14 @@ http://127.0.0.1:8473/overlays/spotify?colorMode=fixed&a=00ffd0&b=ffd24a&c=ff4d9
 
 - `audio.sensitivity`: higher values react to quieter kicks.
 - `audio.device_match`: optional substring if you need a specific loopback device.
+- `audio.retry_initial_seconds` / `audio.retry_max_seconds`: bounded restart backoff after an output-device capture error.
+- `audio.retry_stable_seconds`: capture uptime that resets the retry delay after a stable run.
 - `server.overlay_path`: defaults to `../overlay-studio.html`.
 - `media.poll_seconds`: default is 2 seconds.
-- `media.preferred_source`: default is `spotify`; used to pick Spotify when multiple media apps are active.
+- `media.preferred_source`: default is `spotify`; strict Spotify selection never falls back, while the general media selection prefers it and otherwise uses Windows' current session.
 - `media.thumbnail_max_bytes`: maximum Windows media thumbnail size to embed in websocket messages.
+- `media.manager_failure_threshold`: consecutive polling failures before the Windows session manager is discarded and rebuilt.
+- `media.retry_initial_seconds` / `media.retry_max_seconds`: bounded manager-rebuild backoff.
 - `rivals.enabled`: enables or disables Rivals Data polling.
 - `rivals.poll_seconds`: worker check interval, clamped to 60 through 900 seconds; default is 120. Checks that occur before profile/live data is due do not request cached history.
 - `rivals.profile_refresh_seconds`: profile refresh interval, clamped to 120 through 900 seconds; default is 300.

@@ -898,6 +898,13 @@ body.server-running .customizer-preview-offline {
   margin-bottom: 15px;
 }
 
+.customizer-note {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .customizer-disclosure[hidden],
 .social-grouped-mode-controls[hidden] {
   display: none;

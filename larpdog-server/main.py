@@ -61,12 +61,18 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "fps": 45,
         "sensitivity": 1.0,
         "bass_bins": 14,
+        "retry_initial_seconds": 1,
+        "retry_max_seconds": 30,
+        "retry_stable_seconds": 30,
     },
     "media": {
         "enabled": True,
         "poll_seconds": 2,
         "preferred_source": "spotify",
         "thumbnail_max_bytes": 524288,
+        "manager_failure_threshold": 3,
+        "retry_initial_seconds": 1,
+        "retry_max_seconds": 30,
     },
     "rivals": {
         "enabled": True,
@@ -254,6 +260,10 @@ class ClientHub:
             "progressMs": 0,
             "durationMs": 0,
             "source": "windows-media",
+            "sourceApp": "",
+            "mediaStatus": "idle",
+            "spotifyStatus": "waiting",
+            "spotifyTrack": None,
         }
 
     async def broadcast(self, message: dict[str, Any]) -> None:
@@ -294,6 +304,7 @@ class AudioLoopbackWorker:
         self.config = config
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
+        self.last_device_name = ""
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
@@ -343,6 +354,127 @@ class AudioLoopbackWorker:
 
         raise RuntimeError("No WASAPI loopback device found")
 
+    def _capture_once(self, np: Any, sc: Any) -> None:
+        sample_rate = int(self.config.get("sample_rate", 48000))
+        block_size = int(self.config.get("block_size", 1024))
+        fps = max(1, float(self.config.get("fps", 45)))
+        bass_bins = max(1, int(self.config.get("bass_bins", 14)))
+        target_dt = 1.0 / fps
+
+        mic = self._pick_loopback(sc)
+        device_name = str(getattr(mic, "name", mic))
+        if device_name != self.last_device_name:
+            log(f"Audio loopback capture: {device_name}")
+            self.last_device_name = device_name
+        with mic.recorder(
+            samplerate=sample_rate,
+            channels=2,
+            blocksize=block_size,
+        ) as recorder:
+            bass_avg = 1e-9
+            band_avgs = np.full(5, 1e-9, dtype=np.float64)
+            pulse = 0.0
+            last_beat = 0.0
+            last_send = 0.0
+
+            while not self.stop_event.is_set():
+                frames = recorder.record(numframes=block_size)
+                mono = np.asarray(frames, dtype=np.float32)
+                if mono.size == 0:
+                    continue
+                if mono.ndim > 1:
+                    mono = mono.mean(axis=1)
+                mono = np.nan_to_num(mono, copy=False)
+
+                window = np.hanning(mono.size)
+                spectrum = np.abs(np.fft.rfft(mono * window))
+                if spectrum.size < bass_bins:
+                    continue
+
+                # Keep this math in sync with startRealAudio() in overlay-studio.html.
+                bass = float(np.mean(spectrum[:bass_bins]))
+                bass_avg = bass_avg * 0.92 + bass * 0.08
+                sensitivity = max(
+                    0.3,
+                    float(self.config.get("sensitivity", 1.0)),
+                )
+                threshold = bass_avg * (1.35 / sensitivity)
+                now = time.perf_counter()
+                beat = (
+                    bass > threshold
+                    and bass > 1e-7
+                    and (now - last_beat) > 0.110
+                )
+                if beat:
+                    pulse = 1.0
+                    last_beat = now
+                pulse *= 0.86
+
+                if now - last_send < target_dt:
+                    continue
+                last_send = now
+
+                bass_level = clamp01(bass / max(bass_avg * 3.0, 1e-9))
+                bands: list[float] = []
+                length = spectrum.size
+                for idx in range(5):
+                    lo = int(idx * length / 12)
+                    hi = max(lo + 1, int((idx + 1) * length / 12))
+                    raw = float(np.mean(spectrum[lo:hi]))
+                    band_avgs[idx] = band_avgs[idx] * 0.92 + raw * 0.08
+                    bands.append(
+                        clamp01(raw / max(band_avgs[idx] * 2.4, 1e-9))
+                    )
+
+                self._schedule_broadcast(
+                    {
+                        "type": "audio",
+                        "level": round(max(pulse, bass_level * 0.55), 4),
+                        "beat": bool(beat),
+                        "bands": [round(v, 4) for v in bands],
+                    }
+                )
+
+    def _run_supervised(self, np: Any, sc: Any) -> None:
+        retry_initial = max(
+            0.1,
+            float(self.config.get("retry_initial_seconds", 1)),
+        )
+        retry_max = max(
+            retry_initial,
+            float(self.config.get("retry_max_seconds", 30)),
+        )
+        stable_seconds = max(
+            0.0,
+            float(self.config.get("retry_stable_seconds", 30)),
+        )
+        retry_delay = retry_initial
+        last_error = ""
+
+        while not self.stop_event.is_set():
+            started_at = time.monotonic()
+            try:
+                self._capture_once(np, sc)
+                if self.stop_event.is_set():
+                    return
+                raise RuntimeError("Audio capture ended unexpectedly")
+            except Exception as exc:
+                if self.stop_event.is_set():
+                    return
+                if time.monotonic() - started_at >= stable_seconds:
+                    retry_delay = retry_initial
+                    last_error = ""
+                error = f"{type(exc).__name__}: {exc}"
+                if error != last_error:
+                    log(
+                        "Audio capture interrupted: "
+                        f"{exc}; retrying in {retry_delay:g}s"
+                    )
+                    last_error = error
+                if self.stop_event.wait(retry_delay):
+                    return
+                retry_delay = min(retry_max, retry_delay * 2)
+
     def _run(self) -> None:
         try:
             import numpy as np
@@ -351,72 +483,7 @@ class AudioLoopbackWorker:
             log(f"Audio dependencies unavailable: {exc}")
             return
 
-        sample_rate = int(self.config.get("sample_rate", 48000))
-        block_size = int(self.config.get("block_size", 1024))
-        fps = max(1, float(self.config.get("fps", 45)))
-        bass_bins = max(1, int(self.config.get("bass_bins", 14)))
-        target_dt = 1.0 / fps
-
-        try:
-            mic = self._pick_loopback(sc)
-            log(f"Audio loopback capture: {getattr(mic, 'name', mic)}")
-            with mic.recorder(samplerate=sample_rate, channels=2, blocksize=block_size) as recorder:
-                bass_avg = 1e-9
-                band_avgs = np.full(5, 1e-9, dtype=np.float64)
-                pulse = 0.0
-                last_beat = 0.0
-                last_send = 0.0
-
-                while not self.stop_event.is_set():
-                    frames = recorder.record(numframes=block_size)
-                    mono = np.asarray(frames, dtype=np.float32)
-                    if mono.size == 0:
-                        continue
-                    if mono.ndim > 1:
-                        mono = mono.mean(axis=1)
-                    mono = np.nan_to_num(mono, copy=False)
-
-                    window = np.hanning(mono.size)
-                    spectrum = np.abs(np.fft.rfft(mono * window))
-                    if spectrum.size < bass_bins:
-                        continue
-
-                    # Keep smoothing/threshold/band math in sync with startRealAudio() in overlay-studio.html.
-                    bass = float(np.mean(spectrum[:bass_bins]))
-                    bass_avg = bass_avg * 0.92 + bass * 0.08
-                    sensitivity = max(0.3, float(self.config.get("sensitivity", 1.0)))
-                    threshold = bass_avg * (1.35 / sensitivity)
-                    now = time.perf_counter()
-                    beat = bass > threshold and bass > 1e-7 and (now - last_beat) > 0.110
-                    if beat:
-                        pulse = 1.0
-                        last_beat = now
-                    pulse *= 0.86
-
-                    if now - last_send < target_dt:
-                        continue
-                    last_send = now
-
-                    bass_level = clamp01(bass / max(bass_avg * 3.0, 1e-9))
-                    bands: list[float] = []
-                    length = spectrum.size
-                    for idx in range(5):
-                        lo = int(idx * length / 12)
-                        hi = max(lo + 1, int((idx + 1) * length / 12))
-                        raw = float(np.mean(spectrum[lo:hi]))
-                        band_avgs[idx] = band_avgs[idx] * 0.92 + raw * 0.08
-                        bands.append(clamp01(raw / max(band_avgs[idx] * 2.4, 1e-9)))
-
-                    self._schedule_broadcast(
-                        {
-                            "type": "audio",
-                            "level": round(max(pulse, bass_level * 0.55), 4),
-                            "beat": bool(beat),
-                            "bands": [round(v, 4) for v in bands],
-                        }
-                    )
-        except Exception as exc:
-            log(f"Audio capture stopped: {exc}")
+        self._run_supervised(np, sc)
 
 
 class MediaSessionWorker:
@@ -427,8 +494,9 @@ class MediaSessionWorker:
         self.manager: Any = None
         self.playing_status: Any = None
         self.last_signature = ""
-        self.last_identity = ""
-        self.last_art: str | None = None
+        self.track_cache: dict[str, dict[str, Any]] = {}
+        self.last_spotify_track: dict[str, Any] | None = None
+        self.last_manager_error = ""
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
@@ -453,25 +521,46 @@ class MediaSessionWorker:
             await self.hub.broadcast(payload)
 
     async def _broadcast_idle(self) -> None:
-        await self._broadcast(
-            {
-                "type": "track",
-                "isPlaying": False,
-                "trackId": "",
-                "title": "",
-                "artist": "",
-                "art": None,
-                "progressMs": 0,
-                "durationMs": 0,
-                "source": "windows-media",
-            }
-        )
+        payload = self._empty_track()
+        payload["spotifyStatus"] = "waiting"
+        payload["spotifyTrack"] = self.last_spotify_track
+        await self._broadcast(payload)
+
+    @staticmethod
+    def _empty_track(
+        *,
+        media_status: str = "idle",
+        source_app: str = "",
+    ) -> dict[str, Any]:
+        return {
+            "type": "track",
+            "isPlaying": False,
+            "trackId": "",
+            "title": "",
+            "artist": "",
+            "art": None,
+            "progressMs": 0,
+            "durationMs": 0,
+            "source": "windows-media",
+            "sourceApp": source_app,
+            "mediaStatus": media_status,
+        }
+
+    def _log_manager_error(self, prefix: str, error: Any) -> None:
+        message = f"{prefix}: {error}"
+        if message == self.last_manager_error:
+            return
+        self.last_manager_error = message
+        log(message)
 
     async def _ensure_manager(self) -> bool:
         if self.manager is not None:
             return True
         if sys.platform != "win32":
-            log("Windows media sessions are only available on Windows.")
+            self._log_manager_error(
+                "Windows media sessions unavailable",
+                "only supported on Windows",
+            )
             await self._broadcast_idle()
             return False
 
@@ -484,26 +573,52 @@ class MediaSessionWorker:
             self.manager = await SessionManager.request_async()
             self.playing_status = PlaybackStatus.PLAYING
         except Exception as exc:
-            log(f"Windows media sessions unavailable: {exc}")
+            self.manager = None
+            self.playing_status = None
+            self._log_manager_error("Windows media sessions unavailable", exc)
             await self._broadcast_idle()
             return False
 
         if self.manager is None:
-            log("Windows media session manager unavailable.")
+            self._log_manager_error(
+                "Windows media sessions unavailable",
+                "session manager request returned no manager",
+            )
             await self._broadcast_idle()
             return False
 
         log("Windows media session polling enabled.")
         return True
 
-    def _select_session(self) -> Any:
-        sessions = list(self.manager.get_sessions())
+    def _reset_manager(self) -> None:
+        manager = self.manager
+        self.manager = None
+        self.playing_status = None
+        close = getattr(manager, "close", None)
+        if callable(close):
+            with contextlib.suppress(Exception):
+                close()
+
+    def _select_session(
+        self,
+        mode: str = "general",
+        sessions: list[Any] | None = None,
+    ) -> Any:
+        if mode not in {"strict", "general"}:
+            raise ValueError(f"Unknown media selection mode: {mode}")
+        available = (
+            list(self.manager.get_sessions())
+            if sessions is None
+            else sessions
+        )
         preferred = str(self.config.get("preferred_source") or "spotify").strip().lower()
         if preferred:
-            for session in sessions:
+            for session in available:
                 source = str(getattr(session, "source_app_user_model_id", "") or "").lower()
                 if preferred in source:
                     return session
+        if mode == "strict":
+            return None
         return self.manager.get_current_session()
 
     @staticmethod
@@ -574,86 +689,164 @@ class MediaSessionWorker:
                         close()
 
     async def _payload_from_session(self, session: Any) -> dict[str, Any] | None:
+        source_app = self._clean_text(
+            getattr(session, "source_app_user_model_id", "")
+        )
+        cache_key = source_app.casefold() or "__unknown__"
         playback = session.get_playback_info()
         is_playing = getattr(playback, "playback_status", None) == self.playing_status
-        if not is_playing:
-            return {
-                "type": "track",
-                "isPlaying": False,
-                "trackId": "",
-                "title": "",
-                "artist": "",
-                "art": None,
-                "progressMs": 0,
-                "durationMs": 0,
-                "source": "windows-media",
-            }
+        media_status = "playing" if is_playing else "paused"
 
         props = await session.try_get_media_properties_async()
         title = self._clean_text(getattr(props, "title", ""))
         artist = self._clean_text(getattr(props, "artist", ""))
         album = self._clean_text(getattr(props, "album_title", ""))
         if not title:
-            if self.last_identity:
-                return None
-            return {
-                "type": "track",
-                "isPlaying": False,
-                "trackId": "",
-                "title": "",
-                "artist": "",
-                "art": None,
-                "progressMs": 0,
-                "durationMs": 0,
-                "source": "windows-media",
-            }
+            cached = self.track_cache.get(cache_key)
+            if cached:
+                payload = dict(cached)
+                payload["isPlaying"] = is_playing
+                payload["mediaStatus"] = media_status
+                progress_ms, duration_ms = self._timeline_values(
+                    session,
+                    is_playing=is_playing,
+                )
+                if duration_ms > 0:
+                    payload["progressMs"] = progress_ms
+                    payload["durationMs"] = duration_ms
+                return payload
+            return self._empty_track(
+                media_status=media_status,
+                source_app=source_app,
+            )
 
         identity = self._identity(title, artist, album)
-        if identity != self.last_identity:
-            self.last_identity = identity
-            self.last_art = await self._thumbnail_data_url(getattr(props, "thumbnail", None))
+        cached = self.track_cache.get(cache_key)
+        if cached and cached.get("trackId") == identity:
+            art = cached.get("art")
+        else:
+            art = await self._thumbnail_data_url(
+                getattr(props, "thumbnail", None)
+            )
 
-        progress_ms, duration_ms = self._timeline_values(session, is_playing=True)
-        return {
+        progress_ms, duration_ms = self._timeline_values(
+            session,
+            is_playing=is_playing,
+        )
+        payload = {
             "type": "track",
-            "isPlaying": True,
+            "isPlaying": is_playing,
             "trackId": identity,
             "title": title,
             "artist": artist,
-            "art": self.last_art,
+            "art": art,
             "progressMs": progress_ms,
             "durationMs": duration_ms,
             "source": "windows-media",
+            "sourceApp": source_app,
+            "mediaStatus": media_status,
+        }
+        if cache_key not in self.track_cache and len(self.track_cache) >= 8:
+            self.track_cache.pop(next(iter(self.track_cache)))
+        self.track_cache[cache_key] = dict(payload)
+        return payload
+
+    @staticmethod
+    def _track_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: payload.get(key)
+            for key in (
+                "trackId",
+                "title",
+                "artist",
+                "art",
+                "progressMs",
+                "durationMs",
+                "sourceApp",
+            )
         }
 
     async def _poll_once(self) -> None:
-        session = self._select_session()
-        if session is None:
-            self.last_identity = ""
-            self.last_art = None
-            await self._broadcast_idle()
-            return
+        sessions = list(self.manager.get_sessions())
+        spotify_session = self._select_session("strict", sessions)
+        general_session = self._select_session("general", sessions)
 
-        payload = await self._payload_from_session(session)
-        if payload is not None:
-            if not payload.get("isPlaying"):
-                self.last_identity = ""
-                self.last_art = None
-            await self._broadcast(payload)
+        # Top-level track fields belong to the general Windows-media route for
+        # legacy/root overlays. Spotify-only consumers use the fields below.
+        if general_session is None:
+            payload = self._empty_track()
+        else:
+            payload = await self._payload_from_session(general_session)
+            if payload is None:
+                payload = self._empty_track()
+
+        spotify_payload: dict[str, Any] | None = None
+        if spotify_session is not None:
+            if spotify_session is general_session:
+                spotify_payload = payload
+            else:
+                spotify_payload = await self._payload_from_session(
+                    spotify_session
+                )
+
+        if spotify_payload is None:
+            spotify_status = "waiting"
+        else:
+            spotify_status = str(
+                spotify_payload.get("mediaStatus") or "paused"
+            )
+            if spotify_payload.get("title"):
+                self.last_spotify_track = self._track_snapshot(
+                    spotify_payload
+                )
+
+        payload["spotifyStatus"] = spotify_status
+        if spotify_payload is None or not spotify_payload.get("title"):
+            payload["spotifyTrack"] = self.last_spotify_track
+        await self._broadcast(payload)
 
     async def _run(self) -> None:
         poll_seconds = max(0.5, float(self.config.get("poll_seconds", 2)))
-        if not await self._ensure_manager():
-            return
+        failure_threshold = max(
+            1,
+            int(self.config.get("manager_failure_threshold", 3)),
+        )
+        retry_initial = max(
+            0.1,
+            float(self.config.get("retry_initial_seconds", 1)),
+        )
+        retry_max = max(
+            retry_initial,
+            float(self.config.get("retry_max_seconds", 30)),
+        )
+        retry_delay = retry_initial
+        consecutive_failures = 0
 
         while True:
+            if self.manager is None:
+                if not await self._ensure_manager():
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_max, retry_delay * 2)
+                    continue
+                consecutive_failures = 0
             try:
                 await self._poll_once()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                log(f"Windows media polling error: {exc}")
+                consecutive_failures += 1
+                self._log_manager_error("Windows media polling error", exc)
                 await self._broadcast_idle()
+                if consecutive_failures >= failure_threshold:
+                    self._reset_manager()
+                    consecutive_failures = 0
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_max, retry_delay * 2)
+                    continue
+            else:
+                consecutive_failures = 0
+                retry_delay = retry_initial
+                self.last_manager_error = ""
             await asyncio.sleep(poll_seconds)
 
 

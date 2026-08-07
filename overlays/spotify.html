@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  Manifest-only catalog stub. The explicit /overlays/spotify routes in
+  larpdog-server/main.py serve overlay-studio.html and must remain registered
+  before the generic overlay-file routes.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -6,7 +11,7 @@
 <script type="application/json" id="overlay-manifest">
 {
   "name": "Spotify Overlay",
-  "description": "Live Windows media metadata, album artwork, and playback progress.",
+  "description": "Spotify desktop metadata, album artwork, and playback progress from Windows media controls.",
   "category": "music",
   "canvas": { "w": 620, "h": 360 },
   "settings": ["scale", "cardWidth", "colorMode", "colors"],
