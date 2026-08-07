@@ -2179,17 +2179,25 @@ function renderRivals(state, linked = false, force = false, poll = null) {
   const scoreText = Number.isInteger(score) ? String(score) : score.toFixed(2);
   const linkStatus = byId("rivalsLinkStatus");
   const pollStatus = String(poll?.status || "");
+  const pollDetail = String(poll?.detail || "");
   linkStatus.dataset.syncStatus = linked ? pollStatus : "unlinked";
-  linkStatus.title = pollStatus === "error" ? String(poll?.detail || "") : "";
-  if (!linked) {
+  linkStatus.title = pollDetail;
+  if (!linked && pollStatus === "error") {
+    linkStatus.textContent = "Account state unavailable";
+  } else if (!linked) {
     linkStatus.textContent = "No account linked";
   } else if (
     pollStatus === "error"
-    && /rate limit|updates paused/i.test(String(poll?.detail || ""))
+    && /rate limit|updates paused/i.test(pollDetail)
   ) {
     linkStatus.textContent = "Linked; updates temporarily paused";
   } else if (pollStatus === "error") {
     linkStatus.textContent = "Linked; update unavailable";
+  } else if (
+    pollStatus === "waiting"
+    && /local request budget|pacing updates/i.test(pollDetail)
+  ) {
+    linkStatus.textContent = "Linked; update queued";
   } else if (pollStatus === "waiting") {
     linkStatus.textContent = "Linked; waiting for update";
   } else {

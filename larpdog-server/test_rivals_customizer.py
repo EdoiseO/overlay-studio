@@ -88,6 +88,9 @@ class RivalsCustomizerTests(unittest.TestCase):
     def test_rate_limit_status_explains_that_updates_are_paused(self) -> None:
         self.assertIn("/rate limit|updates paused/i", self.script)
         self.assertIn("Linked; updates temporarily paused", self.script)
+        self.assertIn("/local request budget|pacing updates/i", self.script)
+        self.assertIn("Linked; update queued", self.script)
+        self.assertIn("Account state unavailable", self.script)
 
     def test_refresh_and_unlink_controls_use_the_guarded_rivals_action(self) -> None:
         for control_id in (

@@ -236,6 +236,22 @@ class RivalsApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(remote_origin.status, 403)
 
+    async def test_oversized_state_returns_error_without_replacing_file(self) -> None:
+        path = self.server_dir / "rivals.json"
+        original = b'{"instances":{},"padding":"' + b"x" * 128 + b'"}'
+        path.write_bytes(original)
+
+        with mock.patch("rivals_store.MAX_STATE_FILE_BYTES", 64):
+            fetched = await self.client.get("/api/rivals?i=rank-card")
+            updated = await self.client.post(
+                "/api/rivals?i=rank-card",
+                json={"uid": "396536339"},
+            )
+
+        self.assertEqual(fetched.status, 500)
+        self.assertEqual(updated.status, 500)
+        self.assertEqual(path.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()

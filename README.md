@@ -139,23 +139,27 @@ refresh, **Reset session** zeroes only the session record, and **Unlink** remove
 account from that overlay. Linking wakes the worker immediately instead of waiting for
 the next scheduled cycle.
 
-The local server refreshes profile and live match history every five minutes by default
-per unique player ID. Multiple overlays linked to the same account share one fetch.
-Cached history is requested only when a live refresh fails or returns no competitive
-matches, so the normal cadence is about 24 requests/hour per unique account instead of
-42. Existing match history is baselined when an account is linked, while matches
-completed after linking or a manual reset count toward the session. The numeric player
-ID is stored only in the server's private `rivals.json` bookkeeping and is never
-returned by `/api/rivals` or sent over the overlay websocket.
+The local server checks live match history every two minutes and profile rank every
+five minutes by default for one unique player ID. Multiple overlays linked to the same
+account share one fetch. When several different accounts are linked, their effective
+refresh intervals stretch automatically so they fairly share the app-wide request
+budget instead of all stopping at the hourly ceiling. Cached history is requested only
+when a live refresh fails or returns no competitive matches; Rivals Data does not
+publish a cache-freshness guarantee, so Overlay Studio does not assume that endpoint
+updates independently. Existing match history is baselined when an account is linked,
+while matches completed after linking or a manual reset count toward the session. The
+numeric player ID is stored only in the server's private `rivals.json` bookkeeping and
+is never returned by `/api/rivals` or sent over the overlay websocket.
 
 Rivals Data is an unofficial, undocumented fan service and is not affiliated with
 NetEase or Marvel Rivals. Its API can change, rate-limit requests, or become unavailable.
 When a check fails, Overlay Studio keeps displaying the last successful state. Provider
-cooldowns survive app restarts, repeated limits escalate instead of resetting after one
-clean cycle, and 403/408/5xx responses or browser challenge pages also back off. A
-persisted rolling budget caps the entire app at 120 Rivals Data requests/hour. Scheduled
-checks include startup delay and jitter so restarting several clients does not create a
-request burst.
+cooldowns survive app restarts, repeated limits decay gradually, and 403/408/5xx
+responses or browser challenge pages also back off. A rolling ledger in
+`rivals-request-budget.json` caps the entire app at 120 Rivals Data requests/hour. That
+local ceiling queues later account updates without pretending Rivals Data issued a
+rate limit. Scheduled checks include startup delay and jitter so restarting several
+clients does not create a request burst.
 
 ## Social overlays
 

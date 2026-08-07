@@ -13,8 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
     MAX_SEEN_MATCHES,
+    RivalsStateFileTooLargeError,
     apply_rivals_poll,
     is_competitive_match,
+    load_request_budget_state,
     load_rivals_record,
     load_rivals_document,
     load_rivals_studio_state,
@@ -24,6 +26,7 @@ from rivals_store import (  # noqa: E402
     rank_progress_score,
     rank_from_level,
     remove_rivals_instance,
+    request_budget_path,
     rivals_status,
     reserve_rivals_request,
     save_rate_limit_state,
@@ -258,6 +261,8 @@ class RivalsStoreTests(unittest.TestCase):
     def test_request_budget_is_persisted_as_a_rolling_window(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "rivals.json"
+            path.write_text('{"instances":{}}', encoding="utf-8")
+            original_state = path.read_bytes()
 
             for timestamp in (100, 101, 102):
                 allowed, retry_after, count = reserve_rivals_request(
@@ -285,6 +290,35 @@ class RivalsStoreTests(unittest.TestCase):
             )
             self.assertTrue(allowed)
             self.assertEqual(count, 3)
+            self.assertEqual(path.read_bytes(), original_state)
+            self.assertTrue(request_budget_path(path).exists())
+            self.assertEqual(
+                load_request_budget_state(path, now=3700),
+                [101, 102, 3700],
+            )
+
+    def test_oversized_state_is_never_loaded_or_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "rivals.json"
+            original = b'{"instances":{},"padding":"' + b"x" * 128 + b'"}'
+            path.write_bytes(original)
+
+            with (
+                mock.patch("rivals_store.MAX_STATE_FILE_BYTES", 64),
+                self.assertRaisesRegex(
+                    RivalsStateFileTooLargeError,
+                    "Refusing to load or overwrite",
+                ),
+            ):
+                load_rivals_document(path)
+            with (
+                mock.patch("rivals_store.MAX_STATE_FILE_BYTES", 64),
+                self.assertRaises(RivalsStateFileTooLargeError),
+            ):
+                save_rate_limit_state(path, 0, 1)
+
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(path.with_suffix(".json.tmp").exists())
 
     def test_seen_match_history_retains_multiple_full_api_windows(self) -> None:
         self.assertGreaterEqual(MAX_SEEN_MATCHES, 256)

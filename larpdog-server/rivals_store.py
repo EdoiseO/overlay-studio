@@ -78,6 +78,7 @@ MAX_SCORE = 1_000_000_000.0
 MAX_SESSION_RESULTS = 999
 MAX_RATE_LIMIT_FAILURES = 5
 MAX_REQUEST_BUDGET_ENTRIES = 120
+MAX_REQUEST_BUDGET_FILE_BYTES = 32 * 1024
 MAX_EPOCH_SECONDS = 4_102_444_800
 REQUEST_BUDGET_WINDOW_SECONDS = 60 * 60
 POLL_STATUSES = {"unlinked", "waiting", "ok", "error"}
@@ -92,6 +93,15 @@ _DOCUMENT_CACHE: dict[
     tuple[int, int, dict[str, Any]],
 ] = {}
 _DOCUMENT_CACHE_LOCK = threading.Lock()
+_REQUEST_BUDGET_LOCK = threading.Lock()
+
+
+class RivalsStateFileError(RuntimeError):
+    """Raised when Rivals state cannot be read or safely replaced."""
+
+
+class RivalsStateFileTooLargeError(RivalsStateFileError):
+    pass
 
 
 def _number(
@@ -330,7 +340,11 @@ def _normalize_private(raw: Any) -> dict[str, Any]:
         "lastPollAt": _integer(
             source.get("lastPollAt"), 0, 0, 4_102_444_800
         ),
-        "lastPollError": poll_error[:180] if poll_status == "error" else "",
+        "lastPollError": (
+            poll_error[:180]
+            if poll_status in {"error", "waiting"}
+            else ""
+        ),
     }
 
 
@@ -383,6 +397,20 @@ def normalize_rivals_document(raw: Any) -> dict[str, Any]:
     }
 
 
+def _state_file_size(path: Path) -> int:
+    try:
+        size = path.stat().st_size
+    except FileNotFoundError:
+        return 0
+    if size > MAX_STATE_FILE_BYTES:
+        raise RivalsStateFileTooLargeError(
+            f"Rivals state file is {size:,} bytes; the safety limit is "
+            f"{MAX_STATE_FILE_BYTES:,} bytes. Refusing to load or overwrite "
+            f"{path.name}. Back up the file before repairing it."
+        )
+    return size
+
+
 def load_rivals_document(path: Path) -> dict[str, Any]:
     cache_key = str(path.absolute())
     if not path.exists():
@@ -391,8 +419,7 @@ def load_rivals_document(path: Path) -> dict[str, Any]:
         return normalize_rivals_document({})
     try:
         stat = path.stat()
-        if stat.st_size > MAX_STATE_FILE_BYTES:
-            return normalize_rivals_document({})
+        _state_file_size(path)
         with _DOCUMENT_CACHE_LOCK:
             cached = _DOCUMENT_CACHE.get(cache_key)
             if (
@@ -418,6 +445,36 @@ def load_rate_limit_state(path: Path) -> dict[str, int]:
     return dict(load_rivals_document(path)["rateLimit"])
 
 
+def request_budget_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}-request-budget.json")
+
+
+def _read_request_budget(path: Path) -> list[int]:
+    sidecar = request_budget_path(path)
+    if sidecar.exists():
+        try:
+            if sidecar.stat().st_size > MAX_REQUEST_BUDGET_FILE_BYTES:
+                return []
+            raw = json.loads(sidecar.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        return _normalize_request_budget(raw)["requests"]
+    # Carry forward the old in-document ledger on the first upgraded run.
+    return load_rivals_document(path)["requestBudget"]["requests"]
+
+
+def _write_request_budget(path: Path, requests: Iterable[int]) -> None:
+    sidecar = request_budget_path(path)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = sidecar.with_suffix(f"{sidecar.suffix}.tmp")
+    normalized = _normalize_request_budget({"requests": list(requests)})
+    temporary_path.write_text(
+        json.dumps(normalized, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(sidecar)
+
+
 def load_request_budget_state(
     path: Path,
     *,
@@ -425,9 +482,11 @@ def load_request_budget_state(
 ) -> list[int]:
     timestamp = int(time.time()) if now is None else max(0, int(now))
     cutoff = timestamp - REQUEST_BUDGET_WINDOW_SECONDS
+    with _REQUEST_BUDGET_LOCK:
+        requests = _read_request_budget(path)
     return [
         request_at
-        for request_at in load_rivals_document(path)["requestBudget"]["requests"]
+        for request_at in requests
         if cutoff < request_at <= timestamp + REQUEST_BUDGET_WINDOW_SECONDS
     ]
 
@@ -511,13 +570,19 @@ def linked_rivals_uid(path: Path, instance_id: str) -> int | None:
 
 
 def _write_rivals_document(path: Path, document: dict[str, Any]) -> None:
+    _state_file_size(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
     normalized = normalize_rivals_document(document)
-    temporary_path.write_text(
-        json.dumps(normalized, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    serialized = json.dumps(normalized, indent=2) + "\n"
+    serialized_size = len(serialized.encode("utf-8"))
+    if serialized_size > MAX_STATE_FILE_BYTES:
+        raise RivalsStateFileTooLargeError(
+            f"Saving Rivals state would create a {serialized_size:,}-byte "
+            f"file; the safety limit is {MAX_STATE_FILE_BYTES:,} bytes. "
+            "The existing state was not replaced."
+        )
+    temporary_path.write_text(serialized, encoding="utf-8")
     temporary_path.replace(path)
     stat = path.stat()
     with _DOCUMENT_CACHE_LOCK:
@@ -556,27 +621,26 @@ def reserve_rivals_request(
         1,
         MAX_REQUEST_BUDGET_ENTRIES,
     )
-    document = load_rivals_document(path)
     cutoff = timestamp - REQUEST_BUDGET_WINDOW_SECONDS
-    requests = [
-        request_at
-        for request_at in document["requestBudget"]["requests"]
-        if cutoff < request_at <= timestamp + REQUEST_BUDGET_WINDOW_SECONDS
-    ]
-    requests.sort()
-    if len(requests) >= limit:
-        retry_after = max(
-            1,
-            requests[0] + REQUEST_BUDGET_WINDOW_SECONDS - timestamp,
-        )
-        if requests != document["requestBudget"]["requests"]:
-            document["requestBudget"] = {"requests": requests}
-            _write_rivals_document(path, document)
-        return False, retry_after, len(requests)
-    requests.append(timestamp)
-    document["requestBudget"] = {"requests": requests}
-    _write_rivals_document(path, document)
-    return True, 0, len(requests)
+    with _REQUEST_BUDGET_LOCK:
+        stored = _read_request_budget(path)
+        requests = [
+            request_at
+            for request_at in stored
+            if cutoff < request_at <= timestamp + REQUEST_BUDGET_WINDOW_SECONDS
+        ]
+        requests.sort()
+        if len(requests) >= limit:
+            retry_after = max(
+                1,
+                requests[0] + REQUEST_BUDGET_WINDOW_SECONDS - timestamp,
+            )
+            if requests != stored:
+                _write_request_budget(path, requests)
+            return False, retry_after, len(requests)
+        requests.append(timestamp)
+        _write_request_budget(path, requests)
+        return True, 0, len(requests)
 
 
 def _save_record(path: Path, instance_id: str, record: dict[str, Any]) -> None:
@@ -692,6 +756,7 @@ def apply_rivals_poll(
     rank_level: Any = None,
     rank_score: Any = None,
     matches: Iterable[Any] = (),
+    mark_success: bool = True,
     now: int | None = None,
 ) -> dict[str, Any]:
     normalized = _normalize_record(record)
@@ -758,9 +823,10 @@ def apply_rivals_poll(
     private["seenMatchUids"] = combined[:MAX_SEEN_MATCHES]
     if current_ids:
         private["lastSeenMatchUid"] = current_ids[0]
-    private["pollStatus"] = "ok"
-    private["lastPollAt"] = timestamp
-    private["lastPollError"] = ""
+    if mark_success:
+        private["pollStatus"] = "ok"
+        private["lastPollAt"] = timestamp
+        private["lastPollError"] = ""
     return {
         "state": normalize_rivals_state(state),
         "private": _normalize_private(private),
@@ -776,6 +842,7 @@ def save_rivals_polls(
     rank_level: Any = None,
     rank_score: Any = None,
     matches: Iterable[Any] = (),
+    mark_success: bool = True,
     now: int | None = None,
 ) -> dict[str, tuple[dict[str, Any], bool]]:
     document = load_rivals_document(path)
@@ -796,6 +863,7 @@ def save_rivals_polls(
             rank_level=rank_level,
             rank_score=rank_score,
             matches=supplied_matches,
+            mark_success=mark_success,
             now=now,
         )
         public_changed = updated["state"] != record["state"]
@@ -817,6 +885,7 @@ def save_rivals_poll(
     rank_level: Any = None,
     rank_score: Any = None,
     matches: Iterable[Any] = (),
+    mark_success: bool = True,
     now: int | None = None,
 ) -> tuple[dict[str, Any], bool]:
     results = save_rivals_polls(
@@ -827,11 +896,43 @@ def save_rivals_poll(
         rank_level=rank_level,
         rank_score=rank_score,
         matches=matches,
+        mark_success=mark_success,
         now=now,
     )
     if instance_id in results:
         return results[instance_id]
     return load_rivals_state(path, instance_id), False
+
+
+def save_rivals_poll_waits(
+    path: Path,
+    linked: Iterable[tuple[str, int]],
+    detail: Any,
+    *,
+    now: int | None = None,
+) -> list[str]:
+    timestamp = int(time.time()) if now is None else max(0, int(now))
+    message = " ".join(str(detail or "Update queued").split())[:180]
+    document = load_rivals_document(path)
+    changed: list[str] = []
+    for instance_id, expected_uid in linked:
+        candidate = str(instance_id or "")
+        if not INSTANCE_ID.fullmatch(candidate):
+            continue
+        record = _normalize_record(document["instances"].get(candidate, {}))
+        if record["private"]["uid"] != expected_uid:
+            continue
+        private = dict(record["private"])
+        private["pollStatus"] = "waiting"
+        private["lastPollAt"] = timestamp
+        private["lastPollError"] = message
+        document["instances"][candidate] = _normalize_record(
+            {"state": record["state"], "private": private}
+        )
+        changed.append(candidate)
+    if changed:
+        _write_rivals_document(path, document)
+    return changed
 
 
 def save_rivals_poll_failure(

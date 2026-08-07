@@ -83,6 +83,7 @@ from overlay_config import (  # noqa: E402
 from overlay_manifest import scan_overlay_manifests  # noqa: E402
 from rivals_store import (  # noqa: E402
     DEFAULT_RIVALS_STATE,
+    RivalsStateFileError,
     load_rivals_studio_state,
     remove_rivals_instance,
 )
@@ -114,6 +115,7 @@ REMOTE_MEDIA_TYPES = {
     "video/quicktime": ".mov",
     "video/webm": ".webm",
 }
+_LAST_RIVALS_STATE_ERROR = ""
 
 
 def load_json(path: Path, fallback_path: Path | None = None) -> dict[str, Any]:
@@ -932,6 +934,7 @@ class DesktopApi:
         return {"ok": success, "detail": detail, "state": self.get_state()}
 
     def get_state(self) -> dict[str, Any]:
+        global _LAST_RIVALS_STATE_ERROR
         settings = load_json(APP_SETTINGS_PATH)
         config = load_overlay_config(OVERLAY_CONFIG_PATH)
         try:
@@ -956,10 +959,40 @@ class DesktopApi:
             for instance_id, instance in config["instances"].items()
             if instance["type"] == "rivals-rank"
         }
-        rivals_runtime = load_rivals_studio_state(
-            RIVALS_STATE_PATH,
-            rivals_instances,
-        )
+        try:
+            rivals_runtime = load_rivals_studio_state(
+                RIVALS_STATE_PATH,
+                rivals_instances,
+            )
+            _LAST_RIVALS_STATE_ERROR = ""
+        except RivalsStateFileError as exc:
+            detail = str(exc)
+            if detail != _LAST_RIVALS_STATE_ERROR:
+                _LAST_RIVALS_STATE_ERROR = detail
+                try:
+                    ERROR_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+                    with ERROR_LOG_PATH.open("a", encoding="utf-8") as errors:
+                        errors.write(f"CRITICAL: {detail}\n")
+                except OSError:
+                    pass
+            rivals_runtime = {
+                "states": {
+                    instance_id: dict(DEFAULT_RIVALS_STATE)
+                    for instance_id in rivals_instances
+                },
+                "linked": {
+                    instance_id: False for instance_id in rivals_instances
+                },
+                "polls": {
+                    instance_id: {
+                        "status": "error",
+                        "lastAttemptAt": 0,
+                        "detail": detail,
+                        "retryAt": 0,
+                    }
+                    for instance_id in rivals_instances
+                },
+            }
         return {
             "running": is_healthy(),
             "baseUrl": base_url(),
@@ -1337,12 +1370,14 @@ class DesktopApi:
             return {"ok": False, "detail": "Invalid overlay instance"}
         config = load_overlay_config(OVERLAY_CONFIG_PATH)
         try:
+            instance = config["instances"].get(instance_id, {})
+            if instance.get("type") == "rivals-rank":
+                remove_rivals_instance(RIVALS_STATE_PATH, instance_id)
             updated = remove_overlay_instance_config(config, instance_id)
             save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
             remove_counter_instance(COUNTER_STATE_PATH, instance_id)
             remove_goal_instance(GOAL_STATE_PATH, instance_id)
-            remove_rivals_instance(RIVALS_STATE_PATH, instance_id)
-        except (OSError, ValueError) as error:
+        except (OSError, RivalsStateFileError, ValueError) as error:
             return {"ok": False, "detail": str(error)}
         return {"ok": True, "state": self.get_state()}
 

@@ -14,6 +14,7 @@ from typing import Any, Awaitable, Callable
 from aiohttp import ClientSession, ClientTimeout
 
 from rivals_store import (
+    RivalsStateFileError,
     is_competitive_match,
     linked_rivals_instances,
     load_rate_limit_state,
@@ -21,6 +22,7 @@ from rivals_store import (
     save_rate_limit_state,
     save_rivals_poll_failures,
     save_rivals_polls,
+    save_rivals_poll_waits,
 )
 
 
@@ -29,13 +31,13 @@ MATCHES_ENDPOINT = "https://api.rivalsdata.com/player/matches/cached"
 MATCHES_REFRESH_ENDPOINT = "https://api.rivalsdata.com/player/matches"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_MATCHES = 64
-DEFAULT_POLL_SECONDS = 300.0
+DEFAULT_POLL_SECONDS = 120.0
 MIN_POLL_SECONDS = 60.0
 MAX_POLL_SECONDS = 900.0
 DEFAULT_PROFILE_REFRESH_SECONDS = 300.0
 MIN_PROFILE_REFRESH_SECONDS = 120.0
 MAX_PROFILE_REFRESH_SECONDS = 900.0
-DEFAULT_LIVE_REFRESH_SECONDS = 300.0
+DEFAULT_LIVE_REFRESH_SECONDS = 120.0
 MIN_LIVE_REFRESH_SECONDS = 60.0
 MAX_LIVE_REFRESH_SECONDS = 900.0
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 300.0
@@ -50,6 +52,9 @@ STARTUP_DELAY_MIN_SECONDS = 5.0
 STARTUP_DELAY_MAX_SECONDS = 15.0
 POLL_JITTER_RATIO = 0.1
 INVALID_JSON_BACKOFF_THRESHOLD = 3
+REQUEST_BUDGET_HEADROOM_RATIO = 0.9
+MATCH_REQUESTS_PER_REFRESH = 2
+PROTECTION_DECAY_INTERVAL_SECONDS = 300.0
 
 
 class RivalsRateLimitError(RuntimeError):
@@ -70,7 +75,7 @@ class RivalsProviderBackoffError(RuntimeError):
 
 class RivalsRequestBudgetError(RuntimeError):
     def __init__(self, retry_after_seconds: float) -> None:
-        super().__init__("Hourly Rivals Data request budget reached")
+        super().__init__("Local Rivals request budget is pacing updates")
         self.retry_after_seconds = retry_after_seconds
 
 
@@ -279,6 +284,9 @@ class RivalsPollWorker:
                 )
             )
         )
+        self._effective_profile_refresh_seconds = self.profile_refresh_seconds
+        self._effective_live_refresh_seconds = self.live_refresh_seconds
+        self._cadence_account_count = 0
         self._last_profile_refresh_at: dict[int, float] = {}
         self._profile_snapshots: dict[
             int,
@@ -292,17 +300,22 @@ class RivalsPollWorker:
         self._invalid_json_failures: dict[str, int] = {}
         self._successful_requests_this_cycle = 0
         self._had_recoverable_error_this_cycle = False
+        self._last_protection_decay_at = 0.0
         self._uid_rotation = 0
         self._wake_event = asyncio.Event()
         self._forced_refresh_uids: set[int] = set()
         self._last_manual_refresh_at: dict[int, float] = {}
         self._protection_restored = False
+        self._state_file_error = ""
 
     def start(self) -> None:
         if not self.config.get("enabled", True):
             self.logger("Rivals Data polling disabled in config.")
             return
-        self._restore_provider_state()
+        try:
+            self._restore_provider_state()
+        except RivalsStateFileError as exc:
+            self._report_state_file_error(exc)
         self.task = asyncio.create_task(
             self._run(),
             name="overlay-studio-rivals-data",
@@ -315,6 +328,13 @@ class RivalsPollWorker:
                 await self.task
             except asyncio.CancelledError:
                 pass
+
+    def _report_state_file_error(self, error: Exception) -> None:
+        message = " ".join(str(error).split())[:500]
+        if message == self._state_file_error:
+            return
+        self._state_file_error = message
+        self.logger(f"CRITICAL: {message}")
 
     def _restore_provider_state(self) -> None:
         if self._protection_restored:
@@ -375,6 +395,32 @@ class RivalsPollWorker:
             "retryAt": int(time.time() + MANUAL_REFRESH_SECONDS),
             "detail": "Refresh requested",
         }
+
+    def _set_adaptive_cadence(self, account_count: int) -> None:
+        count = max(0, int(account_count))
+        if count <= 0:
+            self._effective_profile_refresh_seconds = self.profile_refresh_seconds
+            self._effective_live_refresh_seconds = self.live_refresh_seconds
+        else:
+            safe_budget = max(
+                1.0,
+                self.max_requests_per_hour * REQUEST_BUDGET_HEADROOM_RATIO,
+            )
+            worst_case_per_account = (
+                3600.0 / self.profile_refresh_seconds
+                + MATCH_REQUESTS_PER_REFRESH
+                * 3600.0
+                / self.live_refresh_seconds
+            )
+            scale = max(
+                1.0,
+                count * worst_case_per_account / safe_budget,
+            )
+            self._effective_profile_refresh_seconds = (
+                self.profile_refresh_seconds * scale
+            )
+            self._effective_live_refresh_seconds = self.live_refresh_seconds * scale
+        self._cadence_account_count = count
 
     async def _reserve_request_slot(self, endpoint: str) -> None:
         async with self.store_lock:
@@ -470,7 +516,7 @@ class RivalsPollWorker:
             not force
             and cached is not None
             and previous is not None
-            and now - previous < self.profile_refresh_seconds
+            and now - previous < self._effective_profile_refresh_seconds
         ):
             return cached
 
@@ -516,8 +562,9 @@ class RivalsPollWorker:
         previous = self._last_live_refresh_at.get(uid)
         if (
             not force
+            and uid in self._match_snapshots
             and previous is not None
-            and now - previous < self.live_refresh_seconds
+            and now - previous < self._effective_live_refresh_seconds
         ):
             return False
         self._last_live_refresh_at[uid] = now
@@ -633,10 +680,14 @@ class RivalsPollWorker:
         *,
         force: bool = False,
     ) -> None:
+        successful_requests_before = self._successful_requests_this_cycle
         player_name, rank_level, rank_score, matches = await self._fetch_uid(
             session,
             uid,
             force=force,
+        )
+        verified_update = (
+            self._successful_requests_this_cycle > successful_requests_before
         )
 
         async with self.store_lock:
@@ -648,6 +699,7 @@ class RivalsPollWorker:
                 rank_level=rank_level,
                 rank_score=rank_score,
                 matches=matches,
+                mark_success=verified_update,
             )
         for instance_id, (state, changed) in results.items():
             if changed:
@@ -706,27 +758,10 @@ class RivalsPollWorker:
         )
         return delay, self._rate_limit_wall_until
 
-    def _begin_budget_cooldown(
-        self,
-        error: RivalsRequestBudgetError,
-    ) -> tuple[float, int]:
-        delay = max(1.0, min(MAX_RATE_LIMIT_BACKOFF_SECONDS, error.retry_after_seconds))
-        self._rate_limit_until = max(
-            self._rate_limit_until,
-            time.monotonic() + delay,
-        )
-        self._rate_limit_wall_until = max(
-            self._rate_limit_wall_until,
-            int(math.ceil(time.time() + delay)),
-        )
-        return delay, self._rate_limit_wall_until
-
     def _pause_detail(self, error: Exception, delay: float) -> RuntimeError:
         minutes = max(1, math.ceil(delay / 60.0))
         unit = "minute" if minutes == 1 else "minutes"
-        if isinstance(error, RivalsRequestBudgetError):
-            reason = "Hourly Rivals Data request budget reached"
-        elif isinstance(error, RivalsRateLimitError):
+        if isinstance(error, RivalsRateLimitError):
             reason = "Rivals Data rate limit reached"
         else:
             reason = str(error)
@@ -746,16 +781,18 @@ class RivalsPollWorker:
         for instance_id, uid in linked:
             grouped[uid].append(instance_id)
         if not grouped:
+            self._set_adaptive_cadence(0)
             return 0.0
 
         uids = list(grouped)
+        self._set_adaptive_cadence(len(uids))
         start = self._uid_rotation % len(uids)
         ordered_uids = [*uids[start:], *uids[:start]]
         self._uid_rotation = (start + 1) % len(uids)
         all_succeeded = True
         self._successful_requests_this_cycle = 0
         self._had_recoverable_error_this_cycle = False
-        for uid in ordered_uids:
+        for uid_index, uid in enumerate(ordered_uids):
             instance_ids = grouped[uid]
             force = uid in self._forced_refresh_uids
             self._forced_refresh_uids.discard(uid)
@@ -768,15 +805,39 @@ class RivalsPollWorker:
                 )
             except asyncio.CancelledError:
                 raise
+            except RivalsRequestBudgetError as exc:
+                self._uid_rotation = (start + uid_index) % len(uids)
+                delay = max(
+                    1.0,
+                    min(MAX_RATE_LIMIT_BACKOFF_SECONDS, exc.retry_after_seconds),
+                )
+                minutes = max(1, math.ceil(delay / 60.0))
+                unit = "minute" if minutes == 1 else "minutes"
+                detail = (
+                    "Local request budget is pacing updates; next slot in "
+                    f"about {minutes} {unit}"
+                )
+                queued = [
+                    (queued_instance, queued_uid)
+                    for queued_uid in ordered_uids[uid_index:]
+                    for queued_instance in grouped[queued_uid]
+                ]
+                async with self.store_lock:
+                    save_rivals_poll_waits(
+                        self.state_path,
+                        queued,
+                        detail,
+                    )
+                self.logger(
+                    f"{detail}. {len(queued)} linked overlay(s) remain queued; "
+                    "provider cooldown was not changed."
+                )
+                return delay
             except (
                 RivalsRateLimitError,
                 RivalsProviderBackoffError,
-                RivalsRequestBudgetError,
             ) as exc:
-                if isinstance(exc, RivalsRequestBudgetError):
-                    delay, wall_until = self._begin_budget_cooldown(exc)
-                else:
-                    delay, wall_until = self._begin_provider_cooldown(exc)
+                delay, wall_until = self._begin_provider_cooldown(exc)
                 detail = self._pause_detail(exc, delay)
                 async with self.store_lock:
                     save_rivals_poll_failures(
@@ -805,11 +866,15 @@ class RivalsPollWorker:
                         self.logger(
                             f"Rivals Data polling recovered for {instance_id}."
                         )
-        if (
-            all_succeeded
-            and self._successful_requests_this_cycle > 0
-            and not self._had_recoverable_error_this_cycle
-        ):
+        clean_cycle = all_succeeded and not self._had_recoverable_error_this_cycle
+        now = time.monotonic()
+        decay_due = (
+            self._last_protection_decay_at <= 0
+            or now - self._last_protection_decay_at
+            >= PROTECTION_DECAY_INTERVAL_SECONDS
+        )
+        if clean_cycle and decay_due:
+            self._last_protection_decay_at = now
             self._rate_limit_failures = max(0, self._rate_limit_failures - 1)
             self._rate_limit_until = 0.0
             self._rate_limit_wall_until = 0
@@ -852,11 +917,11 @@ class RivalsPollWorker:
         }
         self.logger(
             f"Rivals Data worker checks every {poll_seconds:g} seconds; "
-            f"profile and live history refresh every "
+            f"base profile and live-history cadence is "
             f"{self.profile_refresh_seconds:g} and "
-            f"{self.live_refresh_seconds:g} seconds, cached history is "
-            f"fallback-only, and the budget is "
-            f"{self.max_requests_per_hour} requests/hour."
+            f"{self.live_refresh_seconds:g} seconds. Linked accounts share "
+            f"a {self.max_requests_per_hour}-request/hour safety budget, "
+            "with cached history used only as fallback."
         )
         async with ClientSession(timeout=timeout, headers=headers) as session:
             await self._wait_for_wake(
@@ -866,7 +931,13 @@ class RivalsPollWorker:
                 )
             )
             while True:
-                cooldown = await self.poll_once(session)
+                try:
+                    cooldown = await self.poll_once(session)
+                except RivalsStateFileError as exc:
+                    self._report_state_file_error(exc)
+                    cooldown = poll_seconds
+                else:
+                    self._state_file_error = ""
                 if cooldown > 0:
                     delay = max(poll_seconds, cooldown)
                 else:

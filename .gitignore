@@ -3,6 +3,7 @@ larpdog-server/overlay-config.json
 larpdog-server/win-loss.json
 larpdog-server/goal.json
 larpdog-server/rivals.json
+larpdog-server/rivals-request-budget.json
 larpdog-server/app-settings.json
 larpdog-server/.spotify_cache*
 larpdog-server/.venv/

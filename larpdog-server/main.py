@@ -33,7 +33,12 @@ from overlay_config import (
     update_instance_config,
 )
 from overlay_manifest import OVERLAY_NAME, scan_overlay_manifests
-from rivals_store import linked_rivals_uid, rivals_status, update_rivals_record
+from rivals_store import (
+    RivalsStateFileError,
+    linked_rivals_uid,
+    rivals_status,
+    update_rivals_record,
+)
 from rivals_worker import RivalsPollWorker
 
 
@@ -65,9 +70,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "rivals": {
         "enabled": True,
-        "poll_seconds": 300,
+        "poll_seconds": 120,
         "profile_refresh_seconds": 300,
-        "live_refresh_seconds": 300,
+        "live_refresh_seconds": 120,
         "rate_limit_backoff_seconds": 300,
         "transient_backoff_seconds": 120,
         "max_requests_per_hour": 120,
@@ -926,8 +931,12 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
 
     async def get_rivals(request: web.Request) -> web.Response:
         instance_id = request_rivals_instance(request)
-        async with rivals_store_lock:
-            payload = rivals_status(rivals_state_path, instance_id)
+        try:
+            async with rivals_store_lock:
+                payload = rivals_status(rivals_state_path, instance_id)
+        except RivalsStateFileError as exc:
+            log(f"CRITICAL: {exc}")
+            raise web.HTTPInternalServerError(text=str(exc)) from None
         return web.json_response(
             payload,
             headers={"Cache-Control": "no-store"},
@@ -962,6 +971,9 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
                     rivals_state_path,
                     instance_id,
                 )
+        except RivalsStateFileError as exc:
+            log(f"CRITICAL: {exc}")
+            raise web.HTTPInternalServerError(text=str(exc)) from None
         except ValueError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from None
         rivals_worker: RivalsPollWorker = request.app["rivals_worker"]
