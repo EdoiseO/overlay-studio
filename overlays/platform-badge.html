@@ -99,6 +99,7 @@
   </main>
 
 <script src="/assets/social-platforms.js?v=2"></script>
+<script src="/assets/overlay-png-export.js"></script>
 <script>
 (() => {
   "use strict";
@@ -291,6 +292,12 @@
 
   addEventListener("resize", fitToCanvas);
   document.fonts?.ready.then(fitToCanvas);
+  window.OverlayPngExport?.register({
+    overlayType: OVERLAY_TYPE,
+    instanceId,
+    target: () => badge,
+    padding: () => ({ top: 8, right: 8, bottom: 8, left: 8 }),
+  });
   load().then(settings => {
     apply(settings);
     listen();

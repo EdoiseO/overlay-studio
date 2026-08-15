@@ -17,6 +17,7 @@
 </script>
 <link rel="stylesheet" href="/assets/overlay-surface.css" />
 <script src="../assets/social-platforms.js?v=2"></script>
+<script src="/assets/overlay-png-export.js"></script>
 <link rel="stylesheet" href="/assets/fonts/overlay-fonts.css" />
 <style>
   :root {
@@ -1051,6 +1052,29 @@
     };
     socket.onclose = () => setTimeout(connect, 2000);
   }
+
+  window.OverlayPngExport?.register({
+    overlayType: "social-grouped",
+    instanceId,
+    target: () => row,
+    padding: () => {
+      const settings = currentSettings || DEFAULTS;
+      const stroke = Math.max(
+        settings.logoOutline + settings.edgeWidth,
+        settings.textOutline + settings.textEdgeWidth,
+        settings.outline,
+        settings.tileOutline,
+      );
+      const shadow = settings.shadow ? settings.shadowBlur * 2 : 0;
+      const base = settings.padding + stroke + shadow + 4;
+      return {
+        top: base + Math.max(0, -settings.shadowY),
+        right: base + Math.max(0, settings.shadowX),
+        bottom: base + Math.max(0, settings.shadowY),
+        left: base + Math.max(0, -settings.shadowX),
+      };
+    },
+  });
 
   window.addEventListener("resize", () => {
     if (currentSettings) fitToCanvas(currentSettings);

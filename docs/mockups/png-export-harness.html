@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overlay Studio PNG Export Harness</title>
+<style>
+  :root { color-scheme: dark; font-family: "Segoe UI", Arial, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #101417; color: #eef3f4; }
+  header, .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header { justify-content: space-between; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+  button, select {
+    min-height: 38px; padding: 7px 12px; border: 1px solid #374248;
+    border-radius: 4px; background: #1b2328; color: #eef3f4; font: inherit;
+  }
+  button { border-color: #4fc8bd; background: #4fc8bd; color: #071210; font-weight: 700; }
+  #status { min-height: 20px; margin: 0 0 14px; color: #9eabb1; }
+  #status.error { color: #f29b94; }
+  .source { height: 190px; margin-bottom: 18px; border: 1px solid #303a40; background: #1c2429; }
+  iframe { width: 100%; height: 100%; border: 0; }
+  .surfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  figure { min-width: 0; margin: 0; border: 1px solid #303a40; }
+  figcaption { padding: 9px 11px; border-bottom: 1px solid #303a40; background: #171d21; font-size: 12px; font-weight: 700; }
+  .surface { min-height: 240px; display: grid; place-items: center; padding: 18px; overflow: auto; }
+  .surface.light { background: #f4f5f7; }
+  .surface.dark { background: #11151a; }
+  .surface.checker {
+    background-color: #dfe3e7;
+    background-image: linear-gradient(45deg,#cbd1d6 25%,transparent 25%),linear-gradient(-45deg,#cbd1d6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#cbd1d6 75%),linear-gradient(-45deg,transparent 75%,#cbd1d6 75%);
+    background-size: 28px 28px; background-position: 0 0,0 14px,14px -14px,-14px 0;
+  }
+  .surface img { display: block; max-width: 100%; max-height: 210px; object-fit: contain; }
+  @media (max-width: 850px) { .surfaces { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>PNG export fidelity harness</h1>
+    <div class="controls">
+      <select id="overlay" aria-label="Overlay">
+        <option value="platform-badge">Platform Badge</option>
+        <option value="social">Social Bar</option>
+        <option value="social-grouped">Social Grouped</option>
+      </select>
+      <select id="height" aria-label="Output height">
+        <option value="256">256 px</option>
+        <option value="512" selected>512 px</option>
+        <option value="1024">1024 px</option>
+      </select>
+      <button id="render" type="button">Render PNG</button>
+    </div>
+  </header>
+  <p id="status">Waiting for the overlay preview.</p>
+  <div class="source"><iframe id="frame" title="Overlay source"></iframe></div>
+  <section class="surfaces">
+    <figure><figcaption>Light background</figcaption><div class="surface light"><img alt="Export on light background"></div></figure>
+    <figure><figcaption>Dark background</figcaption><div class="surface dark"><img alt="Export on dark background"></div></figure>
+    <figure><figcaption>Transparency grid</figcaption><div class="surface checker"><img alt="Export on transparency grid"></div></figure>
+  </section>
+<script>
+(() => {
+  "use strict";
+  const frame = document.getElementById("frame");
+  const overlay = document.getElementById("overlay");
+  const height = document.getElementById("height");
+  const status = document.getElementById("status");
+  const render = document.getElementById("render");
+  const images = [...document.querySelectorAll(".surface img")];
+  let pendingId = "";
+
+  const sources = {
+    "platform-badge": "/overlays/platform-badge.html?platform=twitch&handle=dre2funtyy&font=montserrat&weight=800&preview=studio",
+    social: "/overlays/social.html?font=montserrat&layout=fused&preview=studio",
+    "social-grouped": "/overlays/social-grouped.html?font=montserrat&preview=studio",
+  };
+
+  function loadOverlay() {
+    pendingId = "";
+    status.className = "";
+    status.textContent = "Loading the overlay preview...";
+    images.forEach(image => image.removeAttribute("src"));
+    frame.src = sources[overlay.value];
+  }
+
+  function requestExport() {
+    pendingId = crypto.randomUUID();
+    status.className = "";
+    status.textContent = "Rendering the transparent PNG...";
+    frame.contentWindow.postMessage({
+      type: "overlay-studio-export-request",
+      requestId: pendingId,
+      overlayType: overlay.value,
+      instanceId: "",
+      targetHeight: Number(height.value),
+    }, "*");
+  }
+
+  frame.addEventListener("load", () => {
+    status.textContent = "Overlay ready. Rendering...";
+    setTimeout(requestExport, 180);
+  });
+  overlay.addEventListener("change", loadOverlay);
+  render.addEventListener("click", requestExport);
+  window.addEventListener("message", event => {
+    const result = event.data;
+    if (
+      event.source !== frame.contentWindow
+      || result?.type !== "overlay-studio-export-result"
+      || result.requestId !== pendingId
+    ) return;
+    if (!result.ok) {
+      status.className = "error";
+      status.textContent = result.detail || "PNG export failed.";
+      return;
+    }
+    images.forEach(image => { image.src = result.png; });
+    status.className = "";
+    status.textContent = `${result.width} x ${result.height} PNG · alpha preserved`;
+  });
+
+  loadOverlay();
+})();
+</script>
+</body>
+</html>

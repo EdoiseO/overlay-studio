@@ -198,6 +198,7 @@
   </main>
 
 <script src="/assets/social-platforms.js?v=2"></script>
+<script src="/assets/overlay-png-export.js"></script>
 <script>
 (() => {
   "use strict";
@@ -215,6 +216,7 @@
   const bar = document.getElementById("bar");
   let requestedScale = 1;
   let fitFrame = 0;
+  let currentSettings = null;
 
   function fitToCanvas() {
     cancelAnimationFrame(fitFrame);
@@ -277,6 +279,7 @@
   }
 
   function apply(settings) {
+    currentSettings = settings;
     const accounts = settings.accounts.filter(account => account.enabled);
     content.hidden = accounts.length === 0;
     bar.replaceChildren();
@@ -329,6 +332,29 @@
 
   addEventListener("resize", fitToCanvas);
   document.fonts?.ready.then(fitToCanvas);
+  window.OverlayPngExport?.register({
+    overlayType: OVERLAY_TYPE,
+    instanceId,
+    target: () => stack,
+    prepare: () => {
+      const width = stack.style.width;
+      stack.style.width = "max-content";
+      return () => {
+        if (width) stack.style.width = width;
+        else stack.style.removeProperty("width");
+      };
+    },
+    padding: () => {
+      const outline = Number(currentSettings?.outline) || 0;
+      const fused = currentSettings?.layout === "fused";
+      return {
+        top: outline + (fused ? 30 : 18),
+        right: outline + (fused ? 34 : 20),
+        bottom: outline + (fused ? 40 : 24),
+        left: outline + (fused ? 34 : 20),
+      };
+    },
+  });
   social.load(instanceId, OVERLAY_TYPE, query).then(settings => {
     apply(settings);
     social.listen(instanceId, OVERLAY_TYPE, apply);
