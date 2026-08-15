@@ -26,6 +26,10 @@ class PngExportCustomizerTests(unittest.TestCase):
             self.assertEqual(MARKUP.count(f'id="{element_id}"'), 1)
         self.assertEqual(MARKUP.count("data-open-png-export"), 3)
         self.assertEqual(MARKUP.count("data-png-export-height="), 3)
+        self.assertIn("This badge", MARKUP)
+        self.assertIn("Export the platform and handle shown here.", MARKUP)
+        self.assertIn("All enabled platforms", MARKUP)
+        self.assertIn("one badge per enabled account from the selected Social Bar", MARKUP)
 
     def test_export_eligibility_comes_from_the_manifest(self) -> None:
         self.assertIn("manifestFor(instance.type)?.exportable === true", SCRIPT)

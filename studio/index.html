@@ -1986,11 +1986,17 @@
         <div class="png-export-mode-options">
           <label for="pngExportModeCurrent">
             <input id="pngExportModeCurrent" name="pngExportMode" type="radio" value="current" checked>
-            <span>Current badge</span>
+            <span class="png-export-mode-copy">
+              <strong>This badge</strong>
+              <small>Export the platform and handle shown here.</small>
+            </span>
           </label>
           <label for="pngExportModeBatch">
             <input id="pngExportModeBatch" name="pngExportMode" type="radio" value="batch">
-            <span>Enabled platforms</span>
+            <span class="png-export-mode-copy">
+              <strong>All enabled platforms</strong>
+              <small>Create one badge per enabled account from the selected Social Bar.</small>
+            </span>
           </label>
         </div>
       </fieldset>
