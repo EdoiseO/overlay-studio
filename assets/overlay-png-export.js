@@ -152,22 +152,49 @@
     });
   }
 
-  function alphaBounds(context, width, height) {
+  function alphaRowHasContent(pixels, width, row) {
+    const start = row * width * 4 + 3;
+    const end = start + width * 4;
+    for (let offset = start; offset < end; offset += 4) {
+      if (pixels[offset] !== 0) return true;
+    }
+    return false;
+  }
+
+  function alphaColumnHasContent(pixels, width, height, column) {
+    for (let row = 0; row < height; row += 1) {
+      if (pixels[(row * width + column) * 4 + 3] !== 0) return true;
+    }
+    return false;
+  }
+
+  function horizontalAlphaBounds(context, width, height) {
     const pixels = context.getImageData(0, 0, width, height).data;
-    let minX = width;
-    let minY = height;
-    let maxX = -1;
-    let maxY = -1;
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        if (pixels[(y * width + x) * 4 + 3] === 0) continue;
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
+    const touchesEdge = (
+      alphaRowHasContent(pixels, width, 0)
+      || alphaRowHasContent(pixels, width, height - 1)
+      || alphaColumnHasContent(pixels, width, height, 0)
+      || alphaColumnHasContent(pixels, width, height, width - 1)
+    );
+    if (touchesEdge) return { minX: 0, maxX: width - 1, touchesEdge: true };
+
+    let minX = -1;
+    for (let column = 1; column < width - 1; column += 1) {
+      if (alphaColumnHasContent(pixels, width, height, column)) {
+        minX = column;
+        break;
       }
     }
-    return maxX < 0 ? null : { minX, minY, maxX, maxY };
+    if (minX < 0) return null;
+
+    let maxX = minX;
+    for (let column = width - 2; column > minX; column -= 1) {
+      if (alphaColumnHasContent(pixels, width, height, column)) {
+        maxX = column;
+        break;
+      }
+    }
+    return { minX, maxX, touchesEdge: false };
   }
 
   async function capture(targetHeight) {
@@ -237,14 +264,9 @@
       context.clearRect(0, 0, outputWidth, targetHeight);
       context.drawImage(image, 0, 0, outputWidth, targetHeight);
 
-      const bounds = alphaBounds(context, outputWidth, targetHeight);
+      const bounds = horizontalAlphaBounds(context, outputWidth, targetHeight);
       if (!bounds) throw new Error("The exported overlay is fully transparent");
-      if (
-        bounds.minX === 0
-        || bounds.minY === 0
-        || bounds.maxX === outputWidth - 1
-        || bounds.maxY === targetHeight - 1
-      ) {
+      if (bounds.touchesEdge) {
         throw new Error("An effect reaches the export edge. Reduce the effect size");
       }
 
@@ -324,7 +346,7 @@
         detail: boundedText(error?.message || "PNG export failed"),
       });
     }
-    window.parent.postMessage(response, "*");
+    window.parent.postMessage(response, event.origin);
   });
 
   window.OverlayPngExport = Object.freeze({

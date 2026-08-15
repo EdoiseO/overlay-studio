@@ -105,6 +105,60 @@ class PngExportWriterTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), second_content)
             self.assertEqual(list(target.parent.glob("*.tmp")), [])
 
+    def test_partial_batch_failure_reports_files_already_committed(self) -> None:
+        api = overlay_studio.DesktopApi()
+        data_url, content = png_data_url()
+        real_replace = overlay_studio.os.replace
+        replace_calls = 0
+
+        def fail_third_replace(source: Path, destination: Path) -> None:
+            nonlocal replace_calls
+            replace_calls += 1
+            if replace_calls == 3:
+                raise OSError("simulated replacement failure")
+            real_replace(source, destination)
+
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            user_assets = Path(temporary_dir)
+            destination = user_assets / "exports" / "platform-badge-main"
+            destination.mkdir(parents=True)
+            (destination / "twitch.png").write_bytes(b"old")
+            with (
+                patch.object(overlay_studio, "USER_ASSETS_DIR", user_assets),
+                patch.object(
+                    overlay_studio,
+                    "load_overlay_config",
+                    return_value=self.exportable_config(),
+                ),
+                patch.object(
+                    overlay_studio.os,
+                    "replace",
+                    side_effect=fail_third_replace,
+                ),
+            ):
+                result = api.save_png_exports(
+                    "platform-badge-main",
+                    [
+                        {"filename": "twitch.png", "dataUrl": data_url},
+                        {"filename": "youtube.png", "dataUrl": data_url},
+                        {"filename": "tiktok.png", "dataUrl": data_url},
+                    ],
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertTrue(result["partial"])
+            self.assertEqual(result["saved"], 2)
+            self.assertEqual(result["replaced"], 1)
+            self.assertEqual(
+                [item["name"] for item in result["files"]],
+                ["twitch.png", "youtube.png"],
+            )
+            self.assertIn("Only 2 of 3 PNG files were saved", result["detail"])
+            self.assertEqual((destination / "twitch.png").read_bytes(), content)
+            self.assertEqual((destination / "youtube.png").read_bytes(), content)
+            self.assertFalse((destination / "tiktok.png").exists())
+            self.assertEqual(list(destination.glob("*.tmp")), [])
+
     def test_rejects_path_traversal_duplicate_names_and_invalid_instances(self) -> None:
         api = overlay_studio.DesktopApi()
         data_url, _content = png_data_url()

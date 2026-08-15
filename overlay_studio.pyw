@@ -1896,7 +1896,9 @@ class DesktopApi:
         except ValueError as error:
             return {"ok": False, "detail": str(error)}
 
+        relative_folder = f"user-assets/exports/{instance_id}"
         staged: list[tuple[Path, Path, bool, int, int]] = []
+        committed: list[tuple[Path, Path, bool, int, int]] = []
         try:
             resolved_destination = png_export_directory(instance_id, create=True)
             for filename, content, width, height in prepared:
@@ -1911,15 +1913,38 @@ class DesktopApi:
                 staged.append((temporary, destination, destination.exists(), width, height))
             for temporary, destination, _replaced, _width, _height in staged:
                 os.replace(temporary, destination)
+                committed.append(
+                    (temporary, destination, _replaced, _width, _height)
+                )
         except (OSError, ValueError) as error:
             for temporary, _destination, _replaced, _width, _height in staged:
                 temporary.unlink(missing_ok=True)
+            files = [
+                {
+                    "name": destination.name,
+                    "path": f"{relative_folder}/{destination.name}",
+                    "width": width,
+                    "height": height,
+                    "replaced": replaced,
+                }
+                for _temporary, destination, replaced, width, height in committed
+            ]
+            detail = f"Could not save PNG exports: {error}"
+            if files:
+                detail = (
+                    f"Only {len(files)} of {len(prepared)} PNG files were saved "
+                    f"before an error: {error}"
+                )
             return {
                 "ok": False,
-                "detail": f"Could not save PNG exports: {error}",
+                "partial": bool(files),
+                "detail": detail,
+                "folder": relative_folder,
+                "files": files,
+                "saved": len(files),
+                "replaced": sum(1 for item in files if item["replaced"]),
             }
 
-        relative_folder = f"user-assets/exports/{instance_id}"
         files = [
             {
                 "name": destination.name,
@@ -1932,8 +1957,10 @@ class DesktopApi:
         ]
         return {
             "ok": True,
+            "partial": False,
             "folder": relative_folder,
             "files": files,
+            "saved": len(files),
             "replaced": sum(1 for item in files if item["replaced"]),
         }
 

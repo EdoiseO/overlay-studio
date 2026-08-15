@@ -13,6 +13,9 @@ from overlay_manifest import scan_overlay_manifests  # noqa: E402
 RENDERER = (ROOT_DIR / "assets" / "overlay-png-export.js").read_text(
     encoding="utf-8"
 )
+SOCIAL_GROUPED = (ROOT_DIR / "overlays" / "social-grouped.html").read_text(
+    encoding="utf-8"
+)
 EXPORT_SCRIPT = '<script src="/assets/overlay-png-export.js"></script>'
 
 
@@ -48,20 +51,29 @@ class PngExportRendererTests(unittest.TestCase):
         self.assertNotIn("fonts.googleapis.com", RENDERER)
         self.assertNotIn("fonts.gstatic.com", RENDERER)
 
-    def test_renderer_uses_strict_alpha_bounds_and_refuses_edge_clipping(self) -> None:
-        self.assertIn("] === 0) continue", RENDERER)
-        self.assertIn("bounds.minX === 0", RENDERER)
-        self.assertIn("bounds.minY === 0", RENDERER)
-        self.assertIn("bounds.maxX === outputWidth - 1", RENDERER)
-        self.assertIn("bounds.maxY === targetHeight - 1", RENDERER)
+    def test_renderer_scans_only_edges_and_horizontal_crop_bounds(self) -> None:
+        self.assertIn("function alphaRowHasContent", RENDERER)
+        self.assertIn("function alphaColumnHasContent", RENDERER)
+        self.assertIn("function horizontalAlphaBounds", RENDERER)
+        self.assertNotIn("let minY", RENDERER)
+        self.assertNotIn("let maxY", RENDERER)
+        self.assertIn("bounds.touchesEdge", RENDERER)
         self.assertIn("An effect reaches the export edge", RENDERER)
+
+    def test_social_grouped_padding_includes_signed_shadow_offsets(self) -> None:
+        self.assertIn("settings.shadowBlur * 2", SOCIAL_GROUPED)
+        self.assertIn("base + Math.max(0, -settings.shadowY)", SOCIAL_GROUPED)
+        self.assertIn("base + Math.max(0, settings.shadowX)", SOCIAL_GROUPED)
+        self.assertIn("base + Math.max(0, settings.shadowY)", SOCIAL_GROUPED)
+        self.assertIn("base + Math.max(0, -settings.shadowX)", SOCIAL_GROUPED)
 
     def test_renderer_uses_the_studio_message_contract(self) -> None:
         self.assertIn('"overlay-studio-export-request"', RENDERER)
         self.assertIn('"overlay-studio-export-result"', RENDERER)
         self.assertIn("event.source !== window.parent", RENDERER)
         self.assertIn("request.overlayType !== registration.overlayType", RENDERER)
-        self.assertIn("window.parent.postMessage(response", RENDERER)
+        self.assertIn("window.parent.postMessage(response, event.origin)", RENDERER)
+        self.assertNotIn('window.parent.postMessage(response, "*")', RENDERER)
 
 
 if __name__ == "__main__":
