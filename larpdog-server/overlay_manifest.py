@@ -126,6 +126,7 @@ def read_overlay_manifest(path: Path) -> dict[str, Any] | None:
         "canvas": {"w": width, "h": height},
         "settings": settings,
         "studioView": studio_view,
+        "exportable": raw.get("exportable") is True,
         "route": f"/overlays/{overlay_type}",
     }
 

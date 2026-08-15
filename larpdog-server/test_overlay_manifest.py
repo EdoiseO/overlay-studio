@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import overlay_manifest  # noqa: E402
 
 
-def write_overlay(path: Path, name: str) -> None:
+def write_overlay(path: Path, name: str, *, exportable: object = False) -> None:
     path.write_text(
         f"""<!doctype html>
 <script id="overlay-manifest" type="application/json">
@@ -21,6 +22,7 @@ def write_overlay(path: Path, name: str) -> None:
   "name": "{name}",
   "description": "Test overlay",
   "category": "utility",
+  "exportable": {json.dumps(exportable)},
   "canvas": {{"w": 640, "h": 360}},
   "settings": ["appearance"],
   "studioView": "generic"
@@ -90,6 +92,48 @@ class OverlayManifestTests(unittest.TestCase):
             second = overlay_manifest.scan_overlay_manifests(overlays_dir)
 
             self.assertEqual(second[0]["name"], "Original")
+
+    def test_exportable_requires_an_explicit_json_boolean(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            overlays_dir = Path(temporary_dir)
+            write_overlay(
+                overlays_dir / "enabled.html",
+                "Enabled",
+                exportable=True,
+            )
+            write_overlay(
+                overlays_dir / "string.html",
+                "String",
+                exportable="true",
+            )
+            write_overlay(overlays_dir / "disabled.html", "Disabled")
+
+            manifests = {
+                manifest["type"]: manifest
+                for manifest in overlay_manifest.scan_overlay_manifests(overlays_dir)
+            }
+
+            self.assertTrue(manifests["enabled"]["exportable"])
+            self.assertFalse(manifests["string"]["exportable"])
+            self.assertFalse(manifests["disabled"]["exportable"])
+
+    def test_only_approved_static_overlays_are_exportable(self) -> None:
+        root_dir = Path(__file__).resolve().parent.parent
+        manifests = {
+            manifest["type"]: manifest
+            for manifest in overlay_manifest.scan_overlay_manifests(
+                root_dir / "overlays"
+            )
+        }
+        enabled = {
+            overlay_type
+            for overlay_type, manifest in manifests.items()
+            if manifest["exportable"]
+        }
+        self.assertEqual(
+            enabled,
+            {"platform-badge", "social", "social-grouped"},
+        )
 
     def test_manifest_setting_limit_supports_larger_customizers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:

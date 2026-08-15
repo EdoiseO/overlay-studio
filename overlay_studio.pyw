@@ -183,6 +183,8 @@ def media_library(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
         suffix = asset.suffix.lower()
         relative = f"user-assets/{asset.relative_to(USER_ASSETS_DIR).as_posix()}"
         first_folder = asset.relative_to(USER_ASSETS_DIR).parts[0].lower()
+        if first_folder == "exports":
+            continue
         if first_folder == "dancing":
             if suffix in ALLOWED_DANCE_EXTENSIONS:
                 add_asset(dancing, relative)
