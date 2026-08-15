@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overlay Studio PNG Export Review</title>
+<style>
+  :root {
+    color-scheme: dark;
+    font-family: "Segoe UI", Arial, sans-serif;
+    --bg: #0f1316;
+    --panel: #171d21;
+    --panel-alt: #1c2429;
+    --ink: #f1f5f6;
+    --muted: #8d9aa2;
+    --accent: #4fc8bd;
+    --accent-strong: #36a79e;
+    --good: #49c98d;
+    --warning: #e7b65b;
+    --border: #303a40;
+    --shadow: rgba(0, 0, 0, .34);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-size: 14px; }
+  button, select { font: inherit; }
+  button { cursor: pointer; }
+  button:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .shell {
+    width: min(1220px, calc(100% - 32px));
+    min-height: 760px;
+    margin: 16px auto;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  }
+
+  .topbar {
+    min-height: 78px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #20282d;
+  }
+  .menu-icon, .icon-button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink);
+  }
+  .menu-icon { background: var(--panel-alt); }
+  .menu-icon svg, .icon-button svg, .button svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .brand { min-width: 0; flex: 1; }
+  .brand strong { display: block; font-size: 25px; line-height: 30px; }
+  .brand span { color: var(--muted); font-size: 13px; }
+  .running { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); }
+
+  .content { padding: 18px 20px 22px; }
+  .heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .heading h1 { margin: 0; font-size: 23px; letter-spacing: 0; }
+  .eyebrow { display: block; color: var(--accent); font-size: 11px; font-weight: 750; }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 470px);
+    gap: 14px;
+    min-height: 620px;
+  }
+  .preview, .settings { min-width: 0; border: 1px solid var(--border); background: var(--panel); }
+  .preview { display: grid; grid-template-rows: auto 1fr; }
+  .preview-head, .preview-toolbar, .panel-head, .save-row, .dialog-actions {
+    display: flex;
+    align-items: center;
+  }
+  .preview-head {
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-title span { display: block; color: var(--muted); font-size: 10px; font-weight: 750; }
+  .preview-title strong { font-size: 14px; }
+  .preview-toolbar { gap: 5px; }
+  .preview-toolbar .icon-button { width: 34px; height: 34px; border-color: var(--border); }
+  .preview-toolbar .icon-button:hover { border-color: var(--accent); background: var(--panel-alt); }
+  .preview-toolbar .export-trigger { color: var(--accent); }
+
+  .button {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel-alt);
+    color: var(--ink);
+    font-weight: 650;
+  }
+  .button.primary { border-color: var(--accent); background: var(--accent); color: #071210; }
+  .button.export { border-color: var(--accent); color: var(--accent); }
+  .button.compact { min-height: 34px; padding: 6px 12px; }
+
+  .stage {
+    position: relative;
+    min-height: 480px;
+    overflow: hidden;
+    background-color: #1a2024;
+    background-image:
+      linear-gradient(45deg, #222a2f 25%, transparent 25%),
+      linear-gradient(-45deg, #222a2f 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #222a2f 75%),
+      linear-gradient(-45deg, transparent 75%, #222a2f 75%);
+    background-size: 30px 30px;
+    background-position: 0 0, 0 15px, 15px -15px, -15px 0;
+  }
+  .badge {
+    position: absolute;
+    top: 50%; left: 50%;
+    display: flex;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 11px 16px rgba(0,0,0,.34));
+  }
+  .badge-logo, .badge-name { height: 92px; display: grid; place-items: center; }
+  .badge-logo { width: 92px; background: #fff; border-radius: 4px 0 0 4px; }
+  .badge-logo svg { width: 49px; height: 49px; fill: #9146ff; }
+  .badge-name {
+    min-width: 270px;
+    padding: 0 30px;
+    border-radius: 0 4px 4px 0;
+    background: #9146ff;
+    color: #fff;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 31px;
+    font-weight: 800;
+  }
+
+  .settings { display: flex; flex-direction: column; }
+  .panel { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .panel-head { justify-content: space-between; gap: 10px; }
+  .panel h2 { margin: 0; font-size: 15px; }
+  .field-grid { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 11px 12px; margin-top: 15px; }
+  .field-grid label { align-self: center; color: var(--muted); }
+  select, .fake-input {
+    width: 100%; min-width: 0; min-height: 38px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--panel-alt); color: var(--ink);
+  }
+  .fake-range { height: 5px; align-self: center; border-radius: 3px; background: linear-gradient(90deg, var(--accent) 64%, #485258 64%); }
+  .save-row { margin-top: auto; justify-content: flex-end; gap: 9px; padding: 14px 16px; }
+
+  dialog {
+    width: min(460px, calc(100vw - 34px));
+    padding: 0;
+    border: 1px solid #405057;
+    border-radius: 7px;
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 24px 70px rgba(0,0,0,.62);
+  }
+  dialog::backdrop { background: rgba(4, 7, 8, .68); }
+  .dialog-head { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--border); }
+  .dialog-head > div { min-width: 0; flex: 1; }
+  .dialog-head h2 { margin: 0; font-size: 18px; }
+  .dialog-head span { color: var(--muted); font-size: 12px; }
+  .dialog-body { display: grid; gap: 17px; padding: 16px; }
+  .control-label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 650; }
+  .segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .segments button {
+    min-height: 38px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--panel-alt); color: var(--ink); font-weight: 650;
+  }
+  .segments button.selected { border-color: var(--accent); background: rgba(79, 200, 189, .13); color: var(--accent); }
+  .mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mode-row label {
+    display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 9px 11px;
+    border: 1px solid var(--border); border-radius: 4px; background: var(--panel-alt);
+  }
+  .mode-row label:has(input:checked) { border-color: var(--accent); }
+  input[type="radio"] { accent-color: var(--accent); }
+  .replacement {
+    display: flex; gap: 10px; padding: 11px 12px;
+    border: 1px solid rgba(231, 182, 91, .45); border-radius: 4px;
+    background: rgba(231, 182, 91, .08); color: #e9d4a9;
+  }
+  .replacement svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: var(--warning); stroke-width: 1.8; }
+  .replacement strong { display: block; font-size: 13px; }
+  .replacement span { display: block; margin-top: 2px; color: #baa984; font-size: 12px; }
+  .destination { overflow: hidden; color: var(--muted); font-family: Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .dialog-actions { justify-content: flex-end; gap: 9px; padding: 13px 16px 16px; }
+
+  @media (max-width: 920px) {
+    .shell { width: min(720px, calc(100% - 20px)); }
+    .split { grid-template-columns: 1fr; }
+    .preview { min-height: 430px; }
+    .stage { min-height: 360px; }
+  }
+  @media (max-width: 560px) {
+    .shell { margin: 10px auto; }
+    .topbar { padding: 12px; }
+    .brand strong { font-size: 20px; }
+    .running { display: none; }
+    .content { padding: 12px; }
+    .heading h1 { font-size: 20px; }
+    .field-grid { grid-template-columns: 1fr; }
+    .badge { transform: translate(-50%, -50%) scale(.72); }
+    .save-row { flex-wrap: wrap; }
+    .save-row .button { flex: 1 1 auto; }
+  }
+</style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <button class="menu-icon" type="button" aria-label="Open settings">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="brand">
+        <strong>Overlay Studio</strong>
+        <span>Build, run, and manage stream overlays</span>
+      </div>
+      <div class="running"><i class="dot"></i> Running</div>
+    </header>
+
+    <section class="content">
+      <div class="heading">
+        <button class="button compact" type="button">Library</button>
+        <div><span class="eyebrow">PLATFORM BADGE</span><h1>Stream Badge</h1></div>
+      </div>
+
+      <div class="split">
+        <section class="preview">
+          <header class="preview-head">
+            <div class="preview-title"><span>LIVE DRAFT</span><strong>Stream Badge</strong></div>
+            <div class="preview-toolbar">
+              <button class="icon-button" type="button" title="Reset preview view" aria-label="Reset preview view">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+              </button>
+              <button class="icon-button export-trigger" type="button" title="Export PNG" aria-label="Export PNG">
+                <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+              </button>
+              <button class="button primary compact" type="button">Save</button>
+            </div>
+          </header>
+          <div class="stage" aria-label="Transparent preview stage">
+            <div class="badge">
+              <span class="badge-logo">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0 1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+              </span>
+              <span class="badge-name">dre2funtyy</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings">
+          <div class="panel">
+            <div class="panel-head"><h2>Badge content</h2><span class="eyebrow">UNSAVED</span></div>
+            <div class="field-grid">
+              <label>Platform</label><div class="fake-input">Twitch</div>
+              <label>Handle</label><div class="fake-input">dre2funtyy</div>
+              <label>Prefix</label><div class="fake-input">None</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Dimensions</h2></div>
+            <div class="field-grid">
+              <label>Badge width</label><div class="fake-range"></div>
+              <label>Badge height</label><div class="fake-range"></div>
+              <label>Corners</label><div class="fake-range"></div>
+            </div>
+          </div>
+          <div class="save-row">
+            <button class="button" type="button">Reset fields</button>
+            <button class="button export export-trigger" type="button">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+              Export PNG
+            </button>
+            <button class="button primary" type="button">Save and apply</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="exportDialog" aria-labelledby="exportTitle">
+    <div class="dialog-head">
+      <div><h2 id="exportTitle">Export PNG</h2><span>Platform Badge · current preview</span></div>
+      <button class="icon-button" id="closeDialog" type="button" aria-label="Close export dialog" title="Close">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div>
+        <span class="control-label">Output height</span>
+        <div class="segments" id="heightSegments">
+          <button type="button" data-height="256">256 px</button>
+          <button class="selected" type="button" data-height="512">512 px</button>
+          <button type="button" data-height="1024">1024 px</button>
+        </div>
+      </div>
+      <div>
+        <span class="control-label">Export</span>
+        <div class="mode-row">
+          <label><input type="radio" name="mode" value="current"> Current badge</label>
+          <label><input type="radio" name="mode" value="batch" checked> Enabled platforms</label>
+        </div>
+      </div>
+      <label id="sourceField">
+        <span class="control-label">Account source</span>
+        <select><option>Social Bar · Stream socials (4 enabled)</option></select>
+      </label>
+      <div class="replacement">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg>
+        <div><strong>4 existing PNGs will be replaced</strong><span>Stable filenames keep linked video-editor assets up to date.</span></div>
+      </div>
+      <div class="destination">user-assets/exports/platform-badge/twitch.png</div>
+    </div>
+    <div class="dialog-actions">
+      <button class="button" id="cancelDialog" type="button">Cancel</button>
+      <button class="button primary" type="button" id="confirmExport">Export 4 PNGs</button>
+    </div>
+  </dialog>
+
+<script>
+  const dialog = document.getElementById("exportDialog");
+  const sourceField = document.getElementById("sourceField");
+  const confirmExport = document.getElementById("confirmExport");
+
+  document.querySelectorAll(".export-trigger").forEach(button => {
+    button.addEventListener("click", () => dialog.showModal());
+  });
+  document.getElementById("closeDialog").addEventListener("click", () => dialog.close());
+  document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
+  document.getElementById("heightSegments").addEventListener("click", event => {
+    const button = event.target.closest("button[data-height]");
+    if (!button) return;
+    document.querySelectorAll("[data-height]").forEach(item => item.classList.toggle("selected", item === button));
+  });
+  document.querySelectorAll('input[name="mode"]').forEach(input => {
+    input.addEventListener("change", () => {
+      const batch = document.querySelector('input[name="mode"]:checked').value === "batch";
+      sourceField.hidden = !batch;
+      confirmExport.textContent = batch ? "Export 4 PNGs" : "Export PNG";
+    });
+  });
+  confirmExport.addEventListener("click", () => dialog.close());
+  dialog.showModal();
+</script>
+</body>
+</html>
