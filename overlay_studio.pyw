@@ -20,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,15 @@ DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
 MAX_DRAG_IMPORT_BYTES = 25 * 1024 * 1024
 MAX_SHORTCUT_BYTES = 64 * 1024
 MAX_SHORTCUT_PAGE_BYTES = 1024 * 1024
+MAX_PNG_EXPORT_ITEMS = 16
+MAX_PNG_EXPORT_FILE_BYTES = 24 * 1024 * 1024
+MAX_PNG_EXPORT_BATCH_BYTES = 64 * 1024 * 1024
+MAX_PNG_EXPORT_DIMENSION = 8192
+MAX_PNG_EXPORT_PIXELS = 12 * 1024 * 1024
+PNG_EXPORT_HEIGHTS = {256, 512, 1024}
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+PNG_EXPORT_FILENAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}\.png$")
+PNG_EXPORT_OVERLAY_TYPES = {"platform-badge", "social", "social-grouped"}
 SHORTCUT_PAGE_TYPES = {"application/xhtml+xml", "text/html"}
 REMOTE_MEDIA_TYPES = {
     "image/apng": ".png",
@@ -455,6 +465,68 @@ def sniff_media_extension(content: bytes) -> str | None:
     if len(content) >= 12 and content[4:8] == b"ftyp":
         return ".mov" if content[8:12] == b"qt  " else ".mp4"
     return None
+
+
+def validated_export_png(data_url: Any) -> tuple[bytes, int, int]:
+    header, separator, encoded = str(data_url or "").partition(",")
+    if header.lower() != "data:image/png;base64" or not separator:
+        raise ValueError("Export data must be a base64 PNG")
+    if len(encoded) > (MAX_PNG_EXPORT_FILE_BYTES * 4 // 3) + 8:
+        raise ValueError("An exported PNG exceeds the 24 MB file limit")
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("An exported PNG could not be decoded") from error
+    if not content or len(content) > MAX_PNG_EXPORT_FILE_BYTES:
+        raise ValueError("An exported PNG must be between 1 byte and 24 MB")
+    if not content.startswith(PNG_SIGNATURE):
+        raise ValueError("Export data is not a PNG")
+
+    offset = len(PNG_SIGNATURE)
+    width = 0
+    height = 0
+    saw_header = False
+    saw_end = False
+    while offset + 12 <= len(content):
+        chunk_length = int.from_bytes(content[offset:offset + 4], "big")
+        chunk_type = content[offset + 4:offset + 8]
+        chunk_end = offset + 12 + chunk_length
+        if chunk_end > len(content):
+            raise ValueError("Exported PNG data is truncated")
+        chunk_data = content[offset + 8:offset + 8 + chunk_length]
+        supplied_crc = int.from_bytes(
+            content[offset + 8 + chunk_length:chunk_end],
+            "big",
+        )
+        calculated_crc = zlib.crc32(chunk_type)
+        calculated_crc = zlib.crc32(chunk_data, calculated_crc) & 0xFFFFFFFF
+        if supplied_crc != calculated_crc:
+            raise ValueError("Exported PNG data failed its integrity check")
+        if not saw_header:
+            if chunk_type != b"IHDR" or chunk_length != 13:
+                raise ValueError("Exported PNG is missing its image header")
+            width = int.from_bytes(chunk_data[:4], "big")
+            height = int.from_bytes(chunk_data[4:8], "big")
+            saw_header = True
+        elif chunk_type == b"IHDR":
+            raise ValueError("Exported PNG contains more than one image header")
+        if chunk_type == b"IEND":
+            if chunk_length != 0 or chunk_end != len(content):
+                raise ValueError("Exported PNG has invalid trailing data")
+            saw_end = True
+            break
+        offset = chunk_end
+
+    if not saw_header or not saw_end:
+        raise ValueError("Exported PNG is incomplete")
+    if (
+        width < 1
+        or width > MAX_PNG_EXPORT_DIMENSION
+        or height not in PNG_EXPORT_HEIGHTS
+        or width * height > MAX_PNG_EXPORT_PIXELS
+    ):
+        raise ValueError("Exported PNG dimensions are outside the safe limits")
+    return content, width, height
 
 
 def validate_imported_media(
@@ -1764,9 +1836,103 @@ class DesktopApi:
         window.destroy()
         return {"ok": True}
 
+    def save_png_exports(
+        self,
+        instance_id: str,
+        items: Any,
+    ) -> dict[str, Any]:
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        saved_config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        instance = saved_config["instances"].get(instance_id)
+        if (
+            not isinstance(instance, dict)
+            or instance.get("type") not in PNG_EXPORT_OVERLAY_TYPES
+        ):
+            return {"ok": False, "detail": "This overlay cannot be exported as PNG"}
+        if not isinstance(items, list) or not 1 <= len(items) <= MAX_PNG_EXPORT_ITEMS:
+            return {
+                "ok": False,
+                "detail": "Export between 1 and 16 PNG files at a time",
+            }
+
+        prepared: list[tuple[str, bytes, int, int]] = []
+        names: set[str] = set()
+        total_bytes = 0
+        try:
+            for item in items:
+                if not isinstance(item, dict):
+                    raise ValueError("Invalid PNG export item")
+                filename = str(item.get("filename") or "").strip()
+                if not PNG_EXPORT_FILENAME.fullmatch(filename):
+                    raise ValueError(
+                        "PNG filenames may use lowercase letters, numbers, "
+                        "hyphens, and underscores"
+                    )
+                if filename in names:
+                    raise ValueError("PNG export filenames must be unique")
+                content, width, height = validated_export_png(item.get("dataUrl"))
+                total_bytes += len(content)
+                if total_bytes > MAX_PNG_EXPORT_BATCH_BYTES:
+                    raise ValueError("The PNG export batch exceeds the 64 MB limit")
+                names.add(filename)
+                prepared.append((filename, content, width, height))
+        except ValueError as error:
+            return {"ok": False, "detail": str(error)}
+
+        exports_root = USER_ASSETS_DIR / "exports"
+        destination_dir = exports_root / instance_id
+        staged: list[tuple[Path, Path, bool, int, int]] = []
+        try:
+            exports_root.mkdir(parents=True, exist_ok=True)
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            resolved_assets = USER_ASSETS_DIR.resolve()
+            resolved_root = exports_root.resolve()
+            resolved_destination = destination_dir.resolve()
+            resolved_root.relative_to(resolved_assets)
+            resolved_destination.relative_to(resolved_root)
+            for filename, content, width, height in prepared:
+                destination = resolved_destination / filename
+                temporary = resolved_destination / (
+                    f".{filename}.{os.getpid()}.{time.time_ns()}.tmp"
+                )
+                with temporary.open("xb") as stream:
+                    stream.write(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                staged.append((temporary, destination, destination.exists(), width, height))
+            for temporary, destination, _replaced, _width, _height in staged:
+                os.replace(temporary, destination)
+        except (OSError, ValueError) as error:
+            for temporary, _destination, _replaced, _width, _height in staged:
+                temporary.unlink(missing_ok=True)
+            return {
+                "ok": False,
+                "detail": f"Could not save PNG exports: {error}",
+            }
+
+        relative_folder = f"user-assets/exports/{instance_id}"
+        files = [
+            {
+                "name": destination.name,
+                "path": f"{relative_folder}/{destination.name}",
+                "width": width,
+                "height": height,
+                "replaced": replaced,
+            }
+            for _temporary, destination, replaced, width, height in staged
+        ]
+        return {
+            "ok": True,
+            "folder": relative_folder,
+            "files": files,
+            "replaced": sum(1 for item in files if item["replaced"]),
+        }
+
     def open_folder(self, folder: str) -> dict[str, Any]:
         choices = {
             "assets": USER_ASSETS_DIR,
+            "exports": USER_ASSETS_DIR / "exports",
             "logs": SERVER_DIR,
             "overlays": ROOT_DIR / "overlays",
         }
