@@ -28,7 +28,8 @@ manifests are skipped by `GET /api/overlays` without affecting the server.
   "category": "stream",
   "canvas": { "w": 800, "h": 400 },
   "settings": [],
-  "studioView": ""
+  "studioView": "",
+  "exportable": false
 }
 </script>
 ```
@@ -43,6 +44,7 @@ Manifest fields:
 | `canvas.w`, `canvas.h` | Required integers from 100 through 4096. |
 | `settings` | Optional list of setting identifiers. Unknown settings remain inert. |
 | `studioView` | Optional existing Studio view ID. Leave empty when no customizer exists. |
+| `exportable` | Optional literal `true` only for deterministic static overlays with the PNG renderer contract below. Defaults to `false`. |
 
 The filename supplies the manifest `type` and route. Do not duplicate them in JSON.
 Adding a valid local file is enough for it to appear in **Browse overlays**; no Studio
@@ -99,6 +101,35 @@ Use the shared surface classes:
 Keep overlay content in normal document flow. Do not anchor it to a stream corner or
 build a full scene inside the page. Give the OBS Browser Source a canvas comfortably
 larger than the object, then position that source in OBS.
+
+## Static PNG export contract
+
+PNG export is opt-in. Set the manifest's `exportable` field to the literal value `true`
+only when freezing the current visual cannot misrepresent live state. Static branding
+overlays qualify; timers, media metadata, rotating content, counters, goals, ranks, and
+other live or animated overlays do not. Studio never infers eligibility from category.
+
+An exportable page must load the shared renderer and register its visible artwork:
+
+```html
+<script src="/assets/overlay-png-export.js"></script>
+<script>
+  window.OverlayPngExport.register({
+    overlayType: "alerts",
+    instanceId,
+    target: () => document.getElementById("alertArtwork"),
+    padding: () => ({ top: 12, right: 12, bottom: 12, left: 12 }),
+  });
+</script>
+```
+
+The target must be one deterministic DOM element containing every visual that belongs
+in the image. Padding must include the overlay's maximum glow, keyline, and shadow
+extent. The renderer temporarily neutralizes `--scale` and `--fit-scale`, embeds used
+local fonts and images, preserves transparency, refuses clipped effects or unsafe output
+dimensions, and accepts only `256`, `512`, or `1024` pixel output heights. Do not add a
+second writer or browser download path; Studio validates each returned PNG and writes it
+under `user-assets/exports/<instance-id>/` through the desktop bridge.
 
 ## Built-in social overlays
 

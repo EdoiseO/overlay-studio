@@ -16,3 +16,15 @@ LinkedIn and the legacy Twitter bird use Overlay Studio's existing vector fallba
 Brand names and logos may be trademarks of their respective owners. Their inclusion
 does not imply affiliation or endorsement. Users remain responsible for following the
 applicable brand guidelines when displaying a mark.
+
+## Bundled overlay fonts
+
+Overlay Studio bundles WOFF2 subsets of Anton, Archivo Black, Fredoka, Montserrat,
+Nunito, and Poppins from Google Fonts. Each family is distributed under the SIL Open
+Font License 1.1. Family-specific copyright and complete license text files are stored
+under `assets/fonts/licenses/` and are included in the packaged desktop application.
+
+- Project: https://fonts.google.com/
+- Source: https://github.com/google/fonts
+- License: SIL Open Font License 1.1
+- License text: https://openfontlicense.org/

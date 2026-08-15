@@ -211,6 +211,35 @@ Text contrast is automatic, while width, height, corner radius, scale, font, and
 remain bounded in the Studio customizer. Long handles can expand past the chosen width
 rather than being clipped or shortened.
 
+## Transparent PNG export
+
+Platform Badge, Social Bar, and Social Grouped can be exported as transparent PNG
+graphics for video editors, end cards, and lower thirds. Open one of those customizers
+and select **Export PNG** beside **Save and apply**, or use the download icon beside the
+live draft's **Save** shortcut. Export uses the current live draft, including unsaved
+visual changes, without saving those settings to the overlay server.
+
+Choose a fixed output height of `256`, `512`, or `1024` pixels. The complete design is
+scaled to that height, effects are kept inside the transparent canvas, and the final
+width grows as needed for the content. Overlay preview zoom, preview position, and the
+overlay's OBS scale setting do not change the exported artwork size.
+
+Platform Badge also supports **Enabled platforms** batch export. Select a saved Social
+Bar instance as the account source and Studio creates one badge per enabled account,
+using the current Platform Badge appearance with each Social Bar platform and handle.
+The files use stable names such as `twitch.png` and `youtube.png`, which lets a video
+editor relink after a later export. Studio reports existing files before replacing them.
+
+Exports are written under `user-assets/exports/<instance-id>/`. Use **Open folder** in
+the export dialog to open that exact location. This subtree is deliberately excluded
+from the Dancing GIF media picker. Animated and live-data overlays, including Social
+Rotator, goals, Spotify, Match Record, and Rivals Rank Tracker, do not offer PNG export
+because a frozen image could silently present stale state.
+
+Overlay fonts are bundled locally, so supported overlays and PNG exports keep their
+chosen typography without an internet connection. Font license texts are included in
+`assets/fonts/licenses/`.
+
 ## Custom media
 
 Open **Dancing GIF** and give it a personal overlay name such as **Dancing Cats**. Use
@@ -411,8 +440,9 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 - `overlay-studio.html`: Dancing GIF and Spotify browser sources
 - `overlays/`: standalone overlay pages and the
   [future-overlay authoring guide](overlays/README.md)
-- `assets/`: bundled default media and the shared centered-surface stylesheet
-- `user-assets/`: copied custom dance and resting media
+- `assets/`: bundled default media, local overlay fonts, shared social vectors, and
+  centered-surface/export helpers
+- `user-assets/`: copied custom media plus generated PNGs under `exports/`
 - `larpdog-server/`: local HTTP, websocket, system-audio, and media-session service
 
 Server configuration and standalone development details are in
