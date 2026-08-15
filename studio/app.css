@@ -675,6 +675,22 @@ body.server-running
   line-height: 1;
 }
 
+.customizer-preview-toolbar-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 5px;
+}
+
+.customizer-preview-toolbar .customizer-preview-export {
+  color: var(--accent);
+}
+
+.customizer-preview-export[hidden] {
+  display: none;
+}
+
 .customizer-preview-stage {
   position: relative;
   width: 100%;
@@ -994,6 +1010,28 @@ body.server-running .customizer-preview-offline {
 .save-row {
   justify-content: flex-end;
   padding-bottom: 8px;
+}
+
+.png-export-trigger {
+  gap: 7px;
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  color: var(--accent);
+}
+
+.png-export-trigger:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.png-export-trigger svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .primary-button,
@@ -2396,6 +2434,245 @@ dialog .primary-button {
   margin-top: 18px;
 }
 
+.png-export-dialog {
+  width: min(470px, calc(100vw - 36px));
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.png-export-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border);
+}
+
+.png-export-heading > div {
+  min-width: 0;
+}
+
+.png-export-heading > div > span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.png-export-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.png-export-heading p {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.png-export-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 17px;
+}
+
+.png-export-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.png-export-fieldset legend,
+.png-export-source > span,
+.png-export-destination > span {
+  display: block;
+  margin-bottom: 7px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.png-export-height-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.png-export-height-options button {
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.png-export-height-options button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, var(--panel-alt));
+  color: var(--accent);
+}
+
+.png-export-mode-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.png-export-mode-options label {
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  cursor: pointer;
+}
+
+.png-export-mode-options label:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.png-export-mode-options input {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.png-export-source {
+  min-width: 0;
+}
+
+.png-export-source select {
+  width: 100%;
+}
+
+.png-export-source small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.png-export-notice {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+}
+
+.png-export-notice svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.png-export-notice-warning,
+.png-export-notice-error {
+  display: none;
+}
+
+.png-export-notice.warning .png-export-notice-ready,
+.png-export-notice.error .png-export-notice-ready {
+  display: none;
+}
+
+.png-export-notice.warning .png-export-notice-warning,
+.png-export-notice.error .png-export-notice-error {
+  display: inline;
+}
+
+.png-export-notice strong,
+.png-export-notice span {
+  display: block;
+}
+
+.png-export-notice strong {
+  font-size: 12px;
+}
+
+.png-export-notice span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.png-export-notice.warning {
+  border-color: color-mix(in srgb, var(--warning) 52%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, var(--panel-alt));
+}
+
+.png-export-notice.warning svg {
+  stroke: var(--warning);
+}
+
+.png-export-notice.success {
+  border-color: color-mix(in srgb, var(--good) 52%, var(--border));
+  background: color-mix(in srgb, var(--good) 8%, var(--panel-alt));
+}
+
+.png-export-notice.success svg {
+  stroke: var(--good);
+}
+
+.png-export-notice.error {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel-alt));
+}
+
+.png-export-notice.error svg {
+  stroke: var(--danger);
+}
+
+.png-export-destination code {
+  display: block;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.png-export-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 17px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.png-export-actions button {
+  float: none;
+}
+
 .catalog-dialog {
   width: min(860px, calc(100vw - 80px));
   height: min(620px, calc(100vh - 80px));
@@ -2702,6 +2979,30 @@ dialog .primary-button {
 }
 
 @media (max-width: 620px) {
+  .save-row {
+    flex-wrap: wrap;
+  }
+
+  .save-row > button {
+    flex: 1 1 auto;
+  }
+
+  .png-export-mode-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .png-export-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .png-export-actions > span {
+    display: none;
+  }
+
+  .png-export-actions button {
+    width: 100%;
+  }
+
   .rivals-account-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;

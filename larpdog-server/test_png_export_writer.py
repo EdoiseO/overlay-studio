@@ -168,6 +168,57 @@ class PngExportWriterTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("cannot be exported", result["detail"])
 
+    def test_status_reports_only_requested_existing_stable_files(self) -> None:
+        api = overlay_studio.DesktopApi()
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            user_assets = Path(temporary_dir)
+            destination = user_assets / "exports" / "platform-badge-main"
+            destination.mkdir(parents=True)
+            (destination / "twitch.png").write_bytes(b"existing")
+            (destination / "unrelated.png").write_bytes(b"other")
+            with (
+                patch.object(overlay_studio, "USER_ASSETS_DIR", user_assets),
+                patch.object(
+                    overlay_studio,
+                    "load_overlay_config",
+                    return_value=self.exportable_config(),
+                ),
+            ):
+                result = api.png_export_status(
+                    "platform-badge-main",
+                    ["twitch.png", "youtube.png"],
+                )
+                traversal = api.png_export_status(
+                    "platform-badge-main",
+                    ["../outside.png"],
+                )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["existing"], ["twitch.png"])
+        self.assertFalse(traversal["ok"])
+
+    def test_open_export_folder_is_scoped_to_the_instance(self) -> None:
+        api = overlay_studio.DesktopApi()
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            user_assets = Path(temporary_dir)
+            with (
+                patch.object(overlay_studio, "USER_ASSETS_DIR", user_assets),
+                patch.object(
+                    overlay_studio,
+                    "load_overlay_config",
+                    return_value=self.exportable_config(),
+                ),
+                patch.object(overlay_studio.os, "startfile") as startfile,
+            ):
+                result = api.open_export_folder("platform-badge-main")
+
+            expected = (
+                user_assets / "exports" / "platform-badge-main"
+            ).resolve()
+            self.assertTrue(result["ok"])
+            self.assertTrue(expected.is_dir())
+            startfile.assert_called_once_with(expected)
+
 
 if __name__ == "__main__":
     unittest.main()

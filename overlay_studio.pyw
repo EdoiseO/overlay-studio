@@ -529,6 +529,22 @@ def validated_export_png(data_url: Any) -> tuple[bytes, int, int]:
     return content, width, height
 
 
+def png_export_directory(instance_id: str, *, create: bool = False) -> Path:
+    if not is_valid_instance_id(instance_id):
+        raise ValueError("Invalid overlay instance")
+    exports_root = USER_ASSETS_DIR / "exports"
+    if create:
+        USER_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    resolved_assets = USER_ASSETS_DIR.resolve()
+    resolved_root = exports_root.resolve()
+    resolved_root.relative_to(resolved_assets)
+    resolved_destination = (resolved_root / instance_id).resolve()
+    resolved_destination.relative_to(resolved_root)
+    if create:
+        resolved_destination.mkdir(parents=True, exist_ok=True)
+    return resolved_destination
+
+
 def validate_imported_media(
     kind: str,
     declared_extension: str,
@@ -1880,17 +1896,9 @@ class DesktopApi:
         except ValueError as error:
             return {"ok": False, "detail": str(error)}
 
-        exports_root = USER_ASSETS_DIR / "exports"
-        destination_dir = exports_root / instance_id
         staged: list[tuple[Path, Path, bool, int, int]] = []
         try:
-            exports_root.mkdir(parents=True, exist_ok=True)
-            destination_dir.mkdir(parents=True, exist_ok=True)
-            resolved_assets = USER_ASSETS_DIR.resolve()
-            resolved_root = exports_root.resolve()
-            resolved_destination = destination_dir.resolve()
-            resolved_root.relative_to(resolved_assets)
-            resolved_destination.relative_to(resolved_root)
+            resolved_destination = png_export_directory(instance_id, create=True)
             for filename, content, width, height in prepared:
                 destination = resolved_destination / filename
                 temporary = resolved_destination / (
@@ -1928,6 +1936,63 @@ class DesktopApi:
             "files": files,
             "replaced": sum(1 for item in files if item["replaced"]),
         }
+
+    def png_export_status(
+        self,
+        instance_id: str,
+        filenames: Any,
+    ) -> dict[str, Any]:
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        saved_config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        instance = saved_config["instances"].get(instance_id)
+        if (
+            not isinstance(instance, dict)
+            or instance.get("type") not in PNG_EXPORT_OVERLAY_TYPES
+        ):
+            return {"ok": False, "detail": "This overlay cannot be exported as PNG"}
+        if (
+            not isinstance(filenames, list)
+            or not 1 <= len(filenames) <= MAX_PNG_EXPORT_ITEMS
+        ):
+            return {"ok": False, "detail": "Invalid PNG export list"}
+        names = [str(filename or "").strip() for filename in filenames]
+        if (
+            len(set(names)) != len(names)
+            or any(not PNG_EXPORT_FILENAME.fullmatch(name) for name in names)
+        ):
+            return {"ok": False, "detail": "Invalid PNG export filename"}
+        try:
+            destination = png_export_directory(instance_id)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": f"Export folder is unavailable: {error}"}
+        return {
+            "ok": True,
+            "folder": f"user-assets/exports/{instance_id}",
+            "existing": [
+                name for name in names if (destination / name).is_file()
+            ],
+        }
+
+    def open_export_folder(self, instance_id: str) -> dict[str, Any]:
+        if not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        saved_config = load_overlay_config(OVERLAY_CONFIG_PATH)
+        instance = saved_config["instances"].get(instance_id)
+        if (
+            not isinstance(instance, dict)
+            or instance.get("type") not in PNG_EXPORT_OVERLAY_TYPES
+        ):
+            return {"ok": False, "detail": "This overlay cannot be exported as PNG"}
+        try:
+            target = png_export_directory(instance_id, create=True)
+            if sys.platform == "win32":
+                os.startfile(target)  # type: ignore[attr-defined]
+            else:
+                webbrowser.open(target.as_uri())
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": f"Export folder could not be opened: {error}"}
+        return {"ok": True, "folder": f"user-assets/exports/{instance_id}"}
 
     def open_folder(self, folder: str) -> dict[str, Any]:
         choices = {

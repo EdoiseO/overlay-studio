@@ -3,6 +3,9 @@ const PREVIEW_ZOOM_MIN = 0.25;
 const PREVIEW_ZOOM_MAX = 3;
 const PREVIEW_ZOOM_STEP = 0.1;
 const PREVIEW_MIN_VISIBLE = 48;
+const PNG_EXPORT_HEIGHTS = Object.freeze([256, 512, 1024]);
+const PNG_EXPORT_TIMEOUT_MS = 30000;
+const PNG_EXPORT_MAX_DATA_URL_LENGTH = (24 * 1024 * 1024 * 4 / 3) + 128;
 
 const app = {
   state: null,
@@ -50,6 +53,12 @@ const app = {
   overlayDropAfter: false,
   overlayOrderSaving: false,
   socialGroupedBase: null,
+  pngExportHeight: 512,
+  pngExportMode: "current",
+  pngExportSourceId: null,
+  pngExportPending: new Map(),
+  pngExportBusy: false,
+  pngExportRevision: 0,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -816,44 +825,459 @@ function customizerDraft(instance) {
   return null;
 }
 
-function postCustomizerDraft() {
-  const dock = byId("customizerPreviewDock");
-  const frame = byId("customizerPreviewFrame");
-  const instance = activeInstance();
-  if (dock.hidden || !instance) return;
-  const payload = customizerDraft(instance);
-  if (!payload) return;
-  if (app.customizerPreviewReady && frame.contentWindow) {
-    let targetOrigin;
-    try {
-      targetOrigin = new URL(app.state?.baseUrl || "").origin;
-    } catch {
-      targetOrigin = null;
-    }
-    if (targetOrigin) {
-      frame.contentWindow.postMessage(
-        {
-          type: "overlay-studio-draft",
-          overlayType: instance.type,
-          instanceId: instance.id,
-          ...payload,
-        },
-        targetOrigin,
-      );
-    }
+function overlayServerOrigin() {
+  try {
+    return new URL(app.state?.baseUrl || "").origin;
+  } catch {
+    return null;
   }
-  syncCustomizerPreviewWindow({
+}
+
+function postCustomizerDraftToFrame(message) {
+  const frame = byId("customizerPreviewFrame");
+  const targetOrigin = overlayServerOrigin();
+  if (
+    !app.customizerPreviewReady
+    || !frame.contentWindow
+    || !targetOrigin
+  ) return false;
+  frame.contentWindow.postMessage(message, targetOrigin);
+  return true;
+}
+
+function customizerDraftMessage(instance, payload) {
+  return {
     type: "overlay-studio-draft",
     overlayType: instance.type,
     instanceId: instance.id,
     ...payload,
-  });
+  };
+}
+
+function postCustomizerDraft() {
+  const dock = byId("customizerPreviewDock");
+  const instance = activeInstance();
+  if (dock.hidden || !instance) return;
+  const payload = customizerDraft(instance);
+  if (!payload) return;
+  const message = customizerDraftMessage(instance, payload);
+  postCustomizerDraftToFrame(message);
+  syncCustomizerPreviewWindow(message);
 }
 
 function scheduleCustomizerDraft(delay = 70) {
   if (byId("customizerPreviewDock").hidden) return;
   clearTimeout(app.customizerPreviewTimer);
   app.customizerPreviewTimer = setTimeout(postCustomizerDraft, delay);
+}
+
+function isPngExportable(instance = activeInstance()) {
+  return Boolean(instance && manifestFor(instance.type)?.exportable === true);
+}
+
+function renderPngExportAvailability(instance = activeInstance()) {
+  const available = isPngExportable(instance);
+  const disabled = (
+    !available
+    || !app.state?.running
+    || !app.customizerPreviewReady
+    || app.pngExportBusy
+  );
+  const previewButton = byId("customizerPreviewExportButton");
+  previewButton.hidden = !available;
+  previewButton.disabled = disabled;
+  document.querySelectorAll("[data-open-png-export]").forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function socialBarExportSources() {
+  return instances()
+    .filter((instance) => instance.type === "social")
+    .map((instance) => {
+      const accounts = (
+        materializeInstanceConfig(instance).social?.accounts || []
+      )
+        .filter((account) => (
+          account?.enabled
+          && SOCIAL_PLATFORMS.some((platform) => platform.id === account.platform)
+          && String(account.handle || "").trim()
+        ))
+        .slice(0, 16)
+        .map((account) => ({
+          platform: account.platform,
+          handle: String(account.handle).trim(),
+        }));
+      return { instance, accounts };
+    })
+    .filter((source) => source.accounts.length > 0);
+}
+
+function selectedPngExportSource() {
+  return socialBarExportSources().find(
+    (source) => source.instance.id === app.pngExportSourceId,
+  ) || null;
+}
+
+function pngExportPlan() {
+  const instance = activeInstance();
+  if (!instance || !isPngExportable(instance)) {
+    throw new Error("This overlay cannot be exported as PNG");
+  }
+  const draft = customizerDraft(instance);
+  if (!draft) throw new Error("The live draft is not available");
+
+  if (instance.type === "platform-badge" && app.pngExportMode === "batch") {
+    const source = selectedPngExportSource();
+    if (!source) {
+      throw new Error("Choose a Social Bar with enabled accounts");
+    }
+    const base = gatherPlatformBadgeSettings();
+    return {
+      instance,
+      source,
+      entries: source.accounts.map((account) => ({
+        filename: `${account.platform}.png`,
+        draft: {
+          config: {
+            platformBadge: {
+              ...base,
+              platform: account.platform,
+              handle: account.handle,
+            },
+          },
+        },
+      })),
+    };
+  }
+
+  let filename = `${instance.type}.png`;
+  if (instance.type === "platform-badge") {
+    filename = `${gatherPlatformBadgeSettings().platform}.png`;
+  } else if (instance.type === "social") {
+    filename = "social-bar.png";
+  } else if (instance.type === "social-grouped") {
+    filename = "social-grouped.png";
+  }
+  return {
+    instance,
+    source: null,
+    entries: [{ filename, draft }],
+  };
+}
+
+function setPngExportNotice(kind, title, detail) {
+  const notice = byId("pngExportNotice");
+  notice.classList.remove("warning", "success", "error");
+  if (kind) notice.classList.add(kind);
+  byId("pngExportNoticeTitle").textContent = title;
+  byId("pngExportNoticeDetail").textContent = detail;
+}
+
+function pngExportDestination(plan) {
+  const folder = `user-assets/exports/${plan.instance.id}`;
+  return plan.entries.length === 1
+    ? `${folder}/${plan.entries[0].filename}`
+    : `${folder}/`;
+}
+
+async function refreshPngExportStatus(plan) {
+  const revision = ++app.pngExportRevision;
+  setPngExportNotice(
+    "",
+    "Checking export folder",
+    "Stable filenames replace earlier exports.",
+  );
+  try {
+    const result = await callApi(
+      "png_export_status",
+      plan.instance.id,
+      plan.entries.map((entry) => entry.filename),
+    );
+    if (
+      revision !== app.pngExportRevision
+      || !byId("pngExportDialog").open
+    ) return;
+    if (!result?.ok) throw new Error(result?.detail || "Export folder is unavailable");
+    const existing = Array.isArray(result.existing) ? result.existing.length : 0;
+    if (existing > 0) {
+      setPngExportNotice(
+        "warning",
+        `${existing} existing PNG${existing === 1 ? "" : "s"} will be replaced`,
+        "Stable filenames keep linked video-editor assets up to date.",
+      );
+    } else {
+      setPngExportNotice(
+        "",
+        "Ready to export",
+        "No existing PNG files will be replaced.",
+      );
+    }
+  } catch (error) {
+    if (revision !== app.pngExportRevision) return;
+    setPngExportNotice(
+      "error",
+      "Export folder could not be checked",
+      String(error.message || error),
+    );
+  }
+}
+
+function renderPngExportDialog({ refreshStatus = true } = {}) {
+  const instance = activeInstance();
+  const manifest = manifestFor(instance?.type);
+  if (!instance || manifest?.exportable !== true) return;
+
+  const isBadge = instance.type === "platform-badge";
+  const sources = isBadge ? socialBarExportSources() : [];
+  if (
+    !sources.some((source) => source.instance.id === app.pngExportSourceId)
+  ) {
+    app.pngExportSourceId = sources[0]?.instance.id || null;
+  }
+  if (!isBadge || !sources.length) app.pngExportMode = "current";
+
+  byId("pngExportSubtitle").textContent = `${instance.name} · current live draft`;
+  PNG_EXPORT_HEIGHTS.forEach((height) => {
+    const button = document.querySelector(`[data-png-export-height="${height}"]`);
+    button.setAttribute("aria-pressed", String(app.pngExportHeight === height));
+    button.disabled = app.pngExportBusy;
+  });
+
+  const modeFieldset = byId("pngExportModeFieldset");
+  const currentMode = byId("pngExportModeCurrent");
+  const batchMode = byId("pngExportModeBatch");
+  modeFieldset.hidden = !isBadge;
+  currentMode.checked = app.pngExportMode === "current";
+  batchMode.checked = app.pngExportMode === "batch";
+  currentMode.disabled = app.pngExportBusy;
+  batchMode.disabled = app.pngExportBusy || !sources.length;
+  batchMode.title = sources.length
+    ? ""
+    : "Add an enabled account to a Social Bar overlay first";
+
+  const sourceSelect = byId("pngExportSourceSelect");
+  sourceSelect.replaceChildren();
+  sources.forEach((source) => {
+    const option = document.createElement("option");
+    option.value = source.instance.id;
+    option.textContent = `${source.instance.name} (${source.accounts.length} enabled)`;
+    option.selected = source.instance.id === app.pngExportSourceId;
+    sourceSelect.append(option);
+  });
+  sourceSelect.disabled = app.pngExportBusy || !sources.length;
+  byId("pngExportSourceField").hidden = !isBadge || app.pngExportMode !== "batch";
+
+  let plan;
+  try {
+    plan = pngExportPlan();
+  } catch (error) {
+    byId("pngExportDestination").textContent = "Export is not ready";
+    byId("confirmPngExportButton").textContent = "Export PNG";
+    byId("confirmPngExportButton").disabled = true;
+    setPngExportNotice("error", "Export is not ready", String(error.message || error));
+    return;
+  }
+
+  const count = plan.entries.length;
+  byId("pngExportDestination").textContent = pngExportDestination(plan);
+  byId("confirmPngExportButton").textContent = count === 1
+    ? "Export PNG"
+    : `Export ${count} PNGs`;
+  byId("confirmPngExportButton").disabled = (
+    app.pngExportBusy
+    || !app.state?.running
+    || !app.customizerPreviewReady
+  );
+  byId("closePngExportButton").disabled = app.pngExportBusy;
+  byId("cancelPngExportButton").disabled = app.pngExportBusy;
+  byId("openPngExportFolderButton").disabled = app.pngExportBusy;
+  if (refreshStatus) refreshPngExportStatus(plan);
+}
+
+function openPngExportDialog() {
+  const instance = activeInstance();
+  if (!isPngExportable(instance)) {
+    showToast("This overlay cannot be exported as PNG");
+    return;
+  }
+  if (!app.state?.running) {
+    showToast("Start the overlay server before exporting");
+    return;
+  }
+  if (!app.customizerPreviewReady) {
+    showToast("The live draft is still loading");
+    return;
+  }
+  const sources = instance.type === "platform-badge"
+    ? socialBarExportSources()
+    : [];
+  app.pngExportMode = sources.length ? "batch" : "current";
+  app.pngExportSourceId = sources[0]?.instance.id || null;
+  const dialog = byId("pngExportDialog");
+  renderPngExportDialog();
+  if (!dialog.open) dialog.showModal();
+}
+
+function closePngExportDialog() {
+  if (app.pngExportBusy) return;
+  app.pngExportRevision += 1;
+  byId("pngExportDialog").close();
+}
+
+function pngExportRequestId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID().toLowerCase();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function requestCustomizerPng(instance, targetHeight) {
+  const frame = byId("customizerPreviewFrame");
+  const targetOrigin = overlayServerOrigin();
+  if (
+    !app.customizerPreviewReady
+    || !frame.contentWindow
+    || !targetOrigin
+  ) return Promise.reject(new Error("The live draft is still loading"));
+
+  const requestId = pngExportRequestId();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      app.pngExportPending.delete(requestId);
+      reject(new Error("PNG rendering timed out"));
+    }, PNG_EXPORT_TIMEOUT_MS);
+    app.pngExportPending.set(requestId, {
+      resolve,
+      reject,
+      timeout,
+      source: frame.contentWindow,
+      origin: targetOrigin,
+      overlayType: instance.type,
+      instanceId: instance.id,
+    });
+    frame.contentWindow.postMessage(
+      {
+        type: "overlay-studio-export-request",
+        requestId,
+        overlayType: instance.type,
+        instanceId: instance.id,
+        targetHeight,
+      },
+      targetOrigin,
+    );
+  });
+}
+
+function handlePngExportMessage(event) {
+  const message = event.data;
+  if (message?.type !== "overlay-studio-export-result") return;
+  const pending = app.pngExportPending.get(String(message.requestId || ""));
+  if (
+    !pending
+    || event.source !== pending.source
+    || event.origin !== pending.origin
+    || message.overlayType !== pending.overlayType
+    || message.instanceId !== pending.instanceId
+  ) return;
+
+  clearTimeout(pending.timeout);
+  app.pngExportPending.delete(message.requestId);
+  if (!message.ok) {
+    pending.reject(new Error(message.detail || "PNG rendering failed"));
+    return;
+  }
+  const png = String(message.png || "");
+  if (
+    !png.startsWith("data:image/png;base64,")
+    || png.length > PNG_EXPORT_MAX_DATA_URL_LENGTH
+    || !PNG_EXPORT_HEIGHTS.includes(Number(message.height))
+    || Number(message.width) < 1
+    || Number(message.width) > 8192
+  ) {
+    pending.reject(new Error("The rendered PNG did not pass validation"));
+    return;
+  }
+  pending.resolve({
+    png,
+    width: Number(message.width),
+    height: Number(message.height),
+  });
+}
+
+async function performPngExport() {
+  if (app.pngExportBusy) return;
+  let plan;
+  try {
+    plan = pngExportPlan();
+  } catch (error) {
+    setPngExportNotice("error", "Export is not ready", String(error.message || error));
+    return;
+  }
+
+  const originalDraft = customizerDraft(plan.instance);
+  const rendered = [];
+  let saved = null;
+  let failure = null;
+  app.pngExportBusy = true;
+  app.busy = true;
+  renderCustomizerDirtyState();
+  renderPngExportAvailability(plan.instance);
+  renderPngExportDialog({ refreshStatus: false });
+  try {
+    for (let index = 0; index < plan.entries.length; index += 1) {
+      const entry = plan.entries[index];
+      byId("confirmPngExportButton").textContent = plan.entries.length === 1
+        ? "Rendering PNG..."
+        : `Rendering ${index + 1} of ${plan.entries.length}...`;
+      const posted = postCustomizerDraftToFrame(
+        customizerDraftMessage(plan.instance, entry.draft),
+      );
+      if (!posted) throw new Error("The live draft is still loading");
+      const result = await requestCustomizerPng(
+        plan.instance,
+        app.pngExportHeight,
+      );
+      rendered.push({ filename: entry.filename, dataUrl: result.png });
+    }
+    saved = await callApi("save_png_exports", plan.instance.id, rendered);
+    if (!saved?.ok) throw new Error(saved?.detail || "PNG files could not be saved");
+  } catch (error) {
+    failure = error;
+  } finally {
+    if (originalDraft && activeInstance()?.id === plan.instance.id) {
+      postCustomizerDraftToFrame(
+        customizerDraftMessage(plan.instance, originalDraft),
+      );
+    }
+    app.pngExportBusy = false;
+    app.busy = false;
+    renderCustomizerDirtyState();
+    renderPngExportAvailability(plan.instance);
+    renderPngExportDialog({ refreshStatus: false });
+  }
+
+  if (failure) {
+    setPngExportNotice(
+      "error",
+      "PNG export failed",
+      String(failure.message || failure),
+    );
+    showToast(String(failure.message || failure));
+    return;
+  }
+
+  const count = saved.files?.length || rendered.length;
+  const replaced = Number(saved.replaced) || 0;
+  setPngExportNotice(
+    "success",
+    `${count} PNG${count === 1 ? "" : "s"} exported`,
+    replaced
+      ? `${replaced} existing file${replaced === 1 ? " was" : "s were"} replaced.`
+      : "The export folder is ready to open.",
+  );
+  logActivity(`PNG export saved: ${count} file${count === 1 ? "" : "s"}`);
+  showToast(count === 1 ? "PNG exported" : `${count} PNGs exported`);
 }
 
 function setCustomizerPreviewExpanded(expanded) {
@@ -952,6 +1376,7 @@ function hideCustomizerPreview() {
   resetCustomizerPreviewViewport();
   app.customizerPreviewSource = "";
   dock.hidden = true;
+  byId("customizerPreviewExportButton").hidden = true;
   updatePreview(frame, "", false);
 }
 
@@ -993,6 +1418,7 @@ function renderCustomizerPreview(state = app.state) {
     }
   }
   updatePreview(frame, source, Boolean(state?.running));
+  renderPngExportAvailability(instance);
   requestAnimationFrame(fitCustomizerPreview);
 }
 
@@ -3781,11 +4207,14 @@ function bindEvents() {
   populateSocialGroupedPlatformSelect();
   const customizerFrame = byId("customizerPreviewFrame");
   const customizerStage = byId("customizerPreviewStage");
+  window.addEventListener("message", handlePngExportMessage);
   customizerFrame.addEventListener("load", () => {
     app.customizerPreviewReady =
       Boolean(customizerFrame.dataset.source)
       && customizerFrame.src !== "about:blank";
     fitCustomizerPreview();
+    renderPngExportAvailability();
+    if (byId("pngExportDialog").open) renderPngExportDialog();
     if (app.customizerPreviewReady) scheduleCustomizerDraft(0);
   });
   app.customizerResizeObserver = new ResizeObserver(fitCustomizerPreview);
@@ -3818,6 +4247,13 @@ function bindEvents() {
     "click",
     () => saveCustomizerFromPreview(),
   );
+  byId("customizerPreviewExportButton").addEventListener(
+    "click",
+    openPngExportDialog,
+  );
+  document.querySelectorAll("[data-open-png-export]").forEach((button) => {
+    button.addEventListener("click", openPngExportDialog);
+  });
   customizerStage.addEventListener("wheel", (event) => {
     if (!app.customizerPreviewReady) return;
     event.preventDefault();
@@ -4501,6 +4937,47 @@ function bindEvents() {
   unsavedChangesDialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     resolveUnsavedChanges("keep");
+  });
+
+  const pngExportDialog = byId("pngExportDialog");
+  byId("closePngExportButton").addEventListener("click", closePngExportDialog);
+  byId("cancelPngExportButton").addEventListener("click", closePngExportDialog);
+  byId("confirmPngExportButton").addEventListener("click", performPngExport);
+  byId("openPngExportFolderButton").addEventListener("click", async () => {
+    const instance = activeInstance();
+    if (!instance) return;
+    try {
+      const result = await callApi("open_export_folder", instance.id);
+      if (!result?.ok) throw new Error(result?.detail || "Export folder could not be opened");
+    } catch (error) {
+      showToast(String(error.message || error));
+    }
+  });
+  byId("pngExportHeightOptions").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-png-export-height]");
+    if (!button || app.pngExportBusy) return;
+    const height = Number(button.dataset.pngExportHeight);
+    if (!PNG_EXPORT_HEIGHTS.includes(height)) return;
+    app.pngExportHeight = height;
+    renderPngExportDialog();
+  });
+  document.querySelectorAll('input[name="pngExportMode"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (app.pngExportBusy || !input.checked) return;
+      app.pngExportMode = input.value === "batch" ? "batch" : "current";
+      renderPngExportDialog();
+    });
+  });
+  byId("pngExportSourceSelect").addEventListener("change", (event) => {
+    if (app.pngExportBusy) return;
+    app.pngExportSourceId = event.target.value;
+    renderPngExportDialog();
+  });
+  pngExportDialog.addEventListener("cancel", (event) => {
+    if (app.pngExportBusy) event.preventDefault();
+  });
+  pngExportDialog.addEventListener("close", () => {
+    app.pngExportRevision += 1;
   });
 
   const previewDialog = byId("overlayPreviewDialog");
