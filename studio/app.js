@@ -974,6 +974,40 @@ function setPngExportNotice(kind, title, detail) {
   byId("pngExportNoticeDetail").textContent = detail;
 }
 
+function pngExportSavedFileNames(result) {
+  if (!Array.isArray(result?.files)) return [];
+  return result.files
+    .map((file) => String(file?.name || "").trim())
+    .filter(Boolean)
+    .slice(0, 16);
+}
+
+function isPartialPngExportResult(result) {
+  const files = pngExportSavedFileNames(result);
+  const saved = Number(result?.saved);
+  return (
+    result?.ok === false
+    && result.partial === true
+    && Number.isInteger(saved)
+    && saved > 0
+    && saved === files.length
+  );
+}
+
+function showPartialPngExportResult(result, total) {
+  const files = pngExportSavedFileNames(result);
+  const expected = Math.max(files.length, Math.trunc(Number(total)) || 0);
+  const title = `${files.length} of ${expected} PNGs exported`;
+  const detail = [
+    `Saved files: ${files.join(", ")}.`,
+    String(result?.detail || "The remaining PNG files were left unchanged."),
+    "Use Open folder to review them.",
+  ].join(" ");
+  setPngExportNotice("warning", title, detail);
+  logActivity(`PNG export partially saved: ${files.length} of ${expected} files`);
+  showToast(title);
+}
+
 function pngExportDestination(plan) {
   const folder = `user-assets/exports/${plan.instance.id}`;
   return plan.entries.length === 1
@@ -1241,7 +1275,9 @@ async function performPngExport() {
       rendered.push({ filename: entry.filename, dataUrl: result.png });
     }
     saved = await callApi("save_png_exports", plan.instance.id, rendered);
-    if (!saved?.ok) throw new Error(saved?.detail || "PNG files could not be saved");
+    if (!saved?.ok && !isPartialPngExportResult(saved)) {
+      throw new Error(saved?.detail || "PNG files could not be saved");
+    }
   } catch (error) {
     failure = error;
   } finally {
@@ -1264,6 +1300,11 @@ async function performPngExport() {
       String(failure.message || failure),
     );
     showToast(String(failure.message || failure));
+    return;
+  }
+
+  if (isPartialPngExportResult(saved)) {
+    showPartialPngExportResult(saved, plan.entries.length);
     return;
   }
 
