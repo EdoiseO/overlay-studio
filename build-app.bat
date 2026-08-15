@@ -18,6 +18,7 @@ if not exist "%PYTHON%" (
   --name "Overlay Studio" ^
   --paths "larpdog-server" ^
   --add-data "studio;studio" ^
+  --add-data "assets\fonts;assets\fonts" ^
   overlay_studio.pyw
 if errorlevel 1 (
   echo.

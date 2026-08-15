@@ -20,6 +20,9 @@ class RivalsCustomizerTests(unittest.TestCase):
         cls.overlay = (ROOT_DIR / "overlays" / "rivals-rank.html").read_text(
             encoding="utf-8"
         )
+        cls.fonts = (
+            ROOT_DIR / "assets" / "fonts" / "overlay-fonts.css"
+        ).read_text(encoding="utf-8")
 
     def test_manifest_and_studio_view_share_the_rivals_contract(self) -> None:
         self.assertIn('"studioView": "rivalsRankView"', self.overlay)
@@ -33,16 +36,16 @@ class RivalsCustomizerTests(unittest.TestCase):
         self.assertIn('event.data?.config?.rivals', self.overlay)
 
     def test_overlay_loads_every_custom_font_offered_by_studio(self) -> None:
-        self.assertIn("fonts.googleapis.com/css2", self.overlay)
+        self.assertIn("/assets/fonts/overlay-fonts.css", self.overlay)
         for family in (
             "Anton",
-            "Archivo+Black",
+            "Archivo Black",
             "Montserrat",
             "Nunito",
             "Poppins",
         ):
             with self.subTest(family=family):
-                self.assertIn(f"family={family}", self.overlay)
+                self.assertIn(f"font-family: '{family}'", self.fonts)
 
     def test_account_linking_is_private_and_separate_from_visual_draft(self) -> None:
         gather_start = self.script.index("function gatherRivalsSettings()")

@@ -16,6 +16,7 @@ a = Analysis(
         ("requirements.txt", "."),
         ("README.md", "."),
         ("check-media-session.py", "."),
+        ("../assets/fonts", "assets/fonts"),
     ] + winrt_datas,
     hiddenimports=[
         "soundcard",

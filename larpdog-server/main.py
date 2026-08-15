@@ -1263,6 +1263,11 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/api/rivals", get_rivals)
     app.router.add_post("/api/rivals", update_rivals)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"
+    resource_root = Path(getattr(sys, "_MEIPASS", assets_dir.parent))
+    bundled_fonts_dir = resource_root / "assets" / "fonts"
+    fonts_dir = bundled_fonts_dir if bundled_fonts_dir.exists() else assets_dir / "fonts"
+    if fonts_dir.exists():
+        app.router.add_static("/assets/fonts", fonts_dir, show_index=False)
     if assets_dir.exists():
         app.router.add_static("/assets", assets_dir, show_index=False)
     user_assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "user-assets"
