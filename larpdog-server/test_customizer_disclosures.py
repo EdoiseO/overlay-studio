@@ -16,7 +16,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
             "open": ("Player appearance",),
             "closed": (),
         },
-        "minecraftSpotifyView": {
+        "blockBeatsView": {
             "open": ("Player appearance",),
             "closed": (),
         },

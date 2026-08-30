@@ -22,18 +22,18 @@ from overlay_config import (  # noqa: E402
 )
 
 
-class MinecraftSpotifyPresentationTests(unittest.TestCase):
+class BlockBeatsPresentationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.source = (
-            ROOT_DIR / "overlays" / "minecraft-spotify.html"
+            ROOT_DIR / "overlays" / "block-beats.html"
         ).read_text(encoding="utf-8")
 
     def test_overlay_is_a_separate_square_catalog_template(self) -> None:
-        self.assertIn('"name": "Minecraft Spotify"', self.source)
+        self.assertIn('"name": "Block Beats"', self.source)
         self.assertIn('"canvas": { "w": 520, "h": 520 }', self.source)
-        self.assertIn('"studioView": "minecraftSpotifyView"', self.source)
-        self.assertIn("minecraftSpotify:", self.source)
+        self.assertIn('"studioView": "blockBeatsView"', self.source)
+        self.assertIn("blockBeats:", self.source)
         self.assertNotIn('"exportable": true', self.source)
 
     def test_player_has_sharp_pixel_card_treatment(self) -> None:
@@ -56,11 +56,11 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn('query.get("catalog") === "1"', self.source)
         self.assertIn("PREVIEW_TRACK", self.source)
         self.assertIn('message?.type !== "overlay-studio-draft"', self.source)
-        self.assertIn('message.overlayType !== "minecraft-spotify"', self.source)
+        self.assertIn('message.overlayType !== "block-beats"', self.source)
         self.assertIn("applySettings(message.config)", self.source)
 
 
-class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
+class BlockBeatsApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         root = Path(self.temporary.name)
@@ -69,8 +69,8 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         server_dir.mkdir()
         overlays_dir.mkdir()
         shutil.copyfile(
-            ROOT_DIR / "overlays" / "minecraft-spotify.html",
-            overlays_dir / "minecraft-spotify.html",
+            ROOT_DIR / "overlays" / "block-beats.html",
+            overlays_dir / "block-beats.html",
         )
         (root / "overlay-studio.html").write_text(
             "<!doctype html><title>Test</title>",
@@ -78,9 +78,9 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         )
         overlay_config = add_overlay_instance(
             normalize_overlay_config({"instances": {}}),
-            "minecraft-spotify",
-            "minecraft-player",
-            "Minecraft Player",
+            "block-beats",
+            "block-beats-player",
+            "Block Beats Player",
         )
         save_overlay_config(server_dir / "overlay-config.json", overlay_config)
         config = copy.deepcopy(main.DEFAULT_CONFIG)
@@ -96,15 +96,15 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_route_loads_and_saved_instance_settings_round_trip(self) -> None:
         overlay = await self.client.get(
-            "/overlays/minecraft-spotify?i=minecraft-player"
+            "/overlays/block-beats?i=block-beats-player"
         )
         self.assertEqual(overlay.status, 200)
-        self.assertIn("Minecraft Spotify", await overlay.text())
+        self.assertIn("Block Beats", await overlay.text())
 
         saved = await self.client.post(
-            "/api/config?i=minecraft-player",
+            "/api/config?i=block-beats-player",
             json={
-                "minecraftSpotify": {
+                "blockBeats": {
                     "scale": 1.25,
                     "cardSize": 400,
                     "accentColor": "55aa33",
@@ -117,11 +117,11 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved.status, 200)
 
         loaded = await self.client.get(
-            "/api/config?i=minecraft-player"
+            "/api/config?i=block-beats-player"
         )
         payload = await loaded.json()
-        self.assertEqual(payload["minecraftSpotify"]["cardSize"], 400)
-        self.assertEqual(payload["minecraftSpotify"]["pixelShadow"], 0.5)
+        self.assertEqual(payload["blockBeats"]["cardSize"], 400)
+        self.assertEqual(payload["blockBeats"]["pixelShadow"], 0.5)
         self.assertEqual(payload["spotify"]["cardWidth"], 335)
 
 

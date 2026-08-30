@@ -219,13 +219,13 @@ class PlatformBadgeConfigTests(unittest.TestCase):
         self.assertEqual(badge["badgeColor"], "9146ff")
 
 
-class MinecraftSpotifyConfigTests(unittest.TestCase):
-    def test_minecraft_spotify_settings_round_trip_without_touching_spotify(self) -> None:
+class BlockBeatsConfigTests(unittest.TestCase):
+    def test_block_beats_settings_round_trip_without_touching_spotify(self) -> None:
         config = add_overlay_instance(
             normalize_overlay_config({}),
-            "minecraft-spotify",
-            "minecraft-spotify-main",
-            "Minecraft Spotify",
+            "block-beats",
+            "block-beats-main",
+            "Block Beats",
         )
         original_spotify = materialize_instance_config(
             config,
@@ -234,9 +234,9 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
 
         updated = update_instance_config(
             config,
-            "minecraft-spotify-main",
+            "block-beats-main",
             {
-                "minecraftSpotify": {
+                "blockBeats": {
                     "scale": 1.35,
                     "cardSize": 404,
                     "accentColor": "#55AA33",
@@ -252,11 +252,11 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
         )
         materialized = materialize_instance_config(
             normalize_overlay_config(updated),
-            "minecraft-spotify-main",
+            "block-beats-main",
         )
 
         self.assertEqual(
-            materialized["minecraftSpotify"],
+            materialized["blockBeats"],
             {
                 "scale": 1.35,
                 "cardSize": 404,
@@ -268,22 +268,22 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
         )
         self.assertEqual(materialized["spotify"], original_spotify)
         self.assertEqual(
-            updated["instances"]["minecraft-spotify-main"]["config"].keys(),
-            {"minecraftSpotify"},
+            updated["instances"]["block-beats-main"]["config"].keys(),
+            {"blockBeats"},
         )
 
-    def test_minecraft_spotify_settings_are_bounded_and_validated(self) -> None:
+    def test_block_beats_settings_are_bounded_and_validated(self) -> None:
         config = add_overlay_instance(
             normalize_overlay_config({}),
-            "minecraft-spotify",
-            "minecraft-spotify-main",
-            "Minecraft Spotify",
+            "block-beats",
+            "block-beats-main",
+            "Block Beats",
         )
         updated = update_instance_config(
             config,
-            "minecraft-spotify-main",
+            "block-beats-main",
             {
-                "minecraftSpotify": {
+                "blockBeats": {
                     "scale": 99,
                     "cardSize": 10,
                     "accentColor": "invalid",
@@ -293,8 +293,8 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
         )
         settings = materialize_instance_config(
             updated,
-            "minecraft-spotify-main",
-        )["minecraftSpotify"]
+            "block-beats-main",
+        )["blockBeats"]
 
         self.assertEqual(settings["scale"], 2.0)
         self.assertEqual(settings["cardSize"], 320)

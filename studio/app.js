@@ -185,7 +185,7 @@ const SOCIAL_GROUPED_PRESETS = Object.freeze({
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
-  "minecraftSpotifyView",
+  "blockBeatsView",
   "flowView",
   "goalView",
   "goalBarView",
@@ -352,7 +352,7 @@ async function saveActiveCustomizer() {
   if (
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
-    || instance.type === "minecraft-spotify"
+    || instance.type === "block-beats"
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
@@ -678,7 +678,7 @@ function materializeInstanceConfig(instance) {
   [
     "dance",
     "spotify",
-    "minecraftSpotify",
+    "blockBeats",
     "flow",
     "audio",
     "nowPlaying",
@@ -812,7 +812,7 @@ function customizerDraft(instance) {
   if (
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
-    || instance.type === "minecraft-spotify"
+    || instance.type === "block-beats"
     || instance.type === "now-playing-flow"
   ) {
     return { config: gatherConfig() };
@@ -1924,10 +1924,10 @@ function renderActiveIdentity(instance) {
     byId("spotifyDetailName").textContent = instance.name;
     byId("spotifySourceLabel").textContent = instance.name;
     byId("spotifyUrl").value = source;
-  } else if (instance.type === "minecraft-spotify") {
-    byId("minecraftSpotifyDetailName").textContent = instance.name;
-    byId("minecraftSpotifySourceLabel").textContent = instance.name;
-    byId("minecraftSpotifyUrl").value = source;
+  } else if (instance.type === "block-beats") {
+    byId("blockBeatsDetailName").textContent = instance.name;
+    byId("blockBeatsSourceLabel").textContent = instance.name;
+    byId("blockBeatsUrl").value = source;
   } else if (instance.type === "win-loss") {
     byId("counterDetailName").textContent = instance.name;
     byId("counterSourceLabel").textContent = instance.name;
@@ -3681,27 +3681,25 @@ function fillConfig(config) {
   setColor("colorA", config.spotify.colors.a);
   setColor("colorB", config.spotify.colors.b);
   setColor("colorC", config.spotify.colors.c);
-  byId("minecraftSpotifyScale").value = config.minecraftSpotify.scale;
-  byId("minecraftSpotifyScaleOutput").value =
-    Number(config.minecraftSpotify.scale).toFixed(2);
-  byId("minecraftSpotifyCardSize").value = config.minecraftSpotify.cardSize;
-  byId("minecraftSpotifyCardSizeOutput").value =
-    config.minecraftSpotify.cardSize;
-  byId("minecraftSpotifyPixelShadow").value =
-    config.minecraftSpotify.pixelShadow;
-  byId("minecraftSpotifyPixelShadowOutput").value =
-    Number(config.minecraftSpotify.pixelShadow).toFixed(2);
+  byId("blockBeatsScale").value = config.blockBeats.scale;
+  byId("blockBeatsScaleOutput").value =
+    Number(config.blockBeats.scale).toFixed(2);
+  byId("blockBeatsCardSize").value = config.blockBeats.cardSize;
+  byId("blockBeatsCardSizeOutput").value = config.blockBeats.cardSize;
+  byId("blockBeatsPixelShadow").value = config.blockBeats.pixelShadow;
+  byId("blockBeatsPixelShadowOutput").value =
+    Number(config.blockBeats.pixelShadow).toFixed(2);
   setColor(
-    "minecraftSpotifyAccentColor",
-    config.minecraftSpotify.accentColor,
+    "blockBeatsAccentColor",
+    config.blockBeats.accentColor,
   );
   setColor(
-    "minecraftSpotifyShellColor",
-    config.minecraftSpotify.shellColor,
+    "blockBeatsShellColor",
+    config.blockBeats.shellColor,
   );
   setColor(
-    "minecraftSpotifyTextColor",
-    config.minecraftSpotify.textColor,
+    "blockBeatsTextColor",
+    config.blockBeats.textColor,
   );
   byId("flowName").value = config.flow.name;
   byId("flowScale").value = config.flow.scale;
@@ -3759,13 +3757,13 @@ function gatherConfig() {
         c: byId("colorC").value.slice(1),
       },
     },
-    minecraftSpotify: {
-      scale: Number(byId("minecraftSpotifyScale").value),
-      cardSize: Number(byId("minecraftSpotifyCardSize").value),
-      accentColor: byId("minecraftSpotifyAccentColor").value.slice(1),
-      shellColor: byId("minecraftSpotifyShellColor").value.slice(1),
-      textColor: byId("minecraftSpotifyTextColor").value.slice(1),
-      pixelShadow: Number(byId("minecraftSpotifyPixelShadow").value),
+    blockBeats: {
+      scale: Number(byId("blockBeatsScale").value),
+      cardSize: Number(byId("blockBeatsCardSize").value),
+      accentColor: byId("blockBeatsAccentColor").value.slice(1),
+      shellColor: byId("blockBeatsShellColor").value.slice(1),
+      textColor: byId("blockBeatsTextColor").value.slice(1),
+      pixelShadow: Number(byId("blockBeatsPixelShadow").value),
     },
     flow: {
       name: byId("flowName").value,
@@ -4742,17 +4740,16 @@ function bindEvents() {
     byId("timeToolDigitShadowOutput").value =
       Number(byId("timeToolDigitShadow").value).toFixed(2);
   });
-  byId("minecraftSpotifyScale").addEventListener("input", () => {
-    byId("minecraftSpotifyScaleOutput").value =
-      Number(byId("minecraftSpotifyScale").value).toFixed(2);
+  byId("blockBeatsScale").addEventListener("input", () => {
+    byId("blockBeatsScaleOutput").value =
+      Number(byId("blockBeatsScale").value).toFixed(2);
   });
-  byId("minecraftSpotifyCardSize").addEventListener("input", () => {
-    byId("minecraftSpotifyCardSizeOutput").value =
-      byId("minecraftSpotifyCardSize").value;
+  byId("blockBeatsCardSize").addEventListener("input", () => {
+    byId("blockBeatsCardSizeOutput").value = byId("blockBeatsCardSize").value;
   });
-  byId("minecraftSpotifyPixelShadow").addEventListener("input", () => {
-    byId("minecraftSpotifyPixelShadowOutput").value =
-      Number(byId("minecraftSpotifyPixelShadow").value).toFixed(2);
+  byId("blockBeatsPixelShadow").addEventListener("input", () => {
+    byId("blockBeatsPixelShadowOutput").value =
+      Number(byId("blockBeatsPixelShadow").value).toFixed(2);
   });
   byId("rivalsScale").addEventListener("input", () => {
     byId("rivalsScaleOutput").value =
@@ -4929,9 +4926,9 @@ function bindEvents() {
     "colorA",
     "colorB",
     "colorC",
-    "minecraftSpotifyAccentColor",
-    "minecraftSpotifyShellColor",
-    "minecraftSpotifyTextColor",
+    "blockBeatsAccentColor",
+    "blockBeatsShellColor",
+    "blockBeatsTextColor",
     "counterAccent",
     "goalColor",
     "goalTrack",
@@ -4976,7 +4973,7 @@ function bindEvents() {
 
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
-  byId("saveMinecraftSpotifyButton").addEventListener(
+  byId("saveBlockBeatsButton").addEventListener(
     "click",
     () => saveOverlaySettings(),
   );
@@ -5059,20 +5056,20 @@ function bindEvents() {
     setColor("colorC", defaults.colors.c);
     logActivity("Spotify fields reset; save to apply");
   });
-  byId("resetMinecraftSpotifyButton").addEventListener("click", () => {
-    const defaults = app.state.defaults.minecraftSpotify;
-    byId("minecraftSpotifyScale").value = defaults.scale;
-    byId("minecraftSpotifyScaleOutput").value =
+  byId("resetBlockBeatsButton").addEventListener("click", () => {
+    const defaults = app.state.defaults.blockBeats;
+    byId("blockBeatsScale").value = defaults.scale;
+    byId("blockBeatsScaleOutput").value =
       Number(defaults.scale).toFixed(2);
-    byId("minecraftSpotifyCardSize").value = defaults.cardSize;
-    byId("minecraftSpotifyCardSizeOutput").value = defaults.cardSize;
-    byId("minecraftSpotifyPixelShadow").value = defaults.pixelShadow;
-    byId("minecraftSpotifyPixelShadowOutput").value =
+    byId("blockBeatsCardSize").value = defaults.cardSize;
+    byId("blockBeatsCardSizeOutput").value = defaults.cardSize;
+    byId("blockBeatsPixelShadow").value = defaults.pixelShadow;
+    byId("blockBeatsPixelShadowOutput").value =
       Number(defaults.pixelShadow).toFixed(2);
-    setColor("minecraftSpotifyAccentColor", defaults.accentColor);
-    setColor("minecraftSpotifyShellColor", defaults.shellColor);
-    setColor("minecraftSpotifyTextColor", defaults.textColor);
-    logActivity("Minecraft Spotify fields reset; save to apply");
+    setColor("blockBeatsAccentColor", defaults.accentColor);
+    setColor("blockBeatsShellColor", defaults.shellColor);
+    setColor("blockBeatsTextColor", defaults.textColor);
+    logActivity("Block Beats fields reset; save to apply");
   });
   byId("resetFlowButton").addEventListener("click", () => {
     const defaults = app.state.defaults.flow;

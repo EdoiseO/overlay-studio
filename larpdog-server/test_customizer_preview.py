@@ -235,7 +235,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         overlay_sources = {
             "larpdog-dance": ROOT_DIR / "overlay-studio.html",
             "spotify": ROOT_DIR / "overlay-studio.html",
-            "minecraft-spotify": ROOT_DIR / "overlays" / "minecraft-spotify.html",
+            "block-beats": ROOT_DIR / "overlays" / "block-beats.html",
             "now-playing-flow": ROOT_DIR / "overlays" / "now-playing-flow.html",
             "goal": ROOT_DIR / "overlays" / "goal.html",
             "goal-bar": ROOT_DIR / "overlays" / "goal-bar.html",

@@ -159,9 +159,9 @@ class OverlayFontContractTests(unittest.TestCase):
             with self.subTest(removed_overlay=filename):
                 self.assertFalse((ROOT_DIR / "overlays" / filename).exists())
 
-    def test_minecraft_spotify_uses_the_local_minecraftia_font(self) -> None:
+    def test_block_beats_uses_the_local_minecraftia_font(self) -> None:
         source = (
-            ROOT_DIR / "overlays" / "minecraft-spotify.html"
+            ROOT_DIR / "overlays" / "block-beats.html"
         ).read_text(encoding="utf-8")
 
         self.assertIn("/assets/fonts/overlay-fonts.css", source)

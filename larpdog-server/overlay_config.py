@@ -167,7 +167,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
             "c": "5ee0ff",
         },
     },
-    "minecraftSpotify": {
+    "blockBeats": {
         "scale": 1.0,
         "cardSize": 440,
         "accentColor": "70b237",
@@ -748,9 +748,9 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     spotify = (
         source.get("spotify") if isinstance(source.get("spotify"), dict) else {}
     )
-    minecraft_spotify = (
-        source.get("minecraftSpotify")
-        if isinstance(source.get("minecraftSpotify"), dict)
+    block_beats = (
+        source.get("blockBeats")
+        if isinstance(source.get("blockBeats"), dict)
         else {}
     )
     flow = source.get("flow") if isinstance(source.get("flow"), dict) else {}
@@ -782,7 +782,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     defaults = DEFAULT_OVERLAY_CONFIG
     default_dance = defaults["dance"]
     default_spotify = defaults["spotify"]
-    default_minecraft_spotify = defaults["minecraftSpotify"]
+    default_block_beats = defaults["blockBeats"]
     default_flow = defaults["flow"]
     default_colors = default_spotify["colors"]
     dance_gif = _asset_path(
@@ -940,11 +940,11 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
                 "c": _color(colors.get("c"), default_colors["c"]),
             },
         },
-        "minecraftSpotify": {
+        "blockBeats": {
             "scale": round(
                 _number(
-                    minecraft_spotify.get("scale"),
-                    default_minecraft_spotify["scale"],
+                    block_beats.get("scale"),
+                    default_block_beats["scale"],
                     0.5,
                     2.0,
                 ),
@@ -953,29 +953,29 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
             "cardSize": int(
                 round(
                     _number(
-                        minecraft_spotify.get("cardSize"),
-                        default_minecraft_spotify["cardSize"],
+                        block_beats.get("cardSize"),
+                        default_block_beats["cardSize"],
                         320,
                         480,
                     )
                 )
             ),
             "accentColor": _color(
-                minecraft_spotify.get("accentColor"),
-                default_minecraft_spotify["accentColor"],
+                block_beats.get("accentColor"),
+                default_block_beats["accentColor"],
             ),
             "shellColor": _color(
-                minecraft_spotify.get("shellColor"),
-                default_minecraft_spotify["shellColor"],
+                block_beats.get("shellColor"),
+                default_block_beats["shellColor"],
             ),
             "textColor": _color(
-                minecraft_spotify.get("textColor"),
-                default_minecraft_spotify["textColor"],
+                block_beats.get("textColor"),
+                default_block_beats["textColor"],
             ),
             "pixelShadow": round(
                 _number(
-                    minecraft_spotify.get("pixelShadow"),
-                    default_minecraft_spotify["pixelShadow"],
+                    block_beats.get("pixelShadow"),
+                    default_block_beats["pixelShadow"],
                     0.0,
                     1.0,
                 ),
@@ -1028,8 +1028,8 @@ def _instance_config(
         keys = ("dance", "audio", "nowPlaying")
     elif overlay_type == "spotify":
         keys = ("spotify",)
-    elif overlay_type == "minecraft-spotify":
-        keys = ("minecraftSpotify",)
+    elif overlay_type == "block-beats":
+        keys = ("blockBeats",)
     elif overlay_type == "now-playing-flow":
         keys = ("flow",)
     elif overlay_type in {"social", "social-rotator"}:
@@ -1128,7 +1128,7 @@ def materialize_instance_config(
         for key in (
             "dance",
             "spotify",
-            "minecraftSpotify",
+            "blockBeats",
             "flow",
             "audio",
             "nowPlaying",
@@ -1162,7 +1162,7 @@ def update_instance_config(
     for key in (
         "dance",
         "spotify",
-        "minecraftSpotify",
+        "blockBeats",
         "flow",
         "audio",
         "nowPlaying",

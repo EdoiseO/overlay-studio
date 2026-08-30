@@ -9,10 +9,10 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 class PaletteCustomizerTests(unittest.TestCase):
     COLOR_FAMILIES = {
         "Spotify": ("colorA", "colorB", "colorC"),
-        "Minecraft Spotify": (
-            "minecraftSpotifyAccentColor",
-            "minecraftSpotifyShellColor",
-            "minecraftSpotifyTextColor",
+        "Block Beats": (
+            "blockBeatsAccentColor",
+            "blockBeatsShellColor",
+            "blockBeatsTextColor",
         ),
         "Goal Ring": ("goalColor", "goalTrack", "goalLabelColor"),
         "Goal Bar": (
