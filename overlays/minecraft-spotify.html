@@ -125,23 +125,11 @@
   .art-placeholder {
     position: absolute;
     inset: 0;
-    display: grid;
-    place-content: center;
-    gap: clamp(7px, 2.2cqw, 11px);
-    text-align: center;
-    color: var(--text);
     background:
       linear-gradient(90deg, transparent 48%, rgba(0,0,0,.24) 48% 52%, transparent 52%),
       linear-gradient(transparent 48%, rgba(0,0,0,.24) 48% 52%, transparent 52%),
       linear-gradient(135deg, rgba(var(--accent-rgb), .92), rgba(var(--accent-rgb), .28));
     background-size: 36px 36px, 36px 36px, 100% 100%;
-    text-shadow: 3px 3px 0 rgba(0,0,0,.55);
-  }
-  .art-placeholder strong { font-size: clamp(14px, 5.2cqw, 23px); }
-  .art-placeholder span {
-    color: var(--shell);
-    font-size: clamp(10px, 3cqw, 13px);
-    text-shadow: none;
   }
   .track-panel {
     display: grid;
@@ -197,10 +185,7 @@
     <span class="status-label" id="status">WAITING</span>
   </header>
   <div class="art-frame">
-    <div class="art-placeholder" id="artPlaceholder" aria-hidden="true">
-      <strong>BLOCK BEATS</strong>
-      <span>NOW PLAYING</span>
-    </div>
+    <div class="art-placeholder" id="artPlaceholder" aria-hidden="true"></div>
     <img id="art" alt="" hidden>
   </div>
   <section class="track-panel">

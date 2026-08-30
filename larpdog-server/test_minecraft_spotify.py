@@ -43,6 +43,7 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn("height: var(--card-size)", self.source)
         self.assertIn("aspect-ratio: 1", self.source)
         self.assertIn("--pixel-shadow", self.source)
+        self.assertNotIn("BLOCK BEATS", self.source)
 
     def test_player_uses_only_strict_spotify_routing(self) -> None:
         self.assertIn('typeof message?.spotifyStatus !== "string"', self.source)
