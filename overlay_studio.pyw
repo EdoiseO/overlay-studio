@@ -92,9 +92,12 @@ from rivals_store import (  # noqa: E402
 from time_tool_store import (  # noqa: E402
     DEFAULT_TIME_TOOL_STATES,
     TIME_TOOL_OVERLAY_TYPES,
+    WallClockGuard,
     load_time_tool_states,
     remove_time_tool_instance,
 )
+
+TIME_TOOL_CLOCK_GUARD = WallClockGuard()
 
 
 ALLOWED_DANCE_EXTENSIONS = {
@@ -1127,6 +1130,7 @@ class DesktopApi:
             "timeTools": load_time_tool_states(
                 TIME_TOOL_STATE_PATH,
                 time_tool_instances,
+                clock_guard=TIME_TOOL_CLOCK_GUARD,
             ),
             "rivalsDefaults": DEFAULT_RIVALS_STATE,
             "rivals": rivals_runtime["states"],

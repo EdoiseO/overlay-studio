@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -39,6 +41,63 @@ INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 MAX_DURATION_SECONDS = 359_999
 MAX_TIMER_MILLISECONDS = MAX_DURATION_SECONDS * 1000
 MAX_TIMESTAMP_MILLISECONDS = 4_102_444_800_000
+CLOCK_JUMP_TOLERANCE_MS = 60_000
+
+LOGGER = logging.getLogger(__name__)
+
+
+class WallClockGuard:
+    """Keep timer time monotonic after the process has observed the wall clock."""
+
+    def __init__(
+        self,
+        *,
+        logger: logging.Logger = LOGGER,
+        tolerance_ms: int = CLOCK_JUMP_TOLERANCE_MS,
+    ) -> None:
+        self._logger = logger
+        self._tolerance_ms = max(0, int(tolerance_ms))
+        self._last_wall_ms: int | None = None
+        self._last_monotonic_ms: int | None = None
+        self._wall_offset_ms = 0
+        self._jump_logged = False
+        self._lock = threading.Lock()
+
+    def logical_now_ms(self, wall_ms: int, monotonic_ms: int) -> int:
+        wall = int(wall_ms)
+        monotonic = int(monotonic_ms)
+        with self._lock:
+            if self._last_wall_ms is not None and self._last_monotonic_ms is not None:
+                wall_elapsed = wall - self._last_wall_ms
+                monotonic_elapsed = max(0, monotonic - self._last_monotonic_ms)
+                drift = wall_elapsed - monotonic_elapsed
+                if abs(drift) > self._tolerance_ms:
+                    self._wall_offset_ms += drift
+                    if not self._jump_logged:
+                        self._logger.warning(
+                            "System clock adjustment ignored for active time tools "
+                            "(wall delta %d ms, elapsed delta %d ms)",
+                            wall_elapsed,
+                            monotonic_elapsed,
+                        )
+                        self._jump_logged = True
+            self._last_wall_ms = wall
+            self._last_monotonic_ms = monotonic
+            return wall - self._wall_offset_ms
+
+    def sample(self) -> tuple[int, int]:
+        wall = int(time.time() * 1000)
+        logical = self.logical_now_ms(wall, int(time.monotonic() * 1000))
+        return wall, logical
+
+
+_DEFAULT_WALL_CLOCK_GUARD = WallClockGuard()
+
+
+def _time_tool_clock_sample(
+    clock_guard: WallClockGuard | None = None,
+) -> tuple[int, int]:
+    return (clock_guard or _DEFAULT_WALL_CLOCK_GUARD).sample()
 
 COMMON_DEFAULTS: dict[str, Any] = {
     "accentColor": "70b237",
@@ -242,6 +301,9 @@ def normalize_time_tool_state(raw: Any, overlay_type: str) -> dict[str, Any]:
         state.update(
             {
                 "durationSeconds": duration,
+                # Explicit duration edits reset the countdown in
+                # apply_time_tool_update. This clamp only keeps loaded or
+                # malformed persisted values inside the configured duration.
                 "remainingMs": int(
                     round(
                         _number(
@@ -290,12 +352,24 @@ def snapshot_time_tool_state(
     raw: Any,
     overlay_type: str,
     now_ms: int | None = None,
+    *,
+    clock_guard: WallClockGuard | None = None,
+    logical_now_ms: int | None = None,
 ) -> dict[str, Any]:
     state = normalize_time_tool_state(raw, overlay_type)
     if overlay_type in CLOCK_TIME_TOOL_OVERLAY_TYPES or not state["running"]:
         return state
-    now = int(time.time() * 1000) if now_ms is None else int(now_ms)
-    delta = max(0, now - state["startedAt"])
+    if now_ms is None:
+        now, logical_now = _time_tool_clock_sample(clock_guard)
+    else:
+        now = int(now_ms)
+        logical_now = now if logical_now_ms is None else int(logical_now_ms)
+    deltas = [
+        candidate - state["startedAt"]
+        for candidate in {now, logical_now}
+        if candidate >= state["startedAt"]
+    ]
+    delta = min(deltas, default=0)
     if overlay_type in COUNTDOWN_TIME_TOOL_OVERLAY_TYPES:
         state["remainingMs"] = max(0, state["remainingMs"] - delta)
         if state["remainingMs"] == 0:
@@ -321,12 +395,28 @@ def apply_time_tool_update(
     raw: Any,
     overlay_type: str,
     now_ms: int | None = None,
+    *,
+    clock_guard: WallClockGuard | None = None,
 ) -> dict[str, Any]:
     if overlay_type not in TIME_TOOL_OVERLAY_TYPES:
         raise ValueError("Unknown time-tool overlay type")
     source = raw if isinstance(raw, dict) else {}
-    now = int(time.time() * 1000) if now_ms is None else int(now_ms)
-    state = snapshot_time_tool_state(current, overlay_type, now)
+    if now_ms is None:
+        now, logical_now = _time_tool_clock_sample(clock_guard)
+        state = snapshot_time_tool_state(
+            current,
+            overlay_type,
+            now,
+            logical_now_ms=logical_now,
+        )
+    else:
+        now = int(now_ms)
+        state = snapshot_time_tool_state(current, overlay_type, now)
+    if state.get("running"):
+        # Browser sources compare startedAt with Date.now(), so every emitted
+        # running state is rebased into the current wall-clock domain even when
+        # elapsed time was calculated with the guarded logical clock.
+        state["startedAt"] = now
     action = str(source.get("action") or "").strip().lower()
     if action and action not in ACTIONS:
         raise ValueError(f"Unknown time-tool action: {action}")
@@ -419,16 +509,25 @@ def load_time_tool_state(
     instance_id: str,
     overlay_type: str,
     now_ms: int | None = None,
+    *,
+    clock_guard: WallClockGuard | None = None,
 ) -> dict[str, Any]:
     document = _read_document(path)
     raw = document["instances"].get(instance_id, {})
-    return snapshot_time_tool_state(raw, overlay_type, now_ms)
+    return snapshot_time_tool_state(
+        raw,
+        overlay_type,
+        now_ms,
+        clock_guard=clock_guard,
+    )
 
 
 def load_time_tool_states(
     path: Path,
     instances: dict[str, dict[str, Any]],
     now_ms: int | None = None,
+    *,
+    clock_guard: WallClockGuard | None = None,
 ) -> dict[str, dict[str, Any]]:
     return {
         instance_id: load_time_tool_state(
@@ -436,6 +535,7 @@ def load_time_tool_states(
             instance_id,
             instance["type"],
             now_ms,
+            clock_guard=clock_guard,
         )
         for instance_id, instance in instances.items()
         if (

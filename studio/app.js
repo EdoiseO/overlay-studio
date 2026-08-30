@@ -6,6 +6,7 @@ const PREVIEW_MIN_VISIBLE = 48;
 const PNG_EXPORT_HEIGHTS = Object.freeze([256, 512, 1024]);
 const PNG_EXPORT_TIMEOUT_MS = 30000;
 const PNG_EXPORT_MAX_DATA_URL_LENGTH = (24 * 1024 * 1024 * 4 / 3) + 128;
+const TIME_TOOL_SOUND_TEST_TIMEOUT_MS = 1500;
 
 const app = {
   state: null,
@@ -58,6 +59,7 @@ const app = {
   pngExportMode: "current",
   pngExportSourceId: null,
   pngExportPending: new Map(),
+  timeToolSoundPending: new Map(),
   pngExportBusy: false,
   pngExportRevision: 0,
 };
@@ -1273,6 +1275,64 @@ function handlePngExportMessage(event) {
     png,
     width: Number(message.width),
     height: Number(message.height),
+  });
+}
+
+function requestCustomizerTimeToolSoundTest(instance, state) {
+  const frame = byId("customizerPreviewFrame");
+  const targetOrigin = overlayServerOrigin();
+  if (
+    !app.customizerPreviewReady
+    || !frame.contentWindow
+    || !targetOrigin
+  ) {
+    return Promise.resolve({ ok: false, audioState: "preview-unavailable" });
+  }
+
+  const requestId = pngExportRequestId();
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      app.timeToolSoundPending.delete(requestId);
+      resolve({ ok: false, audioState: "timeout" });
+    }, TIME_TOOL_SOUND_TEST_TIMEOUT_MS);
+    app.timeToolSoundPending.set(requestId, {
+      resolve,
+      timeout,
+      source: frame.contentWindow,
+      origin: targetOrigin,
+      overlayType: instance.type,
+      instanceId: instance.id,
+    });
+    frame.contentWindow.postMessage(
+      {
+        type: "overlay-studio-test-sound",
+        requestId,
+        overlayType: instance.type,
+        instanceId: instance.id,
+        state,
+      },
+      targetOrigin,
+    );
+  });
+}
+
+function handleTimeToolSoundTestMessage(event) {
+  const message = event.data;
+  if (message?.type !== "overlay-studio-test-sound-result") return;
+  const pending = app.timeToolSoundPending.get(String(message.requestId || ""));
+  if (
+    !pending
+    || event.source !== pending.source
+    || event.origin !== pending.origin
+    || message.overlayType !== pending.overlayType
+    || message.instanceId !== pending.instanceId
+  ) return;
+
+  clearTimeout(pending.timeout);
+  app.timeToolSoundPending.delete(message.requestId);
+  pending.resolve({
+    ok: message.ok === true,
+    audioState: String(message.audioState || "unknown"),
   });
 }
 
@@ -4392,12 +4452,7 @@ async function testTimeToolCompletionSound() {
     || app.busy
   ) return;
   const draft = timeToolDraftState(instance);
-  postCustomizerDraftToFrame({
-    type: "overlay-studio-test-sound",
-    overlayType: instance.type,
-    instanceId: instance.id,
-    state: draft,
-  });
+  const previewResultPromise = requestCustomizerTimeToolSoundTest(instance, draft);
   app.busy = true;
   byId("timeToolTestSoundButton").disabled = true;
   try {
@@ -4416,8 +4471,17 @@ async function testTimeToolCompletionSound() {
     }
     app.state.timeTools = app.state.timeTools || {};
     app.state.timeTools[instance.id] = result.timeTool;
-    logActivity("Completion sound test sent to the preview and OBS");
-    showToast("Completion sound test played");
+    const previewResult = await previewResultPromise;
+    let message;
+    if (previewResult.ok) {
+      message = "Preview chime played; OBS test signal sent";
+    } else if (previewResult.audioState === "unavailable") {
+      message = "Preview audio is unavailable; OBS test signal sent";
+    } else {
+      message = "Preview audio is blocked. Click inside the live preview, then test again; OBS test signal sent";
+    }
+    logActivity(message);
+    showToast(message);
   } catch (error) {
     showToast(String(error.message || error));
   } finally {
@@ -4613,6 +4677,7 @@ function bindEvents() {
   const customizerFrame = byId("customizerPreviewFrame");
   const customizerStage = byId("customizerPreviewStage");
   window.addEventListener("message", handlePngExportMessage);
+  window.addEventListener("message", handleTimeToolSoundTestMessage);
   customizerFrame.addEventListener("load", () => {
     app.customizerPreviewReady =
       Boolean(customizerFrame.dataset.source)

@@ -29,10 +29,12 @@ under `assets/fonts/licenses/` and are included in the packaged desktop applicat
 - License: SIL Open Font License 1.1
 - License text: https://openfontlicense.org/
 
-The Minecraft Clock, Clock Line, Countdown, Countdown Line, Stopwatch, and Stopwatch Line bundle Minecraftia by Andrew Tyler.
-The project owner confirmed that they hold the separate commercial/app license
-required by the author. The purchaser's nontransferable license and receipt are not
-redistributed with the application.
+Minecraft Clock Line, Minecraft Countdown Line, Minecraft Stopwatch Line, Block Beats,
+and Minecraft Spotify bundle Minecraftia by Andrew Tyler. The project owner confirmed
+that they purchased the separate commercial/app license required by the author. The
+purchase receipt is retained privately by the project owner outside this repository;
+the purchaser's nontransferable license and receipt are not redistributed with the
+application.
 
 - Project and source: https://www.dafont.com/minecraftia.font
 - Commercial license: https://andrewtyler.gumroad.com/l/minecraftia

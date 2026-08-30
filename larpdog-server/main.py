@@ -42,6 +42,7 @@ from rivals_store import (
 from rivals_worker import RivalsPollWorker
 from time_tool_store import (
     TIME_TOOL_OVERLAY_TYPES,
+    WallClockGuard,
     apply_time_tool_update,
     load_time_tool_state,
     save_time_tool_state,
@@ -876,6 +877,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     counter_state_path = base_dir / "win-loss.json"
     goal_state_path = base_dir / "goal.json"
     time_tool_state_path = base_dir / "time-tools.json"
+    time_tool_clock_guard = WallClockGuard()
     rivals_state_path = base_dir / "rivals.json"
     overlays_dir = base_dir.parent / "overlays"
     rivals_store_lock = asyncio.Lock()
@@ -1140,6 +1142,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
                 time_tool_state_path,
                 instance_id,
                 overlay_type,
+                clock_guard=time_tool_clock_guard,
             ),
             headers={"Cache-Control": "no-store"},
         )
@@ -1161,12 +1164,14 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             time_tool_state_path,
             instance_id,
             overlay_type,
+            clock_guard=time_tool_clock_guard,
         )
         try:
             state = apply_time_tool_update(
                 previous,
                 submitted,
                 overlay_type,
+                clock_guard=time_tool_clock_guard,
             )
         except ValueError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from None

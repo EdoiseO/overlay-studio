@@ -14,6 +14,9 @@ SHARED_SOCIAL_SOURCE = (
 ).read_text(encoding="utf-8")
 FONT_STYLESHEET_PATH = ROOT_DIR / "assets" / "fonts" / "overlay-fonts.css"
 FONT_STYLESHEET = FONT_STYLESHEET_PATH.read_text(encoding="utf-8")
+PNG_RENDERER = (ROOT_DIR / "assets" / "overlay-png-export.js").read_text(
+    encoding="utf-8"
+)
 
 FONT_CASES = (
     ("goalFont", "goal.html", None),
@@ -99,8 +102,16 @@ class OverlayFontContractTests(unittest.TestCase):
             self.assertNotIn("fonts.gstatic.com", source, overlay_path.name)
 
     def test_every_bundled_font_file_and_license_exists(self) -> None:
-        font_urls = re.findall(r"url\(\./([^\)]+\.woff2)\)", FONT_STYLESHEET)
-        self.assertEqual(len(font_urls), 39)
+        font_urls = re.findall(
+            r"url\(['\"]?\./([^\)'\"]+\.(?:woff2?|ttf|otf))['\"]?\)",
+            FONT_STYLESHEET,
+        )
+        self.assertEqual(len(font_urls), 41)
+        self.assertEqual(
+            {Path(filename).suffix.lower() for filename in font_urls},
+            {".ttf", ".woff2"},
+        )
+        self.assertIn("(?:woff2?|ttf|otf)", PNG_RENDERER)
         for filename in font_urls:
             with self.subTest(font=filename):
                 self.assertTrue((FONT_STYLESHEET_PATH.parent / filename).is_file())
@@ -128,6 +139,21 @@ class OverlayFontContractTests(unittest.TestCase):
             ).is_file()
         )
         self.assertIn("font-family: 'Minecraftia'", FONT_STYLESHEET)
+
+    def test_minecraftia_notice_matches_active_overlays_and_private_record(self) -> None:
+        notices = (ROOT_DIR / "THIRD_PARTY_NOTICES.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "Minecraft Clock Line, Minecraft Countdown Line, Minecraft Stopwatch Line, Block Beats,\n"
+            "and Minecraft Spotify bundle Minecraftia",
+            notices,
+        )
+        self.assertIn("confirmed\nthat they purchased", notices)
+        self.assertIn("retained privately by the project owner outside this repository", notices)
+        self.assertNotIn("Minecraft Clock, Clock Line", notices)
+        self.assertNotIn("Countdown, Countdown Line", notices)
+        self.assertNotIn("Stopwatch, and Stopwatch Line", notices)
 
     def test_minecraft_time_tools_use_bundled_minecraft_typeface(self) -> None:
         shared_styles = (ROOT_DIR / "assets" / "minecraft-time.css").read_text(
@@ -254,10 +280,17 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn("window.AudioContext || window.webkitAudioContext", runtime)
         self.assertIn('message?.type === "time-tool-sound"', runtime)
         self.assertIn("completionObservedRunning", runtime)
+        self.assertIn("await ensureAudioContextRunning", runtime)
+        self.assertIn('audioContext.state === "running"', runtime)
+        self.assertIn("activeSoundOutputs.delete(output)", runtime)
+        self.assertIn('type: "overlay-studio-test-sound-result"', runtime)
         self.assertIn('"soundEnabled"', overlay)
         self.assertIn('"soundVolume"', overlay)
         self.assertIn('id="timeToolTestSoundButton"', studio_markup)
         self.assertIn("testTimeToolCompletionSound", studio_script)
+        self.assertIn("handleTimeToolSoundTestMessage", studio_script)
+        self.assertIn("Preview audio is blocked. Click inside", studio_script)
+        self.assertNotIn("Completion sound test played", studio_script)
 
     def test_minecraft_minimal_timers_put_green_detail_before_time(self) -> None:
         runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(

@@ -63,6 +63,8 @@
   let completionObservedRunning = false;
   let completionSoundPlayed = false;
   let soundPlayCount = 0;
+  const activeSoundOutputs = new Set();
+  const AUDIO_RESUME_TIMEOUT_MS = 500;
 
   const clamp = (number, minimum, maximum) => Math.max(
     minimum,
@@ -255,23 +257,60 @@
     }
   }
 
+  function reportAudioState(value = audioContext?.state || "uninitialized") {
+    document.documentElement.dataset.audioState = value;
+    document.documentElement.dataset.audioOutputCount = String(
+      activeSoundOutputs.size,
+    );
+  }
+
+  async function ensureAudioContextRunning(AudioContextClass) {
+    if (!audioContext || audioContext.state === "closed") {
+      audioContext = new AudioContextClass();
+      audioContext.onstatechange = () => reportAudioState();
+    }
+    if (audioContext.state !== "running" && typeof audioContext.resume === "function") {
+      await new Promise(resolve => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          resolve();
+        };
+        const timeout = setTimeout(finish, AUDIO_RESUME_TIMEOUT_MS);
+        Promise.resolve(audioContext.resume()).then(finish, finish);
+      });
+    }
+    reportAudioState();
+    return audioContext.state === "running";
+  }
+
   async function playCompletionSound(force = false) {
     if (kind !== "countdown" || (!force && !state.soundEnabled)) return false;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) {
-      document.documentElement.dataset.audioState = "unavailable";
+      reportAudioState("unavailable");
       return false;
     }
+    let releaseOutput = null;
     try {
-      audioContext ||= new AudioContextClass();
-      audioContext.onstatechange = () => {
-        document.documentElement.dataset.audioState = audioContext.state;
-      };
-      if (audioContext.state === "suspended") {
-        void audioContext.resume().catch(() => {});
-      }
+      if (!await ensureAudioContextRunning(AudioContextClass)) return false;
       const start = audioContext.currentTime + .025;
       const output = audioContext.createGain();
+      activeSoundOutputs.add(output);
+      reportAudioState();
+      let cleanupTimer = null;
+      let outputReleased = false;
+      releaseOutput = () => {
+        if (outputReleased) return;
+        outputReleased = true;
+        if (cleanupTimer !== null) clearTimeout(cleanupTimer);
+        try { output.disconnect(); } catch { /* The node may already be detached. */ }
+        activeSoundOutputs.delete(output);
+        reportAudioState();
+      };
+      cleanupTimer = setTimeout(releaseOutput, 1_500);
       const volume = clamp(state.soundVolume, 0, 1);
       output.gain.setValueAtTime(Math.max(.0001, volume * .14), start);
       output.gain.exponentialRampToValueAtTime(.0001, start + .94);
@@ -300,15 +339,16 @@
       });
       finalOscillator?.addEventListener(
         "ended",
-        () => output.disconnect(),
+        releaseOutput,
         { once: true },
       );
       soundPlayCount += 1;
       document.documentElement.dataset.soundPlayCount = String(soundPlayCount);
-      document.documentElement.dataset.audioState = audioContext.state;
+      reportAudioState();
       return true;
     } catch {
-      document.documentElement.dataset.audioState = "failed";
+      releaseOutput?.();
+      reportAudioState("failed");
       return false;
     }
   }
@@ -390,7 +430,21 @@
         && String(message.instanceId || "") === instanceId
       ) {
         setState(message.state || {});
-        void playCompletionSound(true);
+        const source = event.source;
+        const origin = event.origin;
+        void playCompletionSound(true).then(ok => {
+          source?.postMessage(
+            {
+              type: "overlay-studio-test-sound-result",
+              requestId: String(message.requestId || ""),
+              overlayType,
+              instanceId,
+              ok,
+              audioState: document.documentElement.dataset.audioState,
+            },
+            origin,
+          );
+        });
         return;
       }
       if (
@@ -473,20 +527,22 @@
   if (kind === "countdown") {
     document.documentElement.dataset.soundPlayCount = "0";
     document.documentElement.dataset.audioState = "uninitialized";
+    document.documentElement.dataset.audioOutputCount = "0";
     document.addEventListener("pointerdown", () => {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!audioContext && AudioContextClass) {
         try {
           audioContext = new AudioContextClass();
-          audioContext.onstatechange = () => {
-            document.documentElement.dataset.audioState = audioContext.state;
-          };
+          audioContext.onstatechange = () => reportAudioState();
         } catch {
-          document.documentElement.dataset.audioState = "failed";
+          reportAudioState("failed");
         }
       }
       if (audioContext?.state === "suspended") {
-        void audioContext.resume().catch(() => {});
+        void audioContext.resume().then(
+          () => reportAudioState(),
+          () => reportAudioState(),
+        );
       }
     });
   }
@@ -499,6 +555,7 @@
     get state() { return { ...state }; },
     get soundPlayCount() { return soundPlayCount; },
     get audioState() { return audioContext?.state || "uninitialized"; },
+    get activeSoundOutputCount() { return activeSoundOutputs.size; },
     setState,
     testSound: () => playCompletionSound(true),
   };

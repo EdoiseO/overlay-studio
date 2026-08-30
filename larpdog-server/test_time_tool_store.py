@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 from time_tool_store import (
@@ -12,6 +13,8 @@ from time_tool_store import (
     normalize_time_tool_state,
     remove_time_tool_instance,
     save_time_tool_state,
+    snapshot_time_tool_state,
+    WallClockGuard,
     time_tool_defaults_for_type,
 )
 
@@ -150,6 +153,99 @@ class TimeToolStoreTests(unittest.TestCase):
         self.assertEqual(changed["remainingMs"], 1_000)
         self.assertFalse(changed["running"])
         self.assertEqual(changed["startedAt"], 0)
+
+        shortened = apply_time_tool_update(
+            {
+                "durationSeconds": 600,
+                "remainingMs": 480_000,
+                "running": False,
+            },
+            {"durationSeconds": 300},
+            "minecraft-countdown-line",
+            now_ms=3_000,
+        )
+        self.assertEqual(shortened["durationSeconds"], 300)
+        self.assertEqual(shortened["remainingMs"], 300_000)
+        self.assertFalse(shortened["running"])
+
+    def test_paused_countdown_reads_do_not_consume_remaining_time(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "time-tools.json"
+            save_time_tool_state(
+                path,
+                {
+                    "durationSeconds": 300,
+                    "remainingMs": 123_456,
+                    "running": False,
+                    "startedAt": 0,
+                },
+                "paused-countdown",
+                "minecraft-countdown-line",
+            )
+
+            first = load_time_tool_state(
+                path,
+                "paused-countdown",
+                "minecraft-countdown-line",
+                now_ms=100_000,
+            )
+            second = load_time_tool_state(
+                path,
+                "paused-countdown",
+                "minecraft-countdown-line",
+                now_ms=3_700_000,
+            )
+
+            self.assertEqual(first["remainingMs"], 123_456)
+            self.assertEqual(second, first)
+
+    def test_wall_clock_guard_ignores_forward_and_backward_jumps_once(self) -> None:
+        logger = mock.Mock()
+        guard = WallClockGuard(logger=logger)
+
+        self.assertEqual(guard.logical_now_ms(1_000_000, 10_000), 1_000_000)
+        self.assertEqual(guard.logical_now_ms(4_601_000, 11_000), 1_001_000)
+        self.assertEqual(guard.logical_now_ms(4_602_000, 12_000), 1_002_000)
+        self.assertEqual(guard.logical_now_ms(2_603_000, 13_000), 1_003_000)
+        logger.warning.assert_called_once()
+
+    def test_clock_jump_snapshot_rebases_into_the_browser_wall_clock(self) -> None:
+        before_jump = {
+            "durationSeconds": 60,
+            "remainingMs": 60_000,
+            "running": True,
+            "startedAt": 1_000_000,
+        }
+        forward = snapshot_time_tool_state(
+            before_jump,
+            "minecraft-countdown-line",
+            now_ms=4_601_000,
+            logical_now_ms=1_001_000,
+        )
+        self.assertEqual(forward["remainingMs"], 59_000)
+        self.assertEqual(forward["startedAt"], 4_601_000)
+
+        after_forward = snapshot_time_tool_state(
+            forward,
+            "minecraft-countdown-line",
+            now_ms=4_602_000,
+            logical_now_ms=1_002_000,
+        )
+        self.assertEqual(after_forward["remainingMs"], 58_000)
+        self.assertEqual(after_forward["startedAt"], 4_602_000)
+
+        before_backward = {
+            **before_jump,
+            "startedAt": 4_600_000,
+        }
+        backward = snapshot_time_tool_state(
+            before_backward,
+            "minecraft-countdown-line",
+            now_ms=2_601_000,
+            logical_now_ms=4_601_000,
+        )
+        self.assertEqual(backward["remainingMs"], 59_000)
+        self.assertEqual(backward["startedAt"], 2_601_000)
 
     def test_countdown_completion_sound_settings_are_bounded_and_testable(self) -> None:
         state = apply_time_tool_update(
