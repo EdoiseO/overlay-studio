@@ -14,6 +14,11 @@ class PaletteCustomizerTests(unittest.TestCase):
             "blockBeatsShellColor",
             "blockBeatsTextColor",
         ),
+        "Minecraft Spotify": (
+            "minecraftSpotifyAccentColor",
+            "minecraftSpotifyShellColor",
+            "minecraftSpotifyTextColor",
+        ),
         "Goal Ring": ("goalColor", "goalTrack", "goalLabelColor"),
         "Goal Bar": (
             "goalBarColor",
@@ -75,7 +80,7 @@ class PaletteCustomizerTests(unittest.TestCase):
             for control_id in family
         ) + self.SOCIAL_GROUPED_COLORS
 
-        self.assertEqual(len(color_ids), 39)
+        self.assertEqual(len(color_ids), 42)
         self.assertEqual(self.markup.count('type="color"'), len(color_ids))
 
         for control_id in color_ids:

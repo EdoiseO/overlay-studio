@@ -314,6 +314,90 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="minecraftSpotifyView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span>MINECRAFT MUSIC</span>
+            <h1 id="minecraftSpotifyDetailName">Minecraft Spotify</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Player appearance</h2></summary>
+          <p class="customizer-note">Uses the original Spotify player's horizontal layout with Minecraftia lettering and sharp pixel edges. Block Beats stays separate.</p>
+          <div class="form-grid">
+            <label for="minecraftSpotifyScale">Scale</label>
+            <div class="range-field">
+              <input id="minecraftSpotifyScale" type="range" min="0.5" max="2" step="0.05">
+              <output id="minecraftSpotifyScaleOutput">1.00</output>
+            </div>
+            <label for="minecraftSpotifyCardWidth">Player width</label>
+            <div class="range-field">
+              <input id="minecraftSpotifyCardWidth" type="range" min="380" max="680" step="4">
+              <output id="minecraftSpotifyCardWidthOutput">560</output>
+            </div>
+            <label for="minecraftSpotifyPixelShadow">Pixel shadow</label>
+            <div class="range-field">
+              <input id="minecraftSpotifyPixelShadow" type="range" min="0" max="1" step="0.05">
+              <output id="minecraftSpotifyPixelShadowOutput">0.00</output>
+            </div>
+            <section class="palette-detail-section" aria-labelledby="minecraftSpotifyPaletteHeading">
+              <div class="palette-detail-heading">
+                <h3 id="minecraftSpotifyPaletteHeading">Pixel palette</h3>
+                <p>These colors belong only to Minecraft Spotify.</p>
+              </div>
+              <div class="palette-detail-list">
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Grass accent</strong>
+                    <span>Colors the status, border detail, and playback progress.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="minecraftSpotifyAccentColor" type="color" aria-label="Minecraft Spotify accent color">
+                    <span id="minecraftSpotifyAccentColorLabel">#70B237</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Player block</strong>
+                    <span>Sets the hard-edged horizontal player surface.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="minecraftSpotifyShellColor" type="color" aria-label="Minecraft Spotify card color">
+                    <span id="minecraftSpotifyShellColorLabel">#171C1F</span>
+                  </span>
+                </label>
+                <label class="palette-detail-control">
+                  <span class="palette-detail-copy">
+                    <strong>Player text</strong>
+                    <span>Sets the Minecraftia song title and player labels.</span>
+                  </span>
+                  <span class="color-field compact-color-field">
+                    <input id="minecraftSpotifyTextColor" type="color" aria-label="Minecraft Spotify text color">
+                    <span id="minecraftSpotifyTextColorLabel">#FFFBED</span>
+                  </span>
+                </label>
+              </div>
+            </section>
+          </div>
+        </details>
+        <div class="panel source-panel">
+          <h2>OBS browser source</h2>
+          <p>This horizontal Minecraft variant is independent from both Spotify Overlay and Block Beats.</p>
+          <div class="source-row">
+            <label id="minecraftSpotifySourceLabel" for="minecraftSpotifyUrl">Minecraft Spotify</label>
+            <input id="minecraftSpotifyUrl" type="text" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetMinecraftSpotifyButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveMinecraftSpotifyButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="flowView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

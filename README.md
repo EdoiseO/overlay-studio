@@ -322,6 +322,7 @@ Overlay Studio because a local `config.json` may use a different port.
 http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/block-beats
+http://127.0.0.1:8473/overlays/minecraft-spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
@@ -478,6 +479,7 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 - `studio/`: desktop interface
 - `overlay-studio.html`: Dancing GIF and original Spotify browser sources
 - `overlays/block-beats.html`: standalone square Minecraftia music-card browser source
+- `overlays/minecraft-spotify.html`: standalone horizontal Minecraftia Spotify browser source
 - `overlays/`: standalone overlay pages and the
   [future-overlay authoring guide](overlays/README.md)
 - `assets/`: bundled default media, local overlay fonts, shared social vectors, and

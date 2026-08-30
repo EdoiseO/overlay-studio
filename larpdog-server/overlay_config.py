@@ -175,6 +175,14 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
         "textColor": "fffbed",
         "pixelShadow": 0.0,
     },
+    "minecraftSpotify": {
+        "scale": 1.0,
+        "cardWidth": 560,
+        "accentColor": "70b237",
+        "shellColor": "171c1f",
+        "textColor": "fffbed",
+        "pixelShadow": 0.0,
+    },
     "flow": {
         "name": "Now Playing Flow",
         "scale": 1.0,
@@ -753,6 +761,11 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         if isinstance(source.get("blockBeats"), dict)
         else {}
     )
+    minecraft_spotify = (
+        source.get("minecraftSpotify")
+        if isinstance(source.get("minecraftSpotify"), dict)
+        else {}
+    )
     flow = source.get("flow") if isinstance(source.get("flow"), dict) else {}
     audio = source.get("audio") if isinstance(source.get("audio"), dict) else {}
     now_playing = (
@@ -783,6 +796,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     default_dance = defaults["dance"]
     default_spotify = defaults["spotify"]
     default_block_beats = defaults["blockBeats"]
+    default_minecraft_spotify = defaults["minecraftSpotify"]
     default_flow = defaults["flow"]
     default_colors = default_spotify["colors"]
     dance_gif = _asset_path(
@@ -982,6 +996,48 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
                 2,
             ),
         },
+        "minecraftSpotify": {
+            "scale": round(
+                _number(
+                    minecraft_spotify.get("scale"),
+                    default_minecraft_spotify["scale"],
+                    0.5,
+                    2.0,
+                ),
+                2,
+            ),
+            "cardWidth": int(
+                round(
+                    _number(
+                        minecraft_spotify.get("cardWidth"),
+                        default_minecraft_spotify["cardWidth"],
+                        380,
+                        680,
+                    )
+                )
+            ),
+            "accentColor": _color(
+                minecraft_spotify.get("accentColor"),
+                default_minecraft_spotify["accentColor"],
+            ),
+            "shellColor": _color(
+                minecraft_spotify.get("shellColor"),
+                default_minecraft_spotify["shellColor"],
+            ),
+            "textColor": _color(
+                minecraft_spotify.get("textColor"),
+                default_minecraft_spotify["textColor"],
+            ),
+            "pixelShadow": round(
+                _number(
+                    minecraft_spotify.get("pixelShadow"),
+                    default_minecraft_spotify["pixelShadow"],
+                    0.0,
+                    1.0,
+                ),
+                2,
+            ),
+        },
         "flow": {
             "name": _overlay_name(flow.get("name"), default_flow["name"]),
             "scale": round(
@@ -1030,6 +1086,8 @@ def _instance_config(
         keys = ("spotify",)
     elif overlay_type == "block-beats":
         keys = ("blockBeats",)
+    elif overlay_type == "minecraft-spotify":
+        keys = ("minecraftSpotify",)
     elif overlay_type == "now-playing-flow":
         keys = ("flow",)
     elif overlay_type in {"social", "social-rotator"}:
@@ -1129,6 +1187,7 @@ def materialize_instance_config(
             "dance",
             "spotify",
             "blockBeats",
+            "minecraftSpotify",
             "flow",
             "audio",
             "nowPlaying",
@@ -1163,6 +1222,7 @@ def update_instance_config(
         "dance",
         "spotify",
         "blockBeats",
+        "minecraftSpotify",
         "flow",
         "audio",
         "nowPlaying",
