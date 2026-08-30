@@ -58,10 +58,10 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn("row-gap: 3px", self.source)
         self.assertIn("font-size: 19px;", self.source)
         self.assertIn("line-height: 30px;", self.source)
-        self.assertIn("font-size: 11px;", self.source)
-        self.assertIn("line-height: 16px;", self.source)
+        self.assertIn("font-size: 13px;", self.source)
+        self.assertIn("line-height: 20px;", self.source)
         self.assertIn("font-size: 15px; line-height: 24px;", self.source)
-        self.assertIn("font-size: 9px; line-height: 14px;", self.source)
+        self.assertIn("font-size: 11px; line-height: 16px;", self.source)
 
     def test_player_uses_only_strict_spotify_routing(self) -> None:
         self.assertIn('typeof message?.spotifyStatus !== "string"', self.source)
