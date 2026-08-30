@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft Spotify</title>
+<link rel="stylesheet" href="/assets/fonts/overlay-fonts.css">
+<script type="application/json" id="overlay-manifest">
+{
+  "name": "Minecraft Spotify",
+  "description": "A sharp square Minecraftia player for Spotify desktop artwork, track details, and playback progress.",
+  "category": "music",
+  "canvas": { "w": 520, "h": 520 },
+  "settings": ["scale", "cardSize", "accentColor", "shellColor", "textColor", "pixelShadow"],
+  "studioView": "minecraftSpotifyView"
+}
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --card-size: 440px;
+    --render-scale: 1;
+    --accent: #70b237;
+    --accent-rgb: 112,178,55;
+    --shell: #171c1f;
+    --text: #fffbed;
+    --pixel-shadow: 0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+  }
+  body {
+    position: relative;
+    font-family: "Minecraftia", monospace;
+    font-synthesis: none;
+  }
+  .player-shell {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: clamp(7px, 2.2cqw, 10px);
+    width: var(--card-size);
+    height: var(--card-size);
+    padding: clamp(12px, 3.6cqw, 16px);
+    overflow: hidden;
+    color: var(--text);
+    background:
+      linear-gradient(rgba(255,255,255,.035), rgba(0,0,0,.08)),
+      var(--shell);
+    border: clamp(3px, 1cqw, 4px) solid #070909;
+    border-radius: 0;
+    box-shadow:
+      inset 0 0 0 2px rgba(var(--accent-rgb), .42),
+      calc(7px * var(--pixel-shadow)) calc(7px * var(--pixel-shadow)) 0
+        rgba(0,0,0,calc(.62 * var(--pixel-shadow)));
+    clip-path: polygon(
+      8px 0, calc(100% - 8px) 0,
+      calc(100% - 8px) 4px, 100% 4px,
+      100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px),
+      calc(100% - 4px) 100%, 8px 100%,
+      8px calc(100% - 4px), 0 calc(100% - 4px),
+      0 8px, 4px 8px, 4px 4px, 8px 4px
+    );
+    transform: translate(-50%, -50%) scale(var(--render-scale));
+    transform-origin: center;
+    container-type: size;
+  }
+  .player-shell::before {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    pointer-events: none;
+    border: 1px solid rgba(255,255,255,.07);
+  }
+  .player-header,
+  .time-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    letter-spacing: .02em;
+  }
+  .player-header {
+    min-height: clamp(20px, 6cqw, 26px);
+    padding: 0 2px;
+    color: var(--accent);
+    font-size: clamp(9px, 2.9cqw, 13px);
+    white-space: nowrap;
+  }
+  .source-label {
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+  }
+  .status-label { opacity: .9; }
+  .art-frame {
+    position: relative;
+    align-self: stretch;
+    justify-self: center;
+    width: auto;
+    max-width: 100%;
+    height: 100%;
+    min-height: 0;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: #0a0d0e;
+    border: clamp(3px, .85cqw, 4px) solid #080a0b;
+    box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), .35);
+  }
+  .art-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: auto;
+  }
+  .art-frame img[hidden] { display: none; }
+  .art-placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: clamp(7px, 2.2cqw, 11px);
+    text-align: center;
+    color: var(--text);
+    background:
+      linear-gradient(90deg, transparent 48%, rgba(0,0,0,.24) 48% 52%, transparent 52%),
+      linear-gradient(transparent 48%, rgba(0,0,0,.24) 48% 52%, transparent 52%),
+      linear-gradient(135deg, rgba(var(--accent-rgb), .92), rgba(var(--accent-rgb), .28));
+    background-size: 36px 36px, 36px 36px, 100% 100%;
+    text-shadow: 3px 3px 0 rgba(0,0,0,.55);
+  }
+  .art-placeholder strong { font-size: clamp(14px, 5.2cqw, 23px); }
+  .art-placeholder span {
+    color: var(--shell);
+    font-size: clamp(10px, 3cqw, 13px);
+    text-shadow: none;
+  }
+  .track-panel {
+    display: grid;
+    align-content: end;
+    gap: clamp(5px, 1.6cqw, 8px);
+    min-height: 0;
+    padding: 0 2px 1px;
+  }
+  .track-copy { min-width: 0; }
+  .track-title,
+  .track-artist {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .track-title {
+    color: var(--text);
+    font-size: clamp(12px, 4cqw, 18px);
+    line-height: 1.45;
+  }
+  .track-artist {
+    color: var(--accent);
+    font-size: clamp(9px, 2.8cqw, 12px);
+    line-height: 1.55;
+  }
+  .progress-track {
+    height: clamp(7px, 2.3cqw, 10px);
+    padding: 2px;
+    background: #080a0b;
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .progress-fill {
+    width: 0;
+    height: 100%;
+    background: var(--accent);
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.24);
+  }
+  .time-row {
+    color: rgba(255,251,237,.68);
+    font-size: clamp(8px, 2.4cqw, 10px);
+  }
+  .held .art-frame,
+  .held .track-copy,
+  .held .progress-track { opacity: .64; }
+  .waiting .progress-track,
+  .waiting .time-row { opacity: .35; }
+</style>
+</head>
+<body>
+<article class="player-shell waiting" id="player" aria-label="Minecraft Spotify player">
+  <header class="player-header">
+    <span class="source-label">SPOTIFY</span>
+    <span class="status-label" id="status">WAITING</span>
+  </header>
+  <div class="art-frame">
+    <div class="art-placeholder" id="artPlaceholder" aria-hidden="true">
+      <strong>BLOCK BEATS</strong>
+      <span>NOW PLAYING</span>
+    </div>
+    <img id="art" alt="" hidden>
+  </div>
+  <section class="track-panel">
+    <div class="track-copy">
+      <div class="track-title" id="title">WAITING FOR SPOTIFY</div>
+      <div class="track-artist" id="artist">START SPOTIFY DESKTOP</div>
+    </div>
+    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress"></div></div>
+    <div class="time-row"><span id="elapsed">00:00</span><span id="duration">00:00</span></div>
+  </section>
+</article>
+<script>
+(() => {
+  "use strict";
+  const query = new URLSearchParams(location.search);
+  const instanceId = String(query.get("i") || "");
+  const previewMode = query.get("preview") === "studio";
+  const catalogMode = query.get("catalog") === "1";
+  const customizerMode = query.get("customizer") === "1";
+  const MAX_MESSAGE_BYTES = 1024 * 1024 + 8192;
+  const MAX_TIME_MS = 24 * 60 * 60 * 1000;
+  const DEFAULT_SETTINGS = Object.freeze({
+    scale: 1,
+    cardSize: 440,
+    accentColor: "70b237",
+    shellColor: "171c1f",
+    textColor: "fffbed",
+    pixelShadow: 0,
+  });
+  const PREVIEW_TRACK = Object.freeze({
+    trackId: "minecraft-preview",
+    title: "Mining All Night",
+    artist: "LarpDog Radio",
+    progressMs: 78000,
+    durationMs: 214000,
+  });
+  const player = document.getElementById("player");
+  const art = document.getElementById("art");
+  const artPlaceholder = document.getElementById("artPlaceholder");
+  const title = document.getElementById("title");
+  const artist = document.getElementById("artist");
+  const status = document.getElementById("status");
+  const progress = document.getElementById("progress");
+  const elapsed = document.getElementById("elapsed");
+  const duration = document.getElementById("duration");
+  let settings = { ...DEFAULT_SETTINGS };
+  let currentTrack = null;
+  let playback = { playing: false, progressMs: 0, durationMs: 0, receivedAt: performance.now() };
+  let lastArt = "";
+  let socket = null;
+  let reconnectTimer = 0;
+  let reconnectDelay = 750;
+  let stopped = false;
+  let customizerDraftApplied = false;
+
+  if (previewMode) document.body.classList.add("preview-mode");
+
+  function clamp(value, minimum, maximum) {
+    return Math.max(minimum, Math.min(maximum, Number(value) || 0));
+  }
+
+  function safeColor(value, fallback) {
+    const color = String(value || "").replace(/^#/, "");
+    return /^[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+  }
+
+  function colorChannels(color) {
+    return [0, 2, 4].map(index => parseInt(color.slice(index, index + 2), 16)).join(",");
+  }
+
+  function applySettings(config) {
+    const supplied = config?.minecraftSpotify && typeof config.minecraftSpotify === "object"
+      ? config.minecraftSpotify
+      : {};
+    settings = {
+      scale: clamp(supplied.scale ?? DEFAULT_SETTINGS.scale, .5, 2),
+      cardSize: Math.round(clamp(supplied.cardSize ?? DEFAULT_SETTINGS.cardSize, 320, 480)),
+      accentColor: safeColor(supplied.accentColor, DEFAULT_SETTINGS.accentColor),
+      shellColor: safeColor(supplied.shellColor, DEFAULT_SETTINGS.shellColor),
+      textColor: safeColor(supplied.textColor, DEFAULT_SETTINGS.textColor),
+      pixelShadow: clamp(supplied.pixelShadow ?? DEFAULT_SETTINGS.pixelShadow, 0, 1),
+    };
+    const root = document.documentElement;
+    root.style.setProperty("--card-size", `${settings.cardSize}px`);
+    root.style.setProperty("--accent", `#${settings.accentColor}`);
+    root.style.setProperty("--accent-rgb", colorChannels(settings.accentColor));
+    root.style.setProperty("--shell", `#${settings.shellColor}`);
+    root.style.setProperty("--text", `#${settings.textColor}`);
+    root.style.setProperty("--pixel-shadow", String(settings.pixelShadow));
+    fitOverlay();
+  }
+
+  function fitOverlay() {
+    const shadowSpace = 10 * settings.pixelShadow;
+    const availableWidth = Math.max(1, window.innerWidth - 24 - shadowSpace);
+    const availableHeight = Math.max(1, window.innerHeight - 24 - shadowSpace);
+    const fit = Math.min(settings.scale, availableWidth / settings.cardSize, availableHeight / settings.cardSize);
+    document.documentElement.style.setProperty("--render-scale", String(Math.max(.2, fit)));
+  }
+
+  async function loadSettings() {
+    if (location.protocol === "file:") return;
+    try {
+      const endpoint = new URL("/api/config", location.origin);
+      if (instanceId) endpoint.searchParams.set("i", instanceId);
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (response.ok && !customizerDraftApplied) applySettings(await response.json());
+    } catch {}
+  }
+
+  function safeArtSource(value) {
+    const source = typeof value === "string" ? value.trim() : "";
+    if (!source || source.length > 1024 * 1024) return "";
+    if (/^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(source)) return source;
+    try {
+      const url = new URL(source, location.href);
+      if (
+        url.origin === location.origin
+        && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/user-assets/"))
+      ) return url.href;
+    } catch {}
+    return "";
+  }
+
+  function normalizeTrack(raw) {
+    const normalizedTitle = String(raw?.title || "").trim().slice(0, 180);
+    if (!normalizedTitle) return null;
+    const normalizedArtist = String(raw?.artist || "").trim().slice(0, 180);
+    return {
+      id: String(raw?.trackId || `${normalizedTitle}|${normalizedArtist}`).slice(0, 360),
+      title: normalizedTitle,
+      artist: normalizedArtist || "SPOTIFY",
+      art: safeArtSource(raw?.art),
+      progressMs: clamp(raw?.progressMs, 0, MAX_TIME_MS),
+      durationMs: clamp(raw?.durationMs, 0, MAX_TIME_MS),
+    };
+  }
+
+  function formatTime(milliseconds) {
+    const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const minutes = Math.floor(seconds / 60);
+    return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  function paintProgress(position, total) {
+    const safeTotal = Math.max(0, Number(total) || 0);
+    const safePosition = clamp(position, 0, safeTotal || MAX_TIME_MS);
+    const ratio = safeTotal > 0 ? safePosition / safeTotal : 0;
+    progress.style.width = `${Math.min(100, ratio * 100)}%`;
+    elapsed.textContent = formatTime(safePosition);
+    duration.textContent = formatTime(safeTotal);
+  }
+
+  function setArtwork(source) {
+    if (source === lastArt) return;
+    lastArt = source;
+    if (!source) {
+      art.hidden = true;
+      art.removeAttribute("src");
+      artPlaceholder.hidden = false;
+      return;
+    }
+    art.addEventListener("load", () => {
+      art.hidden = false;
+      artPlaceholder.hidden = true;
+    }, { once: true });
+    art.addEventListener("error", () => {
+      lastArt = "";
+      art.hidden = true;
+      art.removeAttribute("src");
+      artPlaceholder.hidden = false;
+    }, { once: true });
+    art.src = source;
+  }
+
+  function showTrack(raw, options = {}) {
+    const track = normalizeTrack(raw);
+    if (!track) return showWaiting();
+    const playing = options.playing !== false;
+    currentTrack = track;
+    title.textContent = track.title;
+    artist.textContent = track.artist;
+    status.textContent = options.status || (playing ? "NOW PLAYING" : "PAUSED");
+    setArtwork(track.art);
+    playback = {
+      playing,
+      progressMs: track.progressMs,
+      durationMs: track.durationMs,
+      receivedAt: performance.now(),
+    };
+    player.classList.remove("waiting");
+    player.classList.toggle("held", !playing);
+    paintProgress(track.progressMs, track.durationMs);
+  }
+
+  function showWaiting(raw = null) {
+    const track = normalizeTrack(raw);
+    if (track) {
+      showTrack(track, { playing: false, status: "SPOTIFY IDLE" });
+      return;
+    }
+    currentTrack = null;
+    title.textContent = "WAITING FOR SPOTIFY";
+    artist.textContent = "START SPOTIFY DESKTOP";
+    status.textContent = "WAITING";
+    setArtwork("");
+    playback = { playing: false, progressMs: 0, durationMs: 0, receivedAt: performance.now() };
+    player.classList.add("waiting", "held");
+    paintProgress(0, 0);
+  }
+
+  function handleSpotifyTrack(message) {
+    if (typeof message?.spotifyStatus !== "string") return;
+    if (message.spotifyStatus === "playing" && message.title) {
+      showTrack(message);
+      return;
+    }
+    if (message.spotifyStatus === "paused") {
+      showTrack(message.title ? message : (message.spotifyTrack || currentTrack), {
+        playing: false,
+        status: "PAUSED",
+      });
+      return;
+    }
+    showWaiting(message.spotifyTrack || currentTrack);
+  }
+
+  function handleMessage(event) {
+    if (typeof event.data !== "string" || event.data.length > MAX_MESSAGE_BYTES) return;
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+    if (message?.type === "track") {
+      handleSpotifyTrack(message);
+    } else if (message?.type === "config") {
+      const messageInstance = String(message.instanceId || "");
+      if (!customizerMode && messageInstance === instanceId) applySettings(message.config);
+    }
+  }
+
+  function scheduleReconnect() {
+    if (stopped || reconnectTimer || catalogMode) return;
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = 0;
+      connect();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(8000, reconnectDelay * 1.7);
+  }
+
+  function connect() {
+    if (stopped || catalogMode || location.protocol === "file:") return;
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    try { socket = new WebSocket(`${protocol}//${location.host}/ws`); }
+    catch { scheduleReconnect(); return; }
+    socket.addEventListener("open", () => { reconnectDelay = 750; });
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener("close", scheduleReconnect, { once: true });
+    socket.addEventListener("error", () => socket?.close(), { once: true });
+  }
+
+  function animate(now) {
+    if (playback.playing && playback.durationMs > 0) {
+      paintProgress(
+        playback.progressMs + now - playback.receivedAt,
+        playback.durationMs,
+      );
+    }
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener("resize", fitOverlay);
+  art.addEventListener("dragstart", event => event.preventDefault());
+  if (customizerMode) {
+    window.addEventListener("message", event => {
+      const message = event.data;
+      if (
+        event.source !== window.parent
+        || message?.type !== "overlay-studio-draft"
+        || message.overlayType !== "minecraft-spotify"
+        || String(message.instanceId || "") !== instanceId
+      ) return;
+      customizerDraftApplied = true;
+      applySettings(message.config);
+    });
+  }
+  window.addEventListener("pagehide", () => {
+    stopped = true;
+    clearTimeout(reconnectTimer);
+    socket?.close();
+  }, { once: true });
+
+  applySettings({ minecraftSpotify: DEFAULT_SETTINGS });
+  if (previewMode || catalogMode) showTrack(PREVIEW_TRACK);
+  else showWaiting();
+  loadSettings();
+  connect();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

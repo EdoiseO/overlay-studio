@@ -13,6 +13,7 @@ local OBS browser-source overlays.
 | --- | --- |
 | **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
 | **Spotify Overlay** | Shows Spotify desktop metadata, artwork, and progress through Windows media controls; other media apps are ignored. |
+| **Minecraft Spotify** | Shows the same Spotify-only data in a square, sharp-edged Minecraftia player with independent settings. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
 | **Now Playing Flow** | Presents the active Windows media-session artwork from Spotify, browsers, or other supported apps. |
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
@@ -35,7 +36,7 @@ local OBS browser-source overlays.
 - Windows 10 or Windows 11
 - Microsoft Edge WebView2 Runtime
 - OBS Studio for streaming
-- Spotify desktop for Spotify Overlay; another Windows media-session app can drive Now Playing Flow
+- Spotify desktop for Spotify Overlay and Minecraft Spotify; another Windows media-session app can drive Now Playing Flow
 
 Current Windows 11 and Microsoft Edge installations normally include WebView2 already.
 Python is only required when running from source or rebuilding the executable.
@@ -111,6 +112,11 @@ to connected Studio previews and OBS browser sources without changing their URL.
 Windows media session. It does not use a Spotify account, OAuth, developer app, token,
 or browser extension. When Spotify is paused or closed, the last Spotify track remains
 visible as a dimmed, stopped card until Spotify returns.
+
+**Minecraft Spotify** uses that same Spotify-only media source in a separate square
+player. Its locally bundled Minecraftia lettering, sharp pixel-cut edges, card size,
+palette, scale, and optional block shadow are customized independently, so changing it
+never changes the original Spotify Overlay.
 
 Audio-reactive visuals listen to the complete current Windows output device by design.
 Game, browser, voice, and stream audio can all drive them; this is separate from which
@@ -258,7 +264,7 @@ editor relink after a later export. Studio reports existing files before replaci
 Exports are written under `user-assets/exports/<instance-id>/`. Use **Open folder** in
 the export dialog to open that exact location. This subtree is deliberately excluded
 from the Dancing GIF media picker. Animated and live-data overlays, including Social
-Rotator, goals, Spotify, Match Record, and Rivals Rank Tracker, do not offer PNG export
+Rotator, goals, Spotify, Minecraft Spotify, Match Record, and Rivals Rank Tracker, do not offer PNG export
 because a frozen image could silently present stale state.
 
 Overlay fonts are bundled locally, so supported overlays and PNG exports keep their
@@ -315,6 +321,7 @@ Overlay Studio because a local `config.json` may use a different port.
 ```text
 http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
+http://127.0.0.1:8473/overlays/minecraft-spotify
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
@@ -344,6 +351,7 @@ Useful starting canvas sizes at scale `1.0` are:
 ```text
 Dancing GIF      520 x 420
 Spotify Overlay  620 x 360
+Minecraft Spotify 520 x 520
 Match Record     900 x 320
 Now Playing Flow 760 x 420
 Goal Widget      460 x 520
@@ -468,7 +476,8 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 
 - `overlay_studio.pyw`: native WebView desktop shell and Python bridge
 - `studio/`: desktop interface
-- `overlay-studio.html`: Dancing GIF and Spotify browser sources
+- `overlay-studio.html`: Dancing GIF and original Spotify browser sources
+- `overlays/minecraft-spotify.html`: standalone square Minecraft Spotify browser source
 - `overlays/`: standalone overlay pages and the
   [future-overlay authoring guide](overlays/README.md)
 - `assets/`: bundled default media, local overlay fonts, shared social vectors, and

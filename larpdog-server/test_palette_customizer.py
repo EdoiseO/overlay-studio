@@ -9,6 +9,11 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 class PaletteCustomizerTests(unittest.TestCase):
     COLOR_FAMILIES = {
         "Spotify": ("colorA", "colorB", "colorC"),
+        "Minecraft Spotify": (
+            "minecraftSpotifyAccentColor",
+            "minecraftSpotifyShellColor",
+            "minecraftSpotifyTextColor",
+        ),
         "Goal Ring": ("goalColor", "goalTrack", "goalLabelColor"),
         "Goal Bar": (
             "goalBarColor",
@@ -70,7 +75,7 @@ class PaletteCustomizerTests(unittest.TestCase):
             for control_id in family
         ) + self.SOCIAL_GROUPED_COLORS
 
-        self.assertEqual(len(color_ids), 36)
+        self.assertEqual(len(color_ids), 39)
         self.assertEqual(self.markup.count('type="color"'), len(color_ids))
 
         for control_id in color_ids:

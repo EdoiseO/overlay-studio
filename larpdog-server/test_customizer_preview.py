@@ -235,6 +235,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         overlay_sources = {
             "larpdog-dance": ROOT_DIR / "overlay-studio.html",
             "spotify": ROOT_DIR / "overlay-studio.html",
+            "minecraft-spotify": ROOT_DIR / "overlays" / "minecraft-spotify.html",
             "now-playing-flow": ROOT_DIR / "overlays" / "now-playing-flow.html",
             "goal": ROOT_DIR / "overlays" / "goal.html",
             "goal-bar": ROOT_DIR / "overlays" / "goal-bar.html",
@@ -262,7 +263,11 @@ class CustomizerPreviewContractTests(unittest.TestCase):
                     "platform-badge",
                 }:
                     source += shared_social
-                if overlay_type.startswith("minecraft-"):
+                if overlay_type in {
+                    "minecraft-clock-line",
+                    "minecraft-countdown-line",
+                    "minecraft-stopwatch-line",
+                }:
                     source += (
                         ROOT_DIR / "assets" / "minecraft-time.js"
                     ).read_text(encoding="utf-8")

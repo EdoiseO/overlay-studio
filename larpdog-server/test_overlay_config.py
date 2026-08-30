@@ -219,6 +219,89 @@ class PlatformBadgeConfigTests(unittest.TestCase):
         self.assertEqual(badge["badgeColor"], "9146ff")
 
 
+class MinecraftSpotifyConfigTests(unittest.TestCase):
+    def test_minecraft_spotify_settings_round_trip_without_touching_spotify(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "minecraft-spotify",
+            "minecraft-spotify-main",
+            "Minecraft Spotify",
+        )
+        original_spotify = materialize_instance_config(
+            config,
+            "spotify-overlay",
+        )["spotify"]
+
+        updated = update_instance_config(
+            config,
+            "minecraft-spotify-main",
+            {
+                "minecraftSpotify": {
+                    "scale": 1.35,
+                    "cardSize": 404,
+                    "accentColor": "#55AA33",
+                    "shellColor": "101820",
+                    "textColor": "F8F4E8",
+                    "pixelShadow": 0.65,
+                },
+                "spotify": {
+                    "cardWidth": 600,
+                    "colorMode": "fixed",
+                },
+            },
+        )
+        materialized = materialize_instance_config(
+            normalize_overlay_config(updated),
+            "minecraft-spotify-main",
+        )
+
+        self.assertEqual(
+            materialized["minecraftSpotify"],
+            {
+                "scale": 1.35,
+                "cardSize": 404,
+                "accentColor": "55aa33",
+                "shellColor": "101820",
+                "textColor": "f8f4e8",
+                "pixelShadow": 0.65,
+            },
+        )
+        self.assertEqual(materialized["spotify"], original_spotify)
+        self.assertEqual(
+            updated["instances"]["minecraft-spotify-main"]["config"].keys(),
+            {"minecraftSpotify"},
+        )
+
+    def test_minecraft_spotify_settings_are_bounded_and_validated(self) -> None:
+        config = add_overlay_instance(
+            normalize_overlay_config({}),
+            "minecraft-spotify",
+            "minecraft-spotify-main",
+            "Minecraft Spotify",
+        )
+        updated = update_instance_config(
+            config,
+            "minecraft-spotify-main",
+            {
+                "minecraftSpotify": {
+                    "scale": 99,
+                    "cardSize": 10,
+                    "accentColor": "invalid",
+                    "pixelShadow": -4,
+                }
+            },
+        )
+        settings = materialize_instance_config(
+            updated,
+            "minecraft-spotify-main",
+        )["minecraftSpotify"]
+
+        self.assertEqual(settings["scale"], 2.0)
+        self.assertEqual(settings["cardSize"], 320)
+        self.assertEqual(settings["accentColor"], "70b237")
+        self.assertEqual(settings["pixelShadow"], 0.0)
+
+
 class SocialOverlayConfigTests(unittest.TestCase):
     def test_social_bar_limits_platforms_and_normalizes_fields(self) -> None:
         config = add_overlay_instance(

@@ -185,6 +185,7 @@ const SOCIAL_GROUPED_PRESETS = Object.freeze({
 const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
+  "minecraftSpotifyView",
   "flowView",
   "goalView",
   "goalBarView",
@@ -351,6 +352,7 @@ async function saveActiveCustomizer() {
   if (
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
+    || instance.type === "minecraft-spotify"
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
@@ -676,6 +678,7 @@ function materializeInstanceConfig(instance) {
   [
     "dance",
     "spotify",
+    "minecraftSpotify",
     "flow",
     "audio",
     "nowPlaying",
@@ -809,6 +812,7 @@ function customizerDraft(instance) {
   if (
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
+    || instance.type === "minecraft-spotify"
     || instance.type === "now-playing-flow"
   ) {
     return { config: gatherConfig() };
@@ -1920,6 +1924,10 @@ function renderActiveIdentity(instance) {
     byId("spotifyDetailName").textContent = instance.name;
     byId("spotifySourceLabel").textContent = instance.name;
     byId("spotifyUrl").value = source;
+  } else if (instance.type === "minecraft-spotify") {
+    byId("minecraftSpotifyDetailName").textContent = instance.name;
+    byId("minecraftSpotifySourceLabel").textContent = instance.name;
+    byId("minecraftSpotifyUrl").value = source;
   } else if (instance.type === "win-loss") {
     byId("counterDetailName").textContent = instance.name;
     byId("counterSourceLabel").textContent = instance.name;
@@ -3673,6 +3681,28 @@ function fillConfig(config) {
   setColor("colorA", config.spotify.colors.a);
   setColor("colorB", config.spotify.colors.b);
   setColor("colorC", config.spotify.colors.c);
+  byId("minecraftSpotifyScale").value = config.minecraftSpotify.scale;
+  byId("minecraftSpotifyScaleOutput").value =
+    Number(config.minecraftSpotify.scale).toFixed(2);
+  byId("minecraftSpotifyCardSize").value = config.minecraftSpotify.cardSize;
+  byId("minecraftSpotifyCardSizeOutput").value =
+    config.minecraftSpotify.cardSize;
+  byId("minecraftSpotifyPixelShadow").value =
+    config.minecraftSpotify.pixelShadow;
+  byId("minecraftSpotifyPixelShadowOutput").value =
+    Number(config.minecraftSpotify.pixelShadow).toFixed(2);
+  setColor(
+    "minecraftSpotifyAccentColor",
+    config.minecraftSpotify.accentColor,
+  );
+  setColor(
+    "minecraftSpotifyShellColor",
+    config.minecraftSpotify.shellColor,
+  );
+  setColor(
+    "minecraftSpotifyTextColor",
+    config.minecraftSpotify.textColor,
+  );
   byId("flowName").value = config.flow.name;
   byId("flowScale").value = config.flow.scale;
   byId("flowGlow").value = config.flow.glow;
@@ -3728,6 +3758,14 @@ function gatherConfig() {
         b: byId("colorB").value.slice(1),
         c: byId("colorC").value.slice(1),
       },
+    },
+    minecraftSpotify: {
+      scale: Number(byId("minecraftSpotifyScale").value),
+      cardSize: Number(byId("minecraftSpotifyCardSize").value),
+      accentColor: byId("minecraftSpotifyAccentColor").value.slice(1),
+      shellColor: byId("minecraftSpotifyShellColor").value.slice(1),
+      textColor: byId("minecraftSpotifyTextColor").value.slice(1),
+      pixelShadow: Number(byId("minecraftSpotifyPixelShadow").value),
     },
     flow: {
       name: byId("flowName").value,
@@ -4704,6 +4742,18 @@ function bindEvents() {
     byId("timeToolDigitShadowOutput").value =
       Number(byId("timeToolDigitShadow").value).toFixed(2);
   });
+  byId("minecraftSpotifyScale").addEventListener("input", () => {
+    byId("minecraftSpotifyScaleOutput").value =
+      Number(byId("minecraftSpotifyScale").value).toFixed(2);
+  });
+  byId("minecraftSpotifyCardSize").addEventListener("input", () => {
+    byId("minecraftSpotifyCardSizeOutput").value =
+      byId("minecraftSpotifyCardSize").value;
+  });
+  byId("minecraftSpotifyPixelShadow").addEventListener("input", () => {
+    byId("minecraftSpotifyPixelShadowOutput").value =
+      Number(byId("minecraftSpotifyPixelShadow").value).toFixed(2);
+  });
   byId("rivalsScale").addEventListener("input", () => {
     byId("rivalsScaleOutput").value =
       Number(byId("rivalsScale").value).toFixed(2);
@@ -4879,6 +4929,9 @@ function bindEvents() {
     "colorA",
     "colorB",
     "colorC",
+    "minecraftSpotifyAccentColor",
+    "minecraftSpotifyShellColor",
+    "minecraftSpotifyTextColor",
     "counterAccent",
     "goalColor",
     "goalTrack",
@@ -4923,6 +4976,10 @@ function bindEvents() {
 
   byId("saveDanceButton").addEventListener("click", () => saveOverlaySettings());
   byId("saveSpotifyButton").addEventListener("click", () => saveOverlaySettings());
+  byId("saveMinecraftSpotifyButton").addEventListener(
+    "click",
+    () => saveOverlaySettings(),
+  );
   byId("saveFlowButton").addEventListener("click", () => saveOverlaySettings());
   byId("savePlatformBadgeButton").addEventListener(
     "click",
@@ -5001,6 +5058,21 @@ function bindEvents() {
     setColor("colorB", defaults.colors.b);
     setColor("colorC", defaults.colors.c);
     logActivity("Spotify fields reset; save to apply");
+  });
+  byId("resetMinecraftSpotifyButton").addEventListener("click", () => {
+    const defaults = app.state.defaults.minecraftSpotify;
+    byId("minecraftSpotifyScale").value = defaults.scale;
+    byId("minecraftSpotifyScaleOutput").value =
+      Number(defaults.scale).toFixed(2);
+    byId("minecraftSpotifyCardSize").value = defaults.cardSize;
+    byId("minecraftSpotifyCardSizeOutput").value = defaults.cardSize;
+    byId("minecraftSpotifyPixelShadow").value = defaults.pixelShadow;
+    byId("minecraftSpotifyPixelShadowOutput").value =
+      Number(defaults.pixelShadow).toFixed(2);
+    setColor("minecraftSpotifyAccentColor", defaults.accentColor);
+    setColor("minecraftSpotifyShellColor", defaults.shellColor);
+    setColor("minecraftSpotifyTextColor", defaults.textColor);
+    logActivity("Minecraft Spotify fields reset; save to apply");
   });
   byId("resetFlowButton").addEventListener("click", () => {
     const defaults = app.state.defaults.flow;

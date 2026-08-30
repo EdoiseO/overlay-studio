@@ -159,6 +159,16 @@ class OverlayFontContractTests(unittest.TestCase):
             with self.subTest(removed_overlay=filename):
                 self.assertFalse((ROOT_DIR / "overlays" / filename).exists())
 
+    def test_minecraft_spotify_uses_the_local_minecraftia_font(self) -> None:
+        source = (
+            ROOT_DIR / "overlays" / "minecraft-spotify.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("/assets/fonts/overlay-fonts.css", source)
+        self.assertIn('font-family: "Minecraftia"', source)
+        self.assertIn("font-synthesis: none", source)
+        self.assertNotIn("fonts.googleapis.com", source)
+
     def test_minecraft_clock_line_is_transparent_and_single_row(self) -> None:
         overlay = (ROOT_DIR / "overlays" / "minecraft-clock-line.html").read_text(
             encoding="utf-8"

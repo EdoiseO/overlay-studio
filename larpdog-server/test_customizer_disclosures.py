@@ -16,6 +16,10 @@ class CustomizerDisclosureTests(unittest.TestCase):
             "open": ("Player appearance",),
             "closed": (),
         },
+        "minecraftSpotifyView": {
+            "open": ("Player appearance",),
+            "closed": (),
+        },
         "flowView": {
             "open": ("Player appearance",),
             "closed": (),
@@ -117,7 +121,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
                     )
                 total += 1
 
-        self.assertEqual(total, 27)
+        self.assertEqual(total, 28)
         self.assertEqual(
             self.markup.count('<details class="panel customizer-disclosure'),
             total,
@@ -128,7 +132,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
         self.assertIn('<div class="panel profile-panel">', self.markup)
         self.assertIn('<div class="panel social-grouped-accounts-panel">', self.markup)
         self.assertEqual(self.markup.count("<h2>Social accounts</h2>"), 2)
-        self.assertEqual(self.markup.count("<h2>OBS browser source</h2>"), 12)
+        self.assertEqual(self.markup.count("<h2>OBS browser source</h2>"), 13)
 
     def test_closed_disclosures_are_compact_and_have_clear_toggles(self) -> None:
         self.assertIn(".customizer-disclosure:not([open])", self.styles)
