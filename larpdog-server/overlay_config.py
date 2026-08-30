@@ -175,7 +175,7 @@ DEFAULT_OVERLAY_CONFIG: dict[str, Any] = {
         "textColor": "fffbed",
         "pixelShadow": 0.0,
     },
-    "minecraftSpotify": {
+    "pixelNowPlaying": {
         "scale": 1.0,
         "cardWidth": 560,
         "accentColor": "70b237",
@@ -251,6 +251,30 @@ LEGACY_INSTANCE_IDS = {
     overlay_type: instance_id
     for instance_id, overlay_type, _name in LEGACY_INSTANCE_SPECS
 }
+
+LEGACY_OVERLAY_TYPE_ALIASES = {
+    "minecraft-clock-line": "pixel-clock-line",
+    "minecraft-countdown-line": "pixel-countdown-line",
+    "minecraft-stopwatch-line": "pixel-stopwatch-line",
+    "minecraft-spotify": "pixel-now-playing",
+}
+LEGACY_OVERLAY_DEFAULT_NAMES = {
+    "minecraft-clock-line": ("Minecraft Clock Line", "Pixel Clock Line"),
+    "minecraft-countdown-line": (
+        "Minecraft Countdown Line",
+        "Pixel Countdown Line",
+    ),
+    "minecraft-stopwatch-line": (
+        "Minecraft Stopwatch Line",
+        "Pixel Stopwatch Line",
+    ),
+    "minecraft-spotify": ("Minecraft Spotify", "Pixel Now Playing"),
+}
+
+
+def canonical_overlay_type(value: Any) -> str:
+    overlay_type = str(value or "").strip()
+    return LEGACY_OVERLAY_TYPE_ALIASES.get(overlay_type, overlay_type)
 
 
 def is_valid_instance_id(value: Any) -> bool:
@@ -761,11 +785,12 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
         if isinstance(source.get("blockBeats"), dict)
         else {}
     )
-    minecraft_spotify = (
-        source.get("minecraftSpotify")
-        if isinstance(source.get("minecraftSpotify"), dict)
-        else {}
-    )
+    if isinstance(source.get("pixelNowPlaying"), dict):
+        pixel_now_playing = source["pixelNowPlaying"]
+    elif isinstance(source.get("minecraftSpotify"), dict):
+        pixel_now_playing = source["minecraftSpotify"]
+    else:
+        pixel_now_playing = {}
     flow = source.get("flow") if isinstance(source.get("flow"), dict) else {}
     audio = source.get("audio") if isinstance(source.get("audio"), dict) else {}
     now_playing = (
@@ -796,7 +821,7 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
     default_dance = defaults["dance"]
     default_spotify = defaults["spotify"]
     default_block_beats = defaults["blockBeats"]
-    default_minecraft_spotify = defaults["minecraftSpotify"]
+    default_pixel_now_playing = defaults["pixelNowPlaying"]
     default_flow = defaults["flow"]
     default_colors = default_spotify["colors"]
     dance_gif = _asset_path(
@@ -996,11 +1021,11 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
                 2,
             ),
         },
-        "minecraftSpotify": {
+        "pixelNowPlaying": {
             "scale": round(
                 _number(
-                    minecraft_spotify.get("scale"),
-                    default_minecraft_spotify["scale"],
+                    pixel_now_playing.get("scale"),
+                    default_pixel_now_playing["scale"],
                     0.5,
                     2.0,
                 ),
@@ -1009,29 +1034,29 @@ def _normalize_flat_config(raw: Any) -> dict[str, Any]:
             "cardWidth": int(
                 round(
                     _number(
-                        minecraft_spotify.get("cardWidth"),
-                        default_minecraft_spotify["cardWidth"],
+                        pixel_now_playing.get("cardWidth"),
+                        default_pixel_now_playing["cardWidth"],
                         380,
                         680,
                     )
                 )
             ),
             "accentColor": _color(
-                minecraft_spotify.get("accentColor"),
-                default_minecraft_spotify["accentColor"],
+                pixel_now_playing.get("accentColor"),
+                default_pixel_now_playing["accentColor"],
             ),
             "shellColor": _color(
-                minecraft_spotify.get("shellColor"),
-                default_minecraft_spotify["shellColor"],
+                pixel_now_playing.get("shellColor"),
+                default_pixel_now_playing["shellColor"],
             ),
             "textColor": _color(
-                minecraft_spotify.get("textColor"),
-                default_minecraft_spotify["textColor"],
+                pixel_now_playing.get("textColor"),
+                default_pixel_now_playing["textColor"],
             ),
             "pixelShadow": round(
                 _number(
-                    minecraft_spotify.get("pixelShadow"),
-                    default_minecraft_spotify["pixelShadow"],
+                    pixel_now_playing.get("pixelShadow"),
+                    default_pixel_now_playing["pixelShadow"],
                     0.0,
                     1.0,
                 ),
@@ -1086,8 +1111,8 @@ def _instance_config(
         keys = ("spotify",)
     elif overlay_type == "block-beats":
         keys = ("blockBeats",)
-    elif overlay_type == "minecraft-spotify":
-        keys = ("minecraftSpotify",)
+    elif overlay_type == "pixel-now-playing":
+        keys = ("pixelNowPlaying",)
     elif overlay_type == "now-playing-flow":
         keys = ("flow",)
     elif overlay_type in {"social", "social-rotator"}:
@@ -1112,7 +1137,16 @@ def _instance_config(
     else:
         return {}
     for key in keys:
-        value = source.get(key, fallback.get(key))
+        if key == "pixelNowPlaying":
+            value = source.get(key)
+            if not isinstance(value, dict):
+                value = source.get("minecraftSpotify")
+            if not isinstance(value, dict):
+                value = fallback.get(key)
+            if not isinstance(value, dict):
+                value = fallback.get("minecraftSpotify")
+        else:
+            value = source.get(key, fallback.get(key))
         if isinstance(value, dict):
             combined[key] = value
     normalized = _normalize_flat_config(combined)
@@ -1151,14 +1185,19 @@ def normalize_overlay_config(raw: Any) -> dict[str, Any]:
             instance_id = str(supplied_id or "")
             if not is_valid_instance_id(instance_id) or not isinstance(supplied, dict):
                 continue
-            overlay_type = str(supplied.get("type") or "").strip()
+            supplied_type = str(supplied.get("type") or "").strip()
+            overlay_type = canonical_overlay_type(supplied_type)
             if not is_valid_instance_id(overlay_type):
                 continue
+            supplied_name = supplied.get("name")
+            legacy_names = LEGACY_OVERLAY_DEFAULT_NAMES.get(supplied_type)
+            if legacy_names and str(supplied_name or "").strip() == legacy_names[0]:
+                supplied_name = legacy_names[1]
             instances[instance_id] = {
                 "id": instance_id,
                 "type": overlay_type,
                 "name": _overlay_name(
-                    supplied.get("name"),
+                    supplied_name,
                     overlay_type.replace("-", " ").title(),
                 ),
                 "config": _instance_config(
@@ -1187,7 +1226,7 @@ def materialize_instance_config(
             "dance",
             "spotify",
             "blockBeats",
-            "minecraftSpotify",
+            "pixelNowPlaying",
             "flow",
             "audio",
             "nowPlaying",
@@ -1222,7 +1261,7 @@ def update_instance_config(
         "dance",
         "spotify",
         "blockBeats",
-        "minecraftSpotify",
+        "pixelNowPlaying",
         "flow",
         "audio",
         "nowPlaying",

@@ -20,7 +20,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
             "open": ("Player appearance",),
             "closed": (),
         },
-        "minecraftSpotifyView": {
+        "pixelNowPlayingView": {
             "open": ("Player appearance",),
             "closed": (),
         },
@@ -40,7 +40,7 @@ class CustomizerDisclosureTests(unittest.TestCase):
             "open": ("Goal progress",),
             "closed": ("Layout", "Appearance"),
         },
-        "minecraftTimeView": {
+        "pixelTimeView": {
             "open": ("Display",),
             "closed": ("Appearance",),
         },

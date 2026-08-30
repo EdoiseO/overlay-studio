@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Minecraft Spotify</title>
-<link rel="stylesheet" href="/assets/fonts/overlay-fonts.css">
+<title>Pixel Now Playing</title>
+<link rel="stylesheet" href="/assets/fonts/overlay-fonts.css?v=20260830-pixel-ui">
 <script type="application/json" id="overlay-manifest">
 {
-  "name": "Minecraft Spotify",
-  "description": "The original horizontal Spotify player rebuilt with Minecraftia lettering and sharp pixel edges.",
+  "name": "Pixel Now Playing",
+  "description": "The original horizontal Spotify player rebuilt with Pixel UI lettering and sharp pixel edges.",
   "category": "music",
   "canvas": { "w": 720, "h": 260 },
   "settings": ["scale", "cardWidth", "accentColor", "shellColor", "textColor", "pixelShadow"],
-  "studioView": "minecraftSpotifyView"
+  "studioView": "pixelNowPlayingView"
 }
 </script>
 <style>
@@ -36,7 +36,7 @@
   }
   body {
     position: relative;
-    font-family: "Minecraftia", monospace;
+    font-family: "Pixel UI", monospace;
     font-synthesis: none;
   }
   .player-shell {
@@ -233,7 +233,7 @@
 </style>
 </head>
 <body>
-<article class="player-shell waiting" id="player" aria-label="Minecraft Spotify player">
+<article class="player-shell waiting" id="player" aria-label="Pixel Now Playing player">
   <div class="art-frame">
     <div class="art-placeholder" id="artPlaceholder" aria-hidden="true"></div>
     <img id="art" alt="" hidden>
@@ -267,7 +267,7 @@
     pixelShadow: 0,
   });
   const PREVIEW_TRACK = Object.freeze({
-    trackId: "minecraft-spotify-preview",
+    trackId: "pixel-now-playing-preview",
     title: "Mining All Night",
     artist: "LarpDog Radio",
     progressMs: 78000,
@@ -306,9 +306,11 @@
   }
 
   function applySettings(config) {
-    const supplied = config?.minecraftSpotify && typeof config.minecraftSpotify === "object"
-      ? config.minecraftSpotify
-      : {};
+    const supplied = config?.pixelNowPlaying && typeof config.pixelNowPlaying === "object"
+      ? config.pixelNowPlaying
+      : config?.minecraftSpotify && typeof config.minecraftSpotify === "object"
+        ? config.minecraftSpotify
+        : {};
     settings = {
       scale: clamp(supplied.scale ?? DEFAULT_SETTINGS.scale, .5, 2),
       cardWidth: Math.round(clamp(supplied.cardWidth ?? DEFAULT_SETTINGS.cardWidth, 380, 680)),
@@ -487,7 +489,7 @@
       if (
         event.source !== window.parent
         || message?.type !== "overlay-studio-draft"
-        || message.overlayType !== "minecraft-spotify"
+        || message.overlayType !== "pixel-now-playing"
         || String(message.instanceId || "") !== instanceId
       ) return;
       customizerDraftApplied = true;
@@ -500,7 +502,7 @@
     socket?.close();
   }, { once: true });
 
-  applySettings({ minecraftSpotify: DEFAULT_SETTINGS });
+  applySettings({ pixelNowPlaying: DEFAULT_SETTINGS });
   if (previewMode || catalogMode) showTrack(PREVIEW_TRACK);
   else showWaiting();
   loadSettings();

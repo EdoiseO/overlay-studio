@@ -17,6 +17,7 @@ from time_tool_store import (
     WallClockGuard,
     time_tool_defaults_for_type,
 )
+from overlay_config import normalize_overlay_config
 
 
 class TimeToolStoreTests(unittest.TestCase):
@@ -34,13 +35,13 @@ class TimeToolStoreTests(unittest.TestCase):
         countdown = apply_time_tool_update(
             {},
             {"durationSeconds": 90, "action": "start"},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=5_000,
         )
         stopwatch = apply_time_tool_update(
             {},
             {"action": "start"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=5_000,
         )
 
@@ -63,7 +64,7 @@ class TimeToolStoreTests(unittest.TestCase):
                 "showDate": False,
                 "digitShadow": 0.45,
             },
-            "minecraft-clock-line",
+            "pixel-clock-line",
         )
 
         self.assertEqual(state["timezone"], "America/Los_Angeles")
@@ -86,7 +87,7 @@ class TimeToolStoreTests(unittest.TestCase):
                 "scale": 99,
                 "glow": -2,
             },
-            "minecraft-clock-line",
+            "pixel-clock-line",
         )
 
         self.assertEqual(state["label"], "SERVER TIME")
@@ -103,7 +104,7 @@ class TimeToolStoreTests(unittest.TestCase):
         started = apply_time_tool_update(
             {},
             {"durationSeconds": 600, "action": "start"},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=10_000,
         )
         self.assertTrue(started["running"])
@@ -113,7 +114,7 @@ class TimeToolStoreTests(unittest.TestCase):
         paused = apply_time_tool_update(
             started,
             {"action": "pause"},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=15_250,
         )
         self.assertFalse(paused["running"])
@@ -123,13 +124,13 @@ class TimeToolStoreTests(unittest.TestCase):
         resumed = apply_time_tool_update(
             paused,
             {"action": "start"},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=20_000,
         )
         snapshot = apply_time_tool_update(
             resumed,
             {},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=22_000,
         )
         self.assertEqual(snapshot["remainingMs"], 592_750)
@@ -139,13 +140,13 @@ class TimeToolStoreTests(unittest.TestCase):
         running = apply_time_tool_update(
             {},
             {"action": "start"},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=1_000,
         )
         changed = apply_time_tool_update(
             running,
             {"durationSeconds": 0},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=2_000,
         )
 
@@ -161,7 +162,7 @@ class TimeToolStoreTests(unittest.TestCase):
                 "running": False,
             },
             {"durationSeconds": 300},
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=3_000,
         )
         self.assertEqual(shortened["durationSeconds"], 300)
@@ -180,19 +181,19 @@ class TimeToolStoreTests(unittest.TestCase):
                     "startedAt": 0,
                 },
                 "paused-countdown",
-                "minecraft-countdown-line",
+                "pixel-countdown-line",
             )
 
             first = load_time_tool_state(
                 path,
                 "paused-countdown",
-                "minecraft-countdown-line",
+                "pixel-countdown-line",
                 now_ms=100_000,
             )
             second = load_time_tool_state(
                 path,
                 "paused-countdown",
-                "minecraft-countdown-line",
+                "pixel-countdown-line",
                 now_ms=3_700_000,
             )
 
@@ -218,7 +219,7 @@ class TimeToolStoreTests(unittest.TestCase):
         }
         forward = snapshot_time_tool_state(
             before_jump,
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=4_601_000,
             logical_now_ms=1_001_000,
         )
@@ -227,7 +228,7 @@ class TimeToolStoreTests(unittest.TestCase):
 
         after_forward = snapshot_time_tool_state(
             forward,
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=4_602_000,
             logical_now_ms=1_002_000,
         )
@@ -240,7 +241,7 @@ class TimeToolStoreTests(unittest.TestCase):
         }
         backward = snapshot_time_tool_state(
             before_backward,
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=2_601_000,
             logical_now_ms=4_601_000,
         )
@@ -255,7 +256,7 @@ class TimeToolStoreTests(unittest.TestCase):
                 "soundVolume": 9,
                 "action": "test-sound",
             },
-            "minecraft-countdown-line",
+            "pixel-countdown-line",
             now_ms=1_000,
         )
 
@@ -268,7 +269,7 @@ class TimeToolStoreTests(unittest.TestCase):
             apply_time_tool_update(
                 {},
                 {"action": "test-sound"},
-                "minecraft-stopwatch-line",
+                "pixel-stopwatch-line",
                 now_ms=1_000,
             )
 
@@ -276,13 +277,13 @@ class TimeToolStoreTests(unittest.TestCase):
         state = apply_time_tool_update(
             {},
             {"action": "start"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=1_000,
         )
         state = apply_time_tool_update(
             state,
             {"action": "pause"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=4_500,
         )
         self.assertEqual(state["elapsedMs"], 3_500)
@@ -290,13 +291,13 @@ class TimeToolStoreTests(unittest.TestCase):
         state = apply_time_tool_update(
             state,
             {"action": "start"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=10_000,
         )
         state = apply_time_tool_update(
             state,
             {"action": "pause"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=12_250,
         )
         self.assertEqual(state["elapsedMs"], 5_750)
@@ -304,7 +305,7 @@ class TimeToolStoreTests(unittest.TestCase):
         state = apply_time_tool_update(
             state,
             {"action": "reset"},
-            "minecraft-stopwatch-line",
+            "pixel-stopwatch-line",
             now_ms=13_000,
         )
         self.assertEqual(state["elapsedMs"], 0)
@@ -317,20 +318,20 @@ class TimeToolStoreTests(unittest.TestCase):
                 path,
                 {"elapsedMs": 12_000},
                 "build-one",
-                "minecraft-stopwatch-line",
+                "pixel-stopwatch-line",
             )
             save_time_tool_state(
                 path,
                 {"elapsedMs": 34_000},
                 "build-two",
-                "minecraft-stopwatch-line",
+                "pixel-stopwatch-line",
             )
 
             states = load_time_tool_states(
                 path,
                 {
-                    "build-one": {"type": "minecraft-stopwatch-line"},
-                    "build-two": {"type": "minecraft-stopwatch-line"},
+                    "build-one": {"type": "pixel-stopwatch-line"},
+                    "build-two": {"type": "pixel-stopwatch-line"},
                 },
                 now_ms=50_000,
             )
@@ -342,7 +343,7 @@ class TimeToolStoreTests(unittest.TestCase):
                 load_time_tool_state(
                     path,
                     "build-one",
-                    "minecraft-stopwatch-line",
+                    "pixel-stopwatch-line",
                     now_ms=50_000,
                 )["elapsedMs"],
                 0,
@@ -351,18 +352,52 @@ class TimeToolStoreTests(unittest.TestCase):
                 load_time_tool_state(
                     path,
                     "build-two",
-                    "minecraft-stopwatch-line",
+                    "pixel-stopwatch-line",
                     now_ms=50_000,
                 )["elapsedMs"],
                 34_000,
             )
+
+    def test_legacy_instance_type_keeps_its_saved_timer_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "time-tools.json"
+            legacy_instance_id = "minecraft-countdown-line"
+            save_time_tool_state(
+                path,
+                {
+                    "durationSeconds": 600,
+                    "remainingMs": 185_000,
+                    "running": False,
+                },
+                legacy_instance_id,
+                "pixel-countdown-line",
+            )
+            config = normalize_overlay_config(
+                {
+                    "instances": {
+                        legacy_instance_id: {
+                            "type": "minecraft-countdown-line",
+                            "name": "Minecraft Countdown Line",
+                            "config": {},
+                        }
+                    }
+                }
+            )
+
+            states = load_time_tool_states(path, config["instances"], now_ms=50_000)
+
+            self.assertEqual(
+                config["instances"][legacy_instance_id]["type"],
+                "pixel-countdown-line",
+            )
+            self.assertEqual(states[legacy_instance_id]["remainingMs"], 185_000)
 
     def test_unknown_action_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unknown time-tool action"):
             apply_time_tool_update(
                 {},
                 {"action": "lap"},
-                "minecraft-stopwatch-line",
+                "pixel-stopwatch-line",
                 now_ms=1_000,
             )
 

@@ -11,13 +11,13 @@ from typing import Any
 
 
 CLOCK_TIME_TOOL_OVERLAY_TYPES = {
-    "minecraft-clock-line",
+    "pixel-clock-line",
 }
 COUNTDOWN_TIME_TOOL_OVERLAY_TYPES = {
-    "minecraft-countdown-line",
+    "pixel-countdown-line",
 }
 STOPWATCH_TIME_TOOL_OVERLAY_TYPES = {
-    "minecraft-stopwatch-line",
+    "pixel-stopwatch-line",
 }
 TIME_TOOL_OVERLAY_TYPES = {
     *CLOCK_TIME_TOOL_OVERLAY_TYPES,
@@ -148,9 +148,9 @@ def _line_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
 
 
 DEFAULT_TIME_TOOL_STATES: dict[str, dict[str, Any]] = {
-    "minecraft-clock-line": _line_defaults(CLOCK_DEFAULTS),
-    "minecraft-countdown-line": _line_defaults(COUNTDOWN_DEFAULTS),
-    "minecraft-stopwatch-line": _line_defaults(STOPWATCH_DEFAULTS),
+    "pixel-clock-line": _line_defaults(CLOCK_DEFAULTS),
+    "pixel-countdown-line": _line_defaults(COUNTDOWN_DEFAULTS),
+    "pixel-stopwatch-line": _line_defaults(STOPWATCH_DEFAULTS),
 }
 
 

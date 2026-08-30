@@ -11,7 +11,7 @@ NODE = shutil.which("node")
 
 
 @unittest.skipUnless(NODE, "Node.js is required for the Web Audio runtime test")
-class MinecraftTimeAudioRuntimeTests(unittest.TestCase):
+class PixelTimeAudioRuntimeTests(unittest.TestCase):
     def test_chime_reports_only_real_playback_and_releases_outputs(self) -> None:
         completed = subprocess.run(
             [NODE, str(Path(__file__).with_suffix(".mjs"))],

@@ -24,18 +24,18 @@ from overlay_config import (  # noqa: E402
 )
 
 
-class MinecraftSpotifyPresentationTests(unittest.TestCase):
+class PixelNowPlayingPresentationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.source = (
-            ROOT_DIR / "overlays" / "minecraft-spotify.html"
+            ROOT_DIR / "overlays" / "pixel-now-playing.html"
         ).read_text(encoding="utf-8")
 
     def test_overlay_is_a_separate_horizontal_catalog_template(self) -> None:
-        self.assertIn('"name": "Minecraft Spotify"', self.source)
+        self.assertIn('"name": "Pixel Now Playing"', self.source)
         self.assertIn('"canvas": { "w": 720, "h": 260 }', self.source)
-        self.assertIn('"studioView": "minecraftSpotifyView"', self.source)
-        self.assertIn("minecraftSpotify:", self.source)
+        self.assertIn('"studioView": "pixelNowPlayingView"', self.source)
+        self.assertIn("pixelNowPlaying:", self.source)
         self.assertNotIn('"exportable": true', self.source)
 
     def test_player_matches_the_original_horizontal_composition(self) -> None:
@@ -47,14 +47,14 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn("border-radius: 0", self.source)
         self.assertIn("clip-path: polygon", self.source)
 
-    def test_progress_uses_a_segmented_minecraft_experience_bar(self) -> None:
+    def test_progress_uses_a_segmented_pixel_experience_bar(self) -> None:
         self.assertIn("--xp-cell: 16px", self.source)
         self.assertIn("--xp-gap: 3px", self.source)
         self.assertGreaterEqual(self.source.count("repeating-linear-gradient("), 2)
         self.assertIn("#b9ef72 0 30%", self.source)
         self.assertIn("#2f681d 68% 100%", self.source)
 
-    def test_minecraftia_text_has_unclipped_line_boxes(self) -> None:
+    def test_pixel_ui_text_has_unclipped_line_boxes(self) -> None:
         self.assertIn("row-gap: 3px", self.source)
         self.assertIn("font-size: 19px;", self.source)
         self.assertIn("line-height: 30px;", self.source)
@@ -74,27 +74,27 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn('query.get("catalog") === "1"', self.source)
         self.assertIn("PREVIEW_TRACK", self.source)
         self.assertIn("@media (max-width: 520px), (max-height: 190px)", self.source)
-        self.assertIn('message.overlayType !== "minecraft-spotify"', self.source)
+        self.assertIn('message.overlayType !== "pixel-now-playing"', self.source)
         self.assertIn("applySettings(message.config)", self.source)
 
 
-class MinecraftSpotifyConfigTests(unittest.TestCase):
+class PixelNowPlayingConfigTests(unittest.TestCase):
     def test_settings_are_independent_and_bounded(self) -> None:
         config = add_overlay_instance(
             normalize_overlay_config({"instances": {}}),
-            "minecraft-spotify",
-            "minecraft-spotify-main",
-            "Minecraft Spotify",
+            "pixel-now-playing",
+            "pixel-now-playing-main",
+            "Pixel Now Playing",
         )
         block_beats_before = materialize_instance_config(
             config,
-            "minecraft-spotify-main",
+            "pixel-now-playing-main",
         )["blockBeats"]
         updated = update_instance_config(
             config,
-            "minecraft-spotify-main",
+            "pixel-now-playing-main",
             {
-                "minecraftSpotify": {
+                "pixelNowPlaying": {
                     "scale": 99,
                     "cardWidth": 10,
                     "accentColor": "55AA33",
@@ -104,10 +104,10 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
                 }
             },
         )
-        materialized = materialize_instance_config(updated, "minecraft-spotify-main")
+        materialized = materialize_instance_config(updated, "pixel-now-playing-main")
 
         self.assertEqual(
-            materialized["minecraftSpotify"],
+            materialized["pixelNowPlaying"],
             {
                 "scale": 2.0,
                 "cardWidth": 380,
@@ -119,12 +119,12 @@ class MinecraftSpotifyConfigTests(unittest.TestCase):
         )
         self.assertEqual(materialized["blockBeats"], block_beats_before)
         self.assertEqual(
-            updated["instances"]["minecraft-spotify-main"]["config"].keys(),
-            {"minecraftSpotify"},
+            updated["instances"]["pixel-now-playing-main"]["config"].keys(),
+            {"pixelNowPlaying"},
         )
 
 
-class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
+class PixelNowPlayingApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         root = Path(self.temporary.name)
@@ -133,8 +133,8 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         server_dir.mkdir()
         overlays_dir.mkdir()
         shutil.copyfile(
-            ROOT_DIR / "overlays" / "minecraft-spotify.html",
-            overlays_dir / "minecraft-spotify.html",
+            ROOT_DIR / "overlays" / "pixel-now-playing.html",
+            overlays_dir / "pixel-now-playing.html",
         )
         (root / "overlay-studio.html").write_text(
             "<!doctype html><title>Test</title>",
@@ -142,9 +142,9 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         )
         overlay_config = add_overlay_instance(
             normalize_overlay_config({"instances": {}}),
-            "minecraft-spotify",
-            "minecraft-spotify-player",
-            "Minecraft Spotify Player",
+            "pixel-now-playing",
+            "pixel-now-playing-player",
+            "Pixel Now Playing Player",
         )
         save_overlay_config(server_dir / "overlay-config.json", overlay_config)
         config = copy.deepcopy(main.DEFAULT_CONFIG)
@@ -160,15 +160,15 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_route_loads_and_saved_instance_settings_round_trip(self) -> None:
         overlay = await self.client.get(
-            "/overlays/minecraft-spotify?i=minecraft-spotify-player"
+            "/overlays/pixel-now-playing?i=pixel-now-playing-player"
         )
         self.assertEqual(overlay.status, 200)
-        self.assertIn("Minecraft Spotify", await overlay.text())
+        self.assertIn("Pixel Now Playing", await overlay.text())
 
         saved = await self.client.post(
-            "/api/config?i=minecraft-spotify-player",
+            "/api/config?i=pixel-now-playing-player",
             json={
-                "minecraftSpotify": {
+                "pixelNowPlaying": {
                     "scale": 1.25,
                     "cardWidth": 600,
                     "accentColor": "55aa33",
@@ -181,13 +181,21 @@ class MinecraftSpotifyApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved.status, 200)
 
         loaded = await self.client.get(
-            "/api/config?i=minecraft-spotify-player"
+            "/api/config?i=pixel-now-playing-player"
         )
         payload = await loaded.json()
-        self.assertEqual(payload["minecraftSpotify"]["cardWidth"], 600)
-        self.assertEqual(payload["minecraftSpotify"]["pixelShadow"], 0.5)
+        self.assertEqual(payload["pixelNowPlaying"]["cardWidth"], 600)
+        self.assertEqual(payload["pixelNowPlaying"]["pixelShadow"], 0.5)
         self.assertEqual(payload["blockBeats"]["cardSize"], 440)
         self.assertEqual(payload["spotify"]["cardWidth"], 335)
+
+    async def test_legacy_obs_route_serves_pixel_now_playing(self) -> None:
+        for suffix in ("", ".html"):
+            response = await self.client.get(
+                f"/overlays/minecraft-spotify{suffix}?i=pixel-now-playing-player"
+            )
+            self.assertEqual(response.status, 200)
+            self.assertIn("Pixel Now Playing", await response.text())
 
 
 if __name__ == "__main__":

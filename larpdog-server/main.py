@@ -26,6 +26,7 @@ from goal_store import (
 )
 from overlay_config import (
     LEGACY_INSTANCE_IDS,
+    canonical_overlay_type,
     is_valid_instance_id,
     load_overlay_config,
     materialize_instance_config,
@@ -1015,10 +1016,11 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         overlay_name = request.match_info.get("overlay_name", "")
         if not OVERLAY_NAME.fullmatch(overlay_name):
             raise web.HTTPNotFound(text="Overlay not found")
-        overlay_path = overlays_dir / f"{overlay_name}.html"
+        canonical_name = canonical_overlay_type(overlay_name)
+        overlay_path = overlays_dir / f"{canonical_name}.html"
         if not overlay_path.is_file():
             raise web.HTTPNotFound(text=f"Overlay not found: {overlay_name}")
-        request_instance(request, overlay_name)
+        request_instance(request, canonical_name)
         return web.FileResponse(overlay_path, headers={"Cache-Control": "no-store"})
 
     async def get_win_loss(request: web.Request) -> web.Response:

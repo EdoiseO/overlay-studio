@@ -7,14 +7,14 @@
   max-width: calc(100vw - 24px);
 }
 
-.minecraft-time-line {
+.pixel-time-line {
   width: max-content;
   max-width: 100%;
   min-height: 0;
   filter: none;
 }
 
-.minecraft-time-line .block-frame {
+.pixel-time-line .block-frame {
   --line-gap: clamp(8px, 1.25vw, 16px);
   --line-main-size: clamp(18px, 2.45vw, 24px);
   --line-secondary-size: clamp(14px, 1.9vw, 18px);
@@ -37,14 +37,14 @@
   white-space: nowrap;
 }
 
-.minecraft-time-line .block-frame::before,
-.minecraft-time-line .block-frame::after {
+.pixel-time-line .block-frame::before,
+.pixel-time-line .block-frame::after {
   display: none;
 }
 
-.minecraft-time-line .tool-label,
-.minecraft-time-line .tool-zone,
-.minecraft-time-line #timeDetail {
+.pixel-time-line .tool-label,
+.pixel-time-line .tool-zone,
+.pixel-time-line #timeDetail {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -58,15 +58,15 @@
       rgb(9 9 9 / var(--digit-shadow));
 }
 
-.minecraft-time-line .tool-label {
+.pixel-time-line .tool-label {
   color: var(--ink);
 }
 
-.minecraft-time-line .tool-label::before {
+.pixel-time-line .tool-label::before {
   display: none;
 }
 
-.minecraft-time-line .time-value {
+.pixel-time-line .time-value {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -81,7 +81,7 @@
   text-align: left;
 }
 
-.minecraft-time-line .time-value .period {
+.pixel-time-line .time-value .period {
   display: block;
   align-self: center;
   margin-left: .4em;
@@ -90,11 +90,11 @@
   vertical-align: baseline;
 }
 
-.minecraft-time-line .time-value .tenths {
+.pixel-time-line .time-value .tenths {
   font-size: inherit;
 }
 
-.minecraft-time-line .tool-zone {
+.pixel-time-line .tool-zone {
   margin: 0;
   padding: 0;
   border: 0;
@@ -102,13 +102,13 @@
   color: var(--accent);
 }
 
-.minecraft-time-line #timeDetail {
+.pixel-time-line #timeDetail {
   margin: 0;
   padding: 0;
   color: var(--ink);
 }
 
-.minecraft-time-line .line-divider {
+.pixel-time-line .line-divider {
   display: block;
   flex: 0 0 auto;
   width: clamp(2px, .22vw, 3px);
@@ -116,42 +116,42 @@
   background: var(--accent);
 }
 
-.minecraft-time-line .tool-zone:empty,
-.minecraft-time-line #timeDetail:empty,
-.minecraft-time-line .tool-mode {
+.pixel-time-line .tool-zone:empty,
+.pixel-time-line #timeDetail:empty,
+.pixel-time-line .tool-mode {
   display: none;
 }
 
-.minecraft-time-line .status-divider:has(+ .tool-zone:empty),
-.minecraft-time-line .date-divider:has(+ #timeDetail:empty) {
+.pixel-time-line .status-divider:has(+ .tool-zone:empty),
+.pixel-time-line .date-divider:has(+ #timeDetail:empty) {
   display: none;
 }
 
-.minecraft-time-line.no-label .tool-label,
-.minecraft-time-line.no-label .label-divider {
+.pixel-time-line.no-label .tool-label,
+.pixel-time-line.no-label .label-divider {
   display: none;
 }
 
-.minecraft-time-line.compact-timer #timeDetail {
+.pixel-time-line.compact-timer #timeDetail {
   order: 1;
   color: var(--accent);
 }
 
-.minecraft-time-line.compact-timer .date-divider {
+.pixel-time-line.compact-timer .date-divider {
   order: 2;
 }
 
-.minecraft-time-line.compact-timer .time-value {
+.pixel-time-line.compact-timer .time-value {
   order: 3;
   color: var(--ink);
 }
 
-.minecraft-time-line.compact-timer .tool-zone,
-.minecraft-time-line.compact-timer .status-divider {
+.pixel-time-line.compact-timer .tool-zone,
+.pixel-time-line.compact-timer .status-divider {
   display: none;
 }
 
-.minecraft-time-line.complete .tool-zone {
+.pixel-time-line.complete .tool-zone {
   background: none;
   color: var(--accent);
   text-shadow: none;
@@ -159,7 +159,7 @@
 }
 
 @media (max-width: 520px) {
-  .minecraft-time-line .block-frame {
+  .pixel-time-line .block-frame {
     --line-gap: clamp(3px, 1.15vw, 5px);
     --line-main-size: clamp(11px, 3.5vw, 14px);
     --line-secondary-size: clamp(9.5px, 3vw, 12px);
@@ -167,9 +167,9 @@
     padding-inline: 6px;
   }
 
-  .minecraft-time-line .tool-label,
-  .minecraft-time-line .tool-zone,
-  .minecraft-time-line #timeDetail {
+  .pixel-time-line .tool-label,
+  .pixel-time-line .tool-zone,
+  .pixel-time-line #timeDetail {
     letter-spacing: 0;
   }
 }

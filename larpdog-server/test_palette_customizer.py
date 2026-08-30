@@ -14,10 +14,10 @@ class PaletteCustomizerTests(unittest.TestCase):
             "blockBeatsShellColor",
             "blockBeatsTextColor",
         ),
-        "Minecraft Spotify": (
-            "minecraftSpotifyAccentColor",
-            "minecraftSpotifyShellColor",
-            "minecraftSpotifyTextColor",
+        "Pixel Now Playing": (
+            "pixelNowPlayingAccentColor",
+            "pixelNowPlayingShellColor",
+            "pixelNowPlayingTextColor",
         ),
         "Goal Ring": ("goalColor", "goalTrack", "goalLabelColor"),
         "Goal Bar": (
@@ -32,7 +32,7 @@ class PaletteCustomizerTests(unittest.TestCase):
             "goalPillTrack",
             "goalPillLabelColor",
         ),
-        "Minecraft Time Tools": (
+        "Pixel Time Tools": (
             "timeToolAccentColor",
             "timeToolShellColor",
             "timeToolTextColor",

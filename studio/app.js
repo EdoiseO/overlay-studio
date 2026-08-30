@@ -70,12 +70,12 @@ const isGoalOverlayType = (type) => (
   || type === "goal-bar"
   || type === "goal-pill"
 );
-const isClockTimeToolOverlayType = (type) => type === "minecraft-clock-line";
+const isClockTimeToolOverlayType = (type) => type === "pixel-clock-line";
 const isCountdownTimeToolOverlayType = (type) => (
-  type === "minecraft-countdown-line"
+  type === "pixel-countdown-line"
 );
 const isStopwatchTimeToolOverlayType = (type) => (
-  type === "minecraft-stopwatch-line"
+  type === "pixel-stopwatch-line"
 );
 const isLineTimeToolOverlayType = (type) => type?.endsWith("-line") === true;
 const isTimeToolOverlayType = (type) => (
@@ -188,12 +188,12 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "danceView",
   "spotifyView",
   "blockBeatsView",
-  "minecraftSpotifyView",
+  "pixelNowPlayingView",
   "flowView",
   "goalView",
   "goalBarView",
   "goalPillView",
-  "minecraftTimeView",
+  "pixelTimeView",
   "platformBadgeView",
   "socialView",
   "socialGroupedView",
@@ -356,7 +356,7 @@ async function saveActiveCustomizer() {
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
     || instance.type === "block-beats"
-    || instance.type === "minecraft-spotify"
+    || instance.type === "pixel-now-playing"
     || instance.type === "now-playing-flow"
     || instance.type === "social"
     || instance.type === "social-rotator"
@@ -683,7 +683,7 @@ function materializeInstanceConfig(instance) {
     "dance",
     "spotify",
     "blockBeats",
-    "minecraftSpotify",
+    "pixelNowPlaying",
     "flow",
     "audio",
     "nowPlaying",
@@ -818,7 +818,7 @@ function customizerDraft(instance) {
     instance.type === "larpdog-dance"
     || instance.type === "spotify"
     || instance.type === "block-beats"
-    || instance.type === "minecraft-spotify"
+    || instance.type === "pixel-now-playing"
     || instance.type === "now-playing-flow"
   ) {
     return { config: gatherConfig() };
@@ -1992,10 +1992,10 @@ function renderActiveIdentity(instance) {
     byId("blockBeatsDetailName").textContent = instance.name;
     byId("blockBeatsSourceLabel").textContent = instance.name;
     byId("blockBeatsUrl").value = source;
-  } else if (instance.type === "minecraft-spotify") {
-    byId("minecraftSpotifyDetailName").textContent = instance.name;
-    byId("minecraftSpotifySourceLabel").textContent = instance.name;
-    byId("minecraftSpotifyUrl").value = source;
+  } else if (instance.type === "pixel-now-playing") {
+    byId("pixelNowPlayingDetailName").textContent = instance.name;
+    byId("pixelNowPlayingSourceLabel").textContent = instance.name;
+    byId("pixelNowPlayingUrl").value = source;
   } else if (instance.type === "win-loss") {
     byId("counterDetailName").textContent = instance.name;
     byId("counterSourceLabel").textContent = instance.name;
@@ -2019,7 +2019,7 @@ function renderActiveIdentity(instance) {
   } else if (isTimeToolOverlayType(instance.type)) {
     const manifest = manifestFor(instance.type);
     byId("timeToolTypeLabel").textContent =
-      (manifest?.name || "Minecraft time tool").toUpperCase();
+      (manifest?.name || "Pixel time tool").toUpperCase();
     byId("timeToolDetailName").textContent = instance.name;
     byId("timeToolSourceLabel").textContent = instance.name;
     byId("timeToolUrl").value = source;
@@ -3784,25 +3784,25 @@ function fillConfig(config) {
     "blockBeatsTextColor",
     config.blockBeats.textColor,
   );
-  byId("minecraftSpotifyScale").value = config.minecraftSpotify.scale;
-  byId("minecraftSpotifyScaleOutput").value =
-    Number(config.minecraftSpotify.scale).toFixed(2);
-  byId("minecraftSpotifyCardWidth").value = config.minecraftSpotify.cardWidth;
-  byId("minecraftSpotifyCardWidthOutput").value = config.minecraftSpotify.cardWidth;
-  byId("minecraftSpotifyPixelShadow").value = config.minecraftSpotify.pixelShadow;
-  byId("minecraftSpotifyPixelShadowOutput").value =
-    Number(config.minecraftSpotify.pixelShadow).toFixed(2);
+  byId("pixelNowPlayingScale").value = config.pixelNowPlaying.scale;
+  byId("pixelNowPlayingScaleOutput").value =
+    Number(config.pixelNowPlaying.scale).toFixed(2);
+  byId("pixelNowPlayingCardWidth").value = config.pixelNowPlaying.cardWidth;
+  byId("pixelNowPlayingCardWidthOutput").value = config.pixelNowPlaying.cardWidth;
+  byId("pixelNowPlayingPixelShadow").value = config.pixelNowPlaying.pixelShadow;
+  byId("pixelNowPlayingPixelShadowOutput").value =
+    Number(config.pixelNowPlaying.pixelShadow).toFixed(2);
   setColor(
-    "minecraftSpotifyAccentColor",
-    config.minecraftSpotify.accentColor,
+    "pixelNowPlayingAccentColor",
+    config.pixelNowPlaying.accentColor,
   );
   setColor(
-    "minecraftSpotifyShellColor",
-    config.minecraftSpotify.shellColor,
+    "pixelNowPlayingShellColor",
+    config.pixelNowPlaying.shellColor,
   );
   setColor(
-    "minecraftSpotifyTextColor",
-    config.minecraftSpotify.textColor,
+    "pixelNowPlayingTextColor",
+    config.pixelNowPlaying.textColor,
   );
   byId("flowName").value = config.flow.name;
   byId("flowScale").value = config.flow.scale;
@@ -3868,13 +3868,13 @@ function gatherConfig() {
       textColor: byId("blockBeatsTextColor").value.slice(1),
       pixelShadow: Number(byId("blockBeatsPixelShadow").value),
     },
-    minecraftSpotify: {
-      scale: Number(byId("minecraftSpotifyScale").value),
-      cardWidth: Number(byId("minecraftSpotifyCardWidth").value),
-      accentColor: byId("minecraftSpotifyAccentColor").value.slice(1),
-      shellColor: byId("minecraftSpotifyShellColor").value.slice(1),
-      textColor: byId("minecraftSpotifyTextColor").value.slice(1),
-      pixelShadow: Number(byId("minecraftSpotifyPixelShadow").value),
+    pixelNowPlaying: {
+      scale: Number(byId("pixelNowPlayingScale").value),
+      cardWidth: Number(byId("pixelNowPlayingCardWidth").value),
+      accentColor: byId("pixelNowPlayingAccentColor").value.slice(1),
+      shellColor: byId("pixelNowPlayingShellColor").value.slice(1),
+      textColor: byId("pixelNowPlayingTextColor").value.slice(1),
+      pixelShadow: Number(byId("pixelNowPlayingPixelShadow").value),
     },
     flow: {
       name: byId("flowName").value,
@@ -4913,17 +4913,17 @@ function bindEvents() {
     byId("blockBeatsPixelShadowOutput").value =
       Number(byId("blockBeatsPixelShadow").value).toFixed(2);
   });
-  byId("minecraftSpotifyScale").addEventListener("input", () => {
-    byId("minecraftSpotifyScaleOutput").value =
-      Number(byId("minecraftSpotifyScale").value).toFixed(2);
+  byId("pixelNowPlayingScale").addEventListener("input", () => {
+    byId("pixelNowPlayingScaleOutput").value =
+      Number(byId("pixelNowPlayingScale").value).toFixed(2);
   });
-  byId("minecraftSpotifyCardWidth").addEventListener("input", () => {
-    byId("minecraftSpotifyCardWidthOutput").value =
-      byId("minecraftSpotifyCardWidth").value;
+  byId("pixelNowPlayingCardWidth").addEventListener("input", () => {
+    byId("pixelNowPlayingCardWidthOutput").value =
+      byId("pixelNowPlayingCardWidth").value;
   });
-  byId("minecraftSpotifyPixelShadow").addEventListener("input", () => {
-    byId("minecraftSpotifyPixelShadowOutput").value =
-      Number(byId("minecraftSpotifyPixelShadow").value).toFixed(2);
+  byId("pixelNowPlayingPixelShadow").addEventListener("input", () => {
+    byId("pixelNowPlayingPixelShadowOutput").value =
+      Number(byId("pixelNowPlayingPixelShadow").value).toFixed(2);
   });
   byId("rivalsScale").addEventListener("input", () => {
     byId("rivalsScaleOutput").value =
@@ -5103,9 +5103,9 @@ function bindEvents() {
     "blockBeatsAccentColor",
     "blockBeatsShellColor",
     "blockBeatsTextColor",
-    "minecraftSpotifyAccentColor",
-    "minecraftSpotifyShellColor",
-    "minecraftSpotifyTextColor",
+    "pixelNowPlayingAccentColor",
+    "pixelNowPlayingShellColor",
+    "pixelNowPlayingTextColor",
     "counterAccent",
     "goalColor",
     "goalTrack",
@@ -5154,7 +5154,7 @@ function bindEvents() {
     "click",
     () => saveOverlaySettings(),
   );
-  byId("saveMinecraftSpotifyButton").addEventListener(
+  byId("savePixelNowPlayingButton").addEventListener(
     "click",
     () => saveOverlaySettings(),
   );
@@ -5256,20 +5256,20 @@ function bindEvents() {
     setColor("blockBeatsTextColor", defaults.textColor);
     logActivity("Block Beats fields reset; save to apply");
   });
-  byId("resetMinecraftSpotifyButton").addEventListener("click", () => {
-    const defaults = app.state.defaults.minecraftSpotify;
-    byId("minecraftSpotifyScale").value = defaults.scale;
-    byId("minecraftSpotifyScaleOutput").value =
+  byId("resetPixelNowPlayingButton").addEventListener("click", () => {
+    const defaults = app.state.defaults.pixelNowPlaying;
+    byId("pixelNowPlayingScale").value = defaults.scale;
+    byId("pixelNowPlayingScaleOutput").value =
       Number(defaults.scale).toFixed(2);
-    byId("minecraftSpotifyCardWidth").value = defaults.cardWidth;
-    byId("minecraftSpotifyCardWidthOutput").value = defaults.cardWidth;
-    byId("minecraftSpotifyPixelShadow").value = defaults.pixelShadow;
-    byId("minecraftSpotifyPixelShadowOutput").value =
+    byId("pixelNowPlayingCardWidth").value = defaults.cardWidth;
+    byId("pixelNowPlayingCardWidthOutput").value = defaults.cardWidth;
+    byId("pixelNowPlayingPixelShadow").value = defaults.pixelShadow;
+    byId("pixelNowPlayingPixelShadowOutput").value =
       Number(defaults.pixelShadow).toFixed(2);
-    setColor("minecraftSpotifyAccentColor", defaults.accentColor);
-    setColor("minecraftSpotifyShellColor", defaults.shellColor);
-    setColor("minecraftSpotifyTextColor", defaults.textColor);
-    logActivity("Minecraft Spotify fields reset; save to apply");
+    setColor("pixelNowPlayingAccentColor", defaults.accentColor);
+    setColor("pixelNowPlayingShellColor", defaults.shellColor);
+    setColor("pixelNowPlayingTextColor", defaults.textColor);
+    logActivity("Pixel Now Playing fields reset; save to apply");
   });
   byId("resetFlowButton").addEventListener("click", () => {
     const defaults = app.state.defaults.flow;

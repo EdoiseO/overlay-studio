@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Minecraft Stopwatch Line</title>
+  <title>Pixel Stopwatch Line</title>
   <script type="application/json" id="overlay-manifest">
   {
-    "name": "Minecraft Stopwatch Line",
-    "description": "Transparent single-line Minecraftia stopwatch with persistent Studio start, pause, and reset controls.",
+    "name": "Pixel Stopwatch Line",
+    "description": "Transparent single-line Pixel UI stopwatch with persistent Studio start, pause, and reset controls.",
     "category": "utility",
     "canvas": { "w": 1200, "h": 160 },
     "settings": ["label", "showTenths", "accentColor", "textColor", "showLabel", "scale", "glow", "digitShadow"],
-    "studioView": "minecraftTimeView"
+    "studioView": "pixelTimeView"
   }
   </script>
-  <link rel="stylesheet" href="/assets/fonts/overlay-fonts.css">
+  <link rel="stylesheet" href="/assets/fonts/overlay-fonts.css?v=20260830-pixel-ui">
   <link rel="stylesheet" href="/assets/overlay-surface.css">
-  <link rel="stylesheet" href="/assets/minecraft-time.css">
-  <link rel="stylesheet" href="/assets/minecraft-time-line.css">
+  <link rel="stylesheet" href="/assets/pixel-time.css">
+  <link rel="stylesheet" href="/assets/pixel-time-line.css">
 </head>
 <body class="overlay-surface">
   <main class="overlay-content">
-    <section class="minecraft-time minecraft-time-line" id="minecraftTime" aria-live="polite">
+    <section class="pixel-time pixel-time-line" id="pixelTime" aria-live="polite">
       <div class="block-frame">
         <span class="tool-label" id="timeLabel">TIME SPENT</span>
         <span class="line-divider label-divider" aria-hidden="true"></span>
@@ -35,12 +35,12 @@
     </section>
   </main>
   <script>
-    window.MINECRAFT_TIME_TOOL = {
-      overlayType: "minecraft-stopwatch-line",
+    window.PIXEL_TIME_TOOL = {
+      overlayType: "pixel-stopwatch-line",
       kind: "stopwatch",
       layout: "line",
     };
   </script>
-  <script src="/assets/minecraft-time.js"></script>
+  <script src="/assets/pixel-time.js"></script>
 </body>
 </html>

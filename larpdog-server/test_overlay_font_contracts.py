@@ -109,7 +109,7 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertEqual(len(font_urls), 41)
         self.assertEqual(
             {Path(filename).suffix.lower() for filename in font_urls},
-            {".ttf", ".woff2"},
+            {".woff2"},
         )
         self.assertIn("(?:woff2?|ttf|otf)", PNG_RENDERER)
         for filename in font_urls:
@@ -128,54 +128,67 @@ class OverlayFontContractTests(unittest.TestCase):
                         / f"{license_name}-OFL.txt"
                     ).is_file()
                 )
-        filename = "Minecraftia-Regular.ttf"
-        self.assertTrue((FONT_STYLESHEET_PATH.parent / filename).is_file())
-        self.assertIn(filename, FONT_STYLESHEET)
+        for filename in ("PixelUI-Regular.woff2", "PixelUI-Bold.woff2"):
+            self.assertTrue((FONT_STYLESHEET_PATH.parent / filename).is_file())
+            self.assertIn(filename, FONT_STYLESHEET)
         self.assertTrue(
             (
                 FONT_STYLESHEET_PATH.parent
                 / "licenses"
-                / "minecraftia-README.txt"
+                / "pixel-ui-OFL.txt"
             ).is_file()
         )
-        self.assertIn("font-family: 'Minecraftia'", FONT_STYLESHEET)
+        self.assertFalse(
+            (FONT_STYLESHEET_PATH.parent / "Minecraftia-Regular.ttf").exists()
+        )
+        self.assertFalse(
+            (
+                FONT_STYLESHEET_PATH.parent
+                / "licenses"
+                / "minecraftia-README.txt"
+            ).exists()
+        )
+        self.assertIn("font-family: 'Pixel UI'", FONT_STYLESHEET)
 
-    def test_minecraftia_notice_matches_active_overlays_and_private_record(self) -> None:
+    def test_pixel_ui_notice_matches_active_overlays_and_ofl_source(self) -> None:
         notices = (ROOT_DIR / "THIRD_PARTY_NOTICES.md").read_text(
             encoding="utf-8"
         )
         self.assertIn(
-            "Minecraft Clock Line, Minecraft Countdown Line, Minecraft Stopwatch Line, Block Beats,\n"
-            "and Minecraft Spotify bundle Minecraftia",
+            "Pixel Clock Line, Pixel Countdown Line, Pixel Stopwatch Line, Block Beats,\n"
+            "and Pixel Now Playing bundle Pixel UI",
             notices,
         )
-        self.assertIn("confirmed\nthat they purchased", notices)
-        self.assertIn("retained privately by the project owner outside this repository", notices)
+        self.assertIn("SIL Open Font License 1.1", notices)
+        self.assertIn("261ac77fbf28796ca09c22eb83ecdfe386c4b838", notices)
+        self.assertIn("unaffiliated fan project", notices)
+        self.assertNotIn("confirmed that they purchased", notices)
+        self.assertNotIn("Gumroad", notices)
         self.assertNotIn("Minecraft Clock, Clock Line", notices)
         self.assertNotIn("Countdown, Countdown Line", notices)
         self.assertNotIn("Stopwatch, and Stopwatch Line", notices)
 
-    def test_minecraft_time_tools_use_bundled_minecraft_typeface(self) -> None:
-        shared_styles = (ROOT_DIR / "assets" / "minecraft-time.css").read_text(
+    def test_pixel_time_tools_use_bundled_pixel_ui_typeface(self) -> None:
+        shared_styles = (ROOT_DIR / "assets" / "pixel-time.css").read_text(
             encoding="utf-8"
         )
-        self.assertIn('font-family: "Minecraftia"', shared_styles)
+        self.assertIn('font-family: "Pixel UI"', shared_styles)
         self.assertIn("font-synthesis: none", shared_styles)
         self.assertIn("font-size: clamp(48px, 8.8vw, 72px)", shared_styles)
         self.assertIn("overflow: visible", shared_styles)
         self.assertIn(".time-value { font-size: 48px; }", shared_styles)
         self.assertNotIn("Pixelify Sans", shared_styles)
         for filename in (
-            "minecraft-clock-line.html",
-            "minecraft-countdown-line.html",
-            "minecraft-stopwatch-line.html",
+            "pixel-clock-line.html",
+            "pixel-countdown-line.html",
+            "pixel-stopwatch-line.html",
         ):
             with self.subTest(overlay=filename):
                 source = (ROOT_DIR / "overlays" / filename).read_text(
                     encoding="utf-8"
                 )
                 self.assertIn("/assets/fonts/overlay-fonts.css", source)
-                self.assertIn("/assets/minecraft-time.css", source)
+                self.assertIn("/assets/pixel-time.css", source)
 
         for filename in (
             "minecraft-clock.html",
@@ -185,37 +198,37 @@ class OverlayFontContractTests(unittest.TestCase):
             with self.subTest(removed_overlay=filename):
                 self.assertFalse((ROOT_DIR / "overlays" / filename).exists())
 
-    def test_block_beats_uses_the_local_minecraftia_font(self) -> None:
+    def test_block_beats_uses_the_local_pixel_ui_font(self) -> None:
         source = (
             ROOT_DIR / "overlays" / "block-beats.html"
         ).read_text(encoding="utf-8")
 
         self.assertIn("/assets/fonts/overlay-fonts.css", source)
-        self.assertIn('font-family: "Minecraftia"', source)
+        self.assertIn('font-family: "Pixel UI"', source)
         self.assertIn("font-synthesis: none", source)
         self.assertNotIn("fonts.googleapis.com", source)
 
-    def test_minecraft_spotify_uses_the_local_minecraftia_font(self) -> None:
+    def test_pixel_now_playing_uses_the_local_pixel_ui_font(self) -> None:
         source = (
-            ROOT_DIR / "overlays" / "minecraft-spotify.html"
+            ROOT_DIR / "overlays" / "pixel-now-playing.html"
         ).read_text(encoding="utf-8")
 
         self.assertIn("/assets/fonts/overlay-fonts.css", source)
-        self.assertIn('font-family: "Minecraftia"', source)
+        self.assertIn('font-family: "Pixel UI"', source)
         self.assertIn("font-synthesis: none", source)
         self.assertNotIn("fonts.googleapis.com", source)
 
-    def test_minecraft_clock_line_is_transparent_and_single_row(self) -> None:
-        overlay = (ROOT_DIR / "overlays" / "minecraft-clock-line.html").read_text(
+    def test_pixel_clock_line_is_transparent_and_single_row(self) -> None:
+        overlay = (ROOT_DIR / "overlays" / "pixel-clock-line.html").read_text(
             encoding="utf-8"
         )
         line_styles = (
-            ROOT_DIR / "assets" / "minecraft-time-line.css"
+            ROOT_DIR / "assets" / "pixel-time-line.css"
         ).read_text(encoding="utf-8")
         shared_styles = (
-            ROOT_DIR / "assets" / "minecraft-time.css"
+            ROOT_DIR / "assets" / "pixel-time.css"
         ).read_text(encoding="utf-8")
-        self.assertIn('overlayType: "minecraft-clock-line"', overlay)
+        self.assertIn('overlayType: "pixel-clock-line"', overlay)
         self.assertIn('layout: "line"', overlay)
         self.assertIn("background: none", line_styles)
         self.assertIn("border: 0", line_styles)
@@ -242,19 +255,19 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn("white-space: nowrap", line_styles)
 
         for overlay_type in (
-            "minecraft-countdown-line",
-            "minecraft-stopwatch-line",
+            "pixel-countdown-line",
+            "pixel-stopwatch-line",
         ):
             with self.subTest(overlay_type=overlay_type):
                 source = (
                     ROOT_DIR / "overlays" / f"{overlay_type}.html"
                 ).read_text(encoding="utf-8")
                 self.assertIn('layout: "line"', source)
-                self.assertIn("/assets/minecraft-time-line.css", source)
+                self.assertIn("/assets/pixel-time-line.css", source)
                 self.assertEqual(source.count('class="line-divider'), 3)
 
-    def test_minecraft_catalog_timer_preview_can_run_a_bounded_demo(self) -> None:
-        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+    def test_pixel_catalog_timer_preview_can_run_a_bounded_demo(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "pixel-time.js").read_text(
             encoding="utf-8"
         )
         self.assertIn('query.has("demoSeconds")', runtime)
@@ -262,12 +275,12 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn('query.get("demoMinimal") === "1"', runtime)
         self.assertIn('clamp(query.get("demoSeconds"), 1, 359999)', runtime)
 
-    def test_minecraft_countdown_has_a_local_obs_completion_chime(self) -> None:
-        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+    def test_pixel_countdown_has_a_local_obs_completion_chime(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "pixel-time.js").read_text(
             encoding="utf-8"
         )
         overlay = (
-            ROOT_DIR / "overlays" / "minecraft-countdown-line.html"
+            ROOT_DIR / "overlays" / "pixel-countdown-line.html"
         ).read_text(encoding="utf-8")
         studio_markup = (ROOT_DIR / "studio" / "index.html").read_text(
             encoding="utf-8"
@@ -292,25 +305,25 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn("Preview audio is blocked. Click inside", studio_script)
         self.assertNotIn("Completion sound test played", studio_script)
 
-    def test_minecraft_minimal_timers_put_green_detail_before_time(self) -> None:
-        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+    def test_pixel_minimal_timers_put_green_detail_before_time(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "pixel-time.js").read_text(
             encoding="utf-8"
         )
         line_styles = (
-            ROOT_DIR / "assets" / "minecraft-time-line.css"
+            ROOT_DIR / "assets" / "pixel-time-line.css"
         ).read_text(encoding="utf-8")
         self.assertIn('"compact-timer"', runtime)
         self.assertIn("const compactTimer", runtime)
         self.assertIn("finished && compactTimer", runtime)
         self.assertIn('"TIME REMAINING" : "TIME ELAPSED"', runtime)
         self.assertIn(
-            ".minecraft-time-line.compact-timer #timeDetail", line_styles
+            ".pixel-time-line.compact-timer #timeDetail", line_styles
         )
         self.assertIn(
-            ".minecraft-time-line.compact-timer .time-value", line_styles
+            ".pixel-time-line.compact-timer .time-value", line_styles
         )
         self.assertIn(
-            ".minecraft-time-line.compact-timer .tool-zone", line_styles
+            ".pixel-time-line.compact-timer .tool-zone", line_styles
         )
 
     def test_font_bundle_is_in_both_frozen_builds(self) -> None:

@@ -525,6 +525,79 @@ class SocialOverlayConfigTests(unittest.TestCase):
         self.assertFalse(grouped["shadow"])
 
 
+class PixelOverlayMigrationTests(unittest.TestCase):
+    def test_legacy_overlay_types_and_default_names_resolve_to_pixel_overlays(self) -> None:
+        config = normalize_overlay_config(
+            {
+                "instances": {
+                    "legacy-clock": {
+                        "type": "minecraft-clock-line",
+                        "name": "Minecraft Clock Line",
+                        "config": {},
+                    },
+                    "legacy-countdown": {
+                        "type": "minecraft-countdown-line",
+                        "name": "Break Timer",
+                        "config": {},
+                    },
+                    "legacy-stopwatch": {
+                        "type": "minecraft-stopwatch-line",
+                        "name": "Minecraft Stopwatch Line",
+                        "config": {},
+                    },
+                    "legacy-player": {
+                        "type": "minecraft-spotify",
+                        "name": "Minecraft Spotify",
+                        "config": {
+                            "minecraftSpotify": {
+                                "scale": 1.25,
+                                "cardWidth": 620,
+                                "pixelShadow": 0.4,
+                            }
+                        },
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(config["instances"]["legacy-clock"]["type"], "pixel-clock-line")
+        self.assertEqual(config["instances"]["legacy-clock"]["name"], "Pixel Clock Line")
+        self.assertEqual(
+            config["instances"]["legacy-countdown"]["type"],
+            "pixel-countdown-line",
+        )
+        self.assertEqual(config["instances"]["legacy-countdown"]["name"], "Break Timer")
+        self.assertEqual(
+            config["instances"]["legacy-stopwatch"]["type"],
+            "pixel-stopwatch-line",
+        )
+        self.assertEqual(
+            config["instances"]["legacy-stopwatch"]["name"],
+            "Pixel Stopwatch Line",
+        )
+        player = config["instances"]["legacy-player"]
+        self.assertEqual(player["type"], "pixel-now-playing")
+        self.assertEqual(player["name"], "Pixel Now Playing")
+        self.assertEqual(player["config"]["pixelNowPlaying"]["scale"], 1.25)
+        self.assertEqual(player["config"]["pixelNowPlaying"]["cardWidth"], 620)
+        self.assertEqual(player["config"]["pixelNowPlaying"]["pixelShadow"], 0.4)
+
+    def test_legacy_flat_player_settings_load_under_the_new_config_key(self) -> None:
+        config = normalize_overlay_config(
+            {
+                "minecraftSpotify": {
+                    "scale": 1.5,
+                    "cardWidth": 604,
+                    "accentColor": "55aa33",
+                }
+            }
+        )
+
+        self.assertEqual(config["pixelNowPlaying"]["scale"], 1.5)
+        self.assertEqual(config["pixelNowPlaying"]["cardWidth"], 604)
+        self.assertEqual(config["pixelNowPlaying"]["accentColor"], "55aa33")
+
+
 class OverlayOrderConfigTests(unittest.TestCase):
     def setUp(self) -> None:
         config = normalize_overlay_config({"instances": {}})

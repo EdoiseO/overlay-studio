@@ -3,7 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const runtimeSource = fs.readFileSync(
-  new URL("../assets/minecraft-time.js", import.meta.url),
+  new URL("../assets/pixel-time.js", import.meta.url),
   "utf8",
 );
 
@@ -41,7 +41,7 @@ function makeHarness(ContextClass) {
     append() {},
   });
   const elements = new Map([
-    ["minecraftTime", element()],
+    ["pixelTime", element()],
     ["timeLabel", element()],
     ["timeZone", element()],
     ["timeValue", element()],
@@ -65,8 +65,8 @@ function makeHarness(ContextClass) {
     host: "127.0.0.1",
   };
   const window = {
-    MINECRAFT_TIME_TOOL: {
-      overlayType: "minecraft-countdown-line",
+    PIXEL_TIME_TOOL: {
+      overlayType: "pixel-countdown-line",
       kind: "countdown",
       layout: "line",
     },
@@ -89,8 +89,8 @@ function makeHarness(ContextClass) {
     console,
   };
   vm.createContext(sandbox);
-  vm.runInContext(runtimeSource, sandbox, { filename: "minecraft-time.js" });
-  return { tool: window.minecraftTimeTool, stats, document };
+  vm.runInContext(runtimeSource, sandbox, { filename: "pixel-time.js" });
+  return { tool: window.pixelTimeTool, stats, document };
 }
 
 class RunningContext {

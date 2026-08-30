@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const definition = window.MINECRAFT_TIME_TOOL || {};
+  const definition = window.PIXEL_TIME_TOOL || {};
   const overlayType = String(definition.overlayType || "");
   const kind = String(definition.kind || "clock");
   const lineLayout = definition.layout === "line";
@@ -13,7 +13,7 @@
     document.documentElement.classList.add("overlay-studio-preview");
   }
 
-  const tool = document.getElementById("minecraftTime");
+  const tool = document.getElementById("pixelTime");
   const label = document.getElementById("timeLabel");
   const zone = document.getElementById("timeZone");
   const value = document.getElementById("timeValue");
@@ -551,7 +551,7 @@
     loadInstalledState();
     connect();
   }
-  window.minecraftTimeTool = {
+  window.pixelTimeTool = {
     get state() { return { ...state }; },
     get soundPlayCount() { return soundPlayCount; },
     get audioState() { return audioContext?.state || "uninitialized"; },

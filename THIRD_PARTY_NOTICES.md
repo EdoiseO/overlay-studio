@@ -29,13 +29,20 @@ under `assets/fonts/licenses/` and are included in the packaged desktop applicat
 - License: SIL Open Font License 1.1
 - License text: https://openfontlicense.org/
 
-Minecraft Clock Line, Minecraft Countdown Line, Minecraft Stopwatch Line, Block Beats,
-and Minecraft Spotify bundle Minecraftia by Andrew Tyler. The project owner confirmed
-that they purchased the separate commercial/app license required by the author. The
-purchase receipt is retained privately by the project owner outside this repository;
-the purchaser's nontransferable license and receipt are not redistributed with the
-application.
+Pixel Clock Line, Pixel Countdown Line, Pixel Stopwatch Line, Block Beats,
+and Pixel Now Playing bundle Pixel UI, the CSS family alias for regular and bold
+font files from Idrees Hassan's Minecraft-Font project. The source files were
+taken from commit `261ac77fbf28796ca09c22eb83ecdfe386c4b838` and converted
+without subsetting from OTF to WOFF2. The upstream root `LICENSE` file is the
+authoritative license text and declares no Reserved Font Name.
 
-- Project and source: https://www.dafont.com/minecraftia.font
-- Commercial license: https://andrewtyler.gumroad.com/l/minecraftia
-- Author notice: `assets/fonts/licenses/minecraftia-README.txt`
+- Copyright: Copyright (c) 2022, Idrees Hassan
+- Project and source: https://github.com/IdreesInc/Minecraft-Font
+- License: SIL Open Font License 1.1
+- License text: `assets/fonts/licenses/pixel-ui-OFL.txt`
+
+The upstream author states that Minecraft-Font is an unaffiliated fan project,
+emulates the game's typeface, and includes no assets or font files from the game.
+Minecraft and Mojang are trademarks of their respective owners. Their mention in
+source attribution and legacy browser-source route compatibility does not imply
+affiliation or endorsement.

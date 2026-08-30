@@ -234,7 +234,7 @@
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>
           <div class="detail-title">
-            <span>MINECRAFT MUSIC</span>
+            <span>PIXEL MUSIC</span>
             <h1 id="blockBeatsDetailName">Block Beats</h1>
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
@@ -287,7 +287,7 @@
                 <label class="palette-detail-control">
                   <span class="palette-detail-copy">
                     <strong>Player text</strong>
-                    <span>Sets the Minecraftia song title and player labels.</span>
+                    <span>Sets the Pixel UI song title and player labels.</span>
                   </span>
                   <span class="color-field compact-color-field">
                     <input id="blockBeatsTextColor" type="color" aria-label="Block Beats text color">
@@ -314,38 +314,38 @@
         </div>
       </section>
 
-      <section class="view detail-view" id="minecraftSpotifyView">
+      <section class="view detail-view" id="pixelNowPlayingView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>
           <div class="detail-title">
-            <span>MINECRAFT MUSIC</span>
-            <h1 id="minecraftSpotifyDetailName">Minecraft Spotify</h1>
+            <span>PIXEL MUSIC</span>
+            <h1 id="pixelNowPlayingDetailName">Pixel Now Playing</h1>
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
         <details class="panel customizer-disclosure" open>
           <summary><h2>Player appearance</h2></summary>
-          <p class="customizer-note">Uses the original Spotify player's horizontal layout with Minecraftia lettering and sharp pixel edges. Block Beats stays separate.</p>
+          <p class="customizer-note">Uses the original Spotify player's horizontal layout with Pixel UI lettering and sharp pixel edges. Block Beats stays separate.</p>
           <div class="form-grid">
-            <label for="minecraftSpotifyScale">Scale</label>
+            <label for="pixelNowPlayingScale">Scale</label>
             <div class="range-field">
-              <input id="minecraftSpotifyScale" type="range" min="0.5" max="2" step="0.05">
-              <output id="minecraftSpotifyScaleOutput">1.00</output>
+              <input id="pixelNowPlayingScale" type="range" min="0.5" max="2" step="0.05">
+              <output id="pixelNowPlayingScaleOutput">1.00</output>
             </div>
-            <label for="minecraftSpotifyCardWidth">Player width</label>
+            <label for="pixelNowPlayingCardWidth">Player width</label>
             <div class="range-field">
-              <input id="minecraftSpotifyCardWidth" type="range" min="380" max="680" step="4">
-              <output id="minecraftSpotifyCardWidthOutput">560</output>
+              <input id="pixelNowPlayingCardWidth" type="range" min="380" max="680" step="4">
+              <output id="pixelNowPlayingCardWidthOutput">560</output>
             </div>
-            <label for="minecraftSpotifyPixelShadow">Pixel shadow</label>
+            <label for="pixelNowPlayingPixelShadow">Pixel shadow</label>
             <div class="range-field">
-              <input id="minecraftSpotifyPixelShadow" type="range" min="0" max="1" step="0.05">
-              <output id="minecraftSpotifyPixelShadowOutput">0.00</output>
+              <input id="pixelNowPlayingPixelShadow" type="range" min="0" max="1" step="0.05">
+              <output id="pixelNowPlayingPixelShadowOutput">0.00</output>
             </div>
-            <section class="palette-detail-section" aria-labelledby="minecraftSpotifyPaletteHeading">
+            <section class="palette-detail-section" aria-labelledby="pixelNowPlayingPaletteHeading">
               <div class="palette-detail-heading">
-                <h3 id="minecraftSpotifyPaletteHeading">Pixel palette</h3>
-                <p>These colors belong only to Minecraft Spotify.</p>
+                <h3 id="pixelNowPlayingPaletteHeading">Pixel palette</h3>
+                <p>These colors belong only to Pixel Now Playing.</p>
               </div>
               <div class="palette-detail-list">
                 <label class="palette-detail-control">
@@ -354,8 +354,8 @@
                     <span>Colors the status, border detail, and playback progress.</span>
                   </span>
                   <span class="color-field compact-color-field">
-                    <input id="minecraftSpotifyAccentColor" type="color" aria-label="Minecraft Spotify accent color">
-                    <span id="minecraftSpotifyAccentColorLabel">#70B237</span>
+                    <input id="pixelNowPlayingAccentColor" type="color" aria-label="Pixel Now Playing accent color">
+                    <span id="pixelNowPlayingAccentColorLabel">#70B237</span>
                   </span>
                 </label>
                 <label class="palette-detail-control">
@@ -364,18 +364,18 @@
                     <span>Sets the hard-edged horizontal player surface.</span>
                   </span>
                   <span class="color-field compact-color-field">
-                    <input id="minecraftSpotifyShellColor" type="color" aria-label="Minecraft Spotify card color">
-                    <span id="minecraftSpotifyShellColorLabel">#171C1F</span>
+                    <input id="pixelNowPlayingShellColor" type="color" aria-label="Pixel Now Playing card color">
+                    <span id="pixelNowPlayingShellColorLabel">#171C1F</span>
                   </span>
                 </label>
                 <label class="palette-detail-control">
                   <span class="palette-detail-copy">
                     <strong>Player text</strong>
-                    <span>Sets the Minecraftia song title and player labels.</span>
+                    <span>Sets the Pixel UI song title and player labels.</span>
                   </span>
                   <span class="color-field compact-color-field">
-                    <input id="minecraftSpotifyTextColor" type="color" aria-label="Minecraft Spotify text color">
-                    <span id="minecraftSpotifyTextColorLabel">#FFFBED</span>
+                    <input id="pixelNowPlayingTextColor" type="color" aria-label="Pixel Now Playing text color">
+                    <span id="pixelNowPlayingTextColorLabel">#FFFBED</span>
                   </span>
                 </label>
               </div>
@@ -384,17 +384,17 @@
         </details>
         <div class="panel source-panel">
           <h2>OBS browser source</h2>
-          <p>This horizontal Minecraft variant is independent from both Spotify Overlay and Block Beats.</p>
+          <p>This horizontal pixel-art variant is independent from both Spotify Overlay and Block Beats.</p>
           <div class="source-row">
-            <label id="minecraftSpotifySourceLabel" for="minecraftSpotifyUrl">Minecraft Spotify</label>
-            <input id="minecraftSpotifyUrl" type="text" readonly>
+            <label id="pixelNowPlayingSourceLabel" for="pixelNowPlayingUrl">Pixel Now Playing</label>
+            <input id="pixelNowPlayingUrl" type="text" readonly>
             <button class="primary-button compact" type="button" data-copy-active>Copy</button>
             <button class="secondary-button compact" type="button" data-open-active>Open</button>
           </div>
         </div>
         <div class="save-row">
-          <button class="secondary-button" id="resetMinecraftSpotifyButton" type="button">Reset fields</button>
-          <button class="primary-button" id="saveMinecraftSpotifyButton" type="button">Save and apply</button>
+          <button class="secondary-button" id="resetPixelNowPlayingButton" type="button">Reset fields</button>
+          <button class="primary-button" id="savePixelNowPlayingButton" type="button">Save and apply</button>
         </div>
       </section>
 
@@ -922,12 +922,12 @@
         </div>
       </section>
 
-      <section class="view detail-view" id="minecraftTimeView">
+      <section class="view detail-view" id="pixelTimeView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>
           <div class="detail-title">
-            <span id="timeToolTypeLabel">MINECRAFT TIME TOOL</span>
-            <h1 id="timeToolDetailName">Minecraft Clock</h1>
+            <span id="timeToolTypeLabel">PIXEL TIME TOOL</span>
+            <h1 id="timeToolDetailName">Pixel Clock Line</h1>
           </div>
           <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
         </div>
@@ -1023,7 +1023,7 @@
           <summary><h2>Appearance</h2></summary>
           <section class="palette-detail-section" aria-labelledby="timeToolPaletteHeading">
             <div class="palette-detail-heading">
-              <h3 id="timeToolPaletteHeading">Minecraft palette</h3>
+              <h3 id="timeToolPaletteHeading">Pixel palette</h3>
               <p>Change the accent and pixel lettering; framed tools also expose their block shell.</p>
             </div>
             <div class="palette-detail-list">
@@ -1062,7 +1062,7 @@
         <div class="panel">
           <h2>OBS browser source</h2>
           <div class="source-row">
-            <label id="timeToolSourceLabel" for="timeToolUrl">Minecraft Clock</label>
+            <label id="timeToolSourceLabel" for="timeToolUrl">Pixel Clock Line</label>
             <input id="timeToolUrl" readonly>
             <button class="primary-button compact" type="button" data-copy-active>Copy</button>
             <button class="secondary-button compact" type="button" data-open-active>Open</button>

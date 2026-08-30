@@ -13,7 +13,7 @@
     "Anton",
     "Archivo Black",
     "Fredoka",
-    "Minecraftia",
+    "Pixel UI",
     "Montserrat",
     "Nunito",
     "Poppins",

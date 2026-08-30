@@ -12,7 +12,7 @@
 * { box-sizing: border-box; }
 
 body {
-  font-family: "Minecraftia", "Cascadia Mono", Consolas, monospace;
+  font-family: "Pixel UI", "Cascadia Mono", Consolas, monospace;
   font-synthesis: none;
 }
 
@@ -22,7 +22,7 @@ body {
   transform-origin: center;
 }
 
-.minecraft-time {
+.pixel-time {
   position: relative;
   width: 100%;
   min-height: 212px;
@@ -185,12 +185,12 @@ body {
   color: var(--accent);
 }
 
-.minecraft-time.no-label .tool-label,
-.minecraft-time.no-label .tool-mode {
+.pixel-time.no-label .tool-label,
+.pixel-time.no-label .tool-mode {
   visibility: hidden;
 }
 
-.minecraft-time.complete .tool-zone {
+.pixel-time.complete .tool-zone {
   border-color: var(--accent);
   background: var(--accent);
   color: #11100f;
@@ -204,7 +204,7 @@ body {
 
 @media (max-width: 520px), (max-height: 230px) {
   .overlay-content { width: min(680px, calc(100vw - 18px)); }
-  .minecraft-time,
+  .pixel-time,
   .block-frame { min-height: 176px; }
   .block-frame { padding: 21px 18px 17px; }
   .tool-heading { min-height: 24px; font-size: 16px; }
@@ -214,5 +214,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .minecraft-time.complete .tool-zone { animation: none; }
+  .pixel-time.complete .tool-zone { animation: none; }
 }

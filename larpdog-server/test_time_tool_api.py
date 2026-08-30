@@ -32,9 +32,9 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
         server_dir.mkdir()
         overlays_dir.mkdir()
         for overlay_type in (
-            "minecraft-clock-line",
-            "minecraft-countdown-line",
-            "minecraft-stopwatch-line",
+            "pixel-clock-line",
+            "pixel-countdown-line",
+            "pixel-stopwatch-line",
         ):
             shutil.copyfile(
                 ROOT_DIR / "overlays" / f"{overlay_type}.html",
@@ -51,12 +51,12 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
 
         overlay_config = normalize_overlay_config({"instances": {}})
         for overlay_type, instance_id, name in (
-            ("minecraft-clock-line", "server-clock", "Server Clock"),
-            ("minecraft-clock-line", "hud-clock", "HUD Clock"),
-            ("minecraft-countdown-line", "break-countdown", "Break Countdown"),
-            ("minecraft-countdown-line", "line-countdown", "Line Countdown"),
-            ("minecraft-stopwatch-line", "build-stopwatch", "Build Stopwatch"),
-            ("minecraft-stopwatch-line", "line-stopwatch", "Line Stopwatch"),
+            ("pixel-clock-line", "server-clock", "Server Clock"),
+            ("pixel-clock-line", "hud-clock", "HUD Clock"),
+            ("pixel-countdown-line", "break-countdown", "Break Countdown"),
+            ("pixel-countdown-line", "line-countdown", "Line Countdown"),
+            ("pixel-stopwatch-line", "build-stopwatch", "Build Stopwatch"),
+            ("pixel-stopwatch-line", "line-stopwatch", "Line Stopwatch"),
             ("goal", "tip-goal", "Tip Goal"),
         ):
             overlay_config = add_overlay_instance(
@@ -121,7 +121,7 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
 
         message = await websocket.receive_json(timeout=2)
         self.assertEqual(message["type"], "time-tool")
-        self.assertEqual(message["overlayType"], "minecraft-clock-line")
+        self.assertEqual(message["overlayType"], "pixel-clock-line")
         self.assertEqual(message["instanceId"], "server-clock")
         self.assertEqual(message["state"]["timezone"], "America/Chicago")
         await websocket.close()
@@ -218,7 +218,7 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
         sound_message = await websocket.receive_json(timeout=2)
         self.assertEqual(state_message["type"], "time-tool")
         self.assertEqual(sound_message["type"], "time-tool-sound")
-        self.assertEqual(sound_message["overlayType"], "minecraft-countdown-line")
+        self.assertEqual(sound_message["overlayType"], "pixel-countdown-line")
         self.assertEqual(sound_message["instanceId"], "line-countdown")
         await websocket.close()
 
@@ -244,12 +244,12 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_routes_require_matching_addressed_instances(self) -> None:
         for overlay_type, instance_id in (
-            ("minecraft-clock-line", "server-clock"),
-            ("minecraft-clock-line", "hud-clock"),
-            ("minecraft-countdown-line", "break-countdown"),
-            ("minecraft-countdown-line", "line-countdown"),
-            ("minecraft-stopwatch-line", "build-stopwatch"),
-            ("minecraft-stopwatch-line", "line-stopwatch"),
+            ("pixel-clock-line", "server-clock"),
+            ("pixel-clock-line", "hud-clock"),
+            ("pixel-countdown-line", "break-countdown"),
+            ("pixel-countdown-line", "line-countdown"),
+            ("pixel-stopwatch-line", "build-stopwatch"),
+            ("pixel-stopwatch-line", "line-stopwatch"),
         ):
             with self.subTest(overlay_type=overlay_type):
                 response = await self.client.get(
@@ -263,9 +263,31 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
         wrong_type = await self.client.get("/api/time-tool?i=tip-goal")
         self.assertEqual(wrong_type.status, 404)
         mismatched_page = await self.client.get(
-            "/overlays/minecraft-clock-line?i=build-stopwatch"
+            "/overlays/pixel-clock-line?i=build-stopwatch"
         )
         self.assertEqual(mismatched_page.status, 404)
+
+    async def test_legacy_obs_routes_serve_the_renamed_time_overlays(self) -> None:
+        for legacy_type, instance_id, expected_title in (
+            ("minecraft-clock-line", "server-clock", "Pixel Clock Line"),
+            (
+                "minecraft-countdown-line",
+                "break-countdown",
+                "Pixel Countdown Line",
+            ),
+            (
+                "minecraft-stopwatch-line",
+                "build-stopwatch",
+                "Pixel Stopwatch Line",
+            ),
+        ):
+            for suffix in ("", ".html"):
+                with self.subTest(legacy_type=legacy_type, suffix=suffix):
+                    response = await self.client.get(
+                        f"/overlays/{legacy_type}{suffix}?i={instance_id}"
+                    )
+                    self.assertEqual(response.status, 200)
+                    self.assertIn(expected_title, await response.text())
 
 
 if __name__ == "__main__":

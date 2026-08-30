@@ -23,7 +23,7 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('url.searchParams.set("customizer", "1")', script)
         self.assertIn("setCustomizerPreviewExpanded", script)
 
-    def test_minecraft_time_customizer_exposes_digit_shadow(self) -> None:
+    def test_pixel_time_customizer_exposes_digit_shadow(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
 
@@ -257,9 +257,9 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "social-rotator": ROOT_DIR / "overlays" / "social-rotator.html",
             "social-grouped": ROOT_DIR / "overlays" / "social-grouped.html",
             "platform-badge": ROOT_DIR / "overlays" / "platform-badge.html",
-            "minecraft-clock-line": ROOT_DIR / "overlays" / "minecraft-clock-line.html",
-            "minecraft-countdown-line": ROOT_DIR / "overlays" / "minecraft-countdown-line.html",
-            "minecraft-stopwatch-line": ROOT_DIR / "overlays" / "minecraft-stopwatch-line.html",
+            "pixel-clock-line": ROOT_DIR / "overlays" / "pixel-clock-line.html",
+            "pixel-countdown-line": ROOT_DIR / "overlays" / "pixel-countdown-line.html",
+            "pixel-stopwatch-line": ROOT_DIR / "overlays" / "pixel-stopwatch-line.html",
         }
         shared_social = (
             ROOT_DIR / "assets" / "social-platforms.js"
@@ -276,12 +276,12 @@ class CustomizerPreviewContractTests(unittest.TestCase):
                 }:
                     source += shared_social
                 if overlay_type in {
-                    "minecraft-clock-line",
-                    "minecraft-countdown-line",
-                    "minecraft-stopwatch-line",
+                    "pixel-clock-line",
+                    "pixel-countdown-line",
+                    "pixel-stopwatch-line",
                 }:
                     source += (
-                        ROOT_DIR / "assets" / "minecraft-time.js"
+                        ROOT_DIR / "assets" / "pixel-time.js"
                     ).read_text(encoding="utf-8")
                 self.assertIn("overlay-studio-draft", source)
                 self.assertIn(overlay_type, source)

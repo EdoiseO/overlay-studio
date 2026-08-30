@@ -13,15 +13,15 @@ local OBS browser-source overlays.
 | --- | --- |
 | **Dancing GIF** | Displays a resting image until audio or playback activates an audio-reactive dance GIF or video. |
 | **Spotify Overlay** | Shows Spotify desktop metadata, artwork, and progress through Windows media controls; other media apps are ignored. |
-| **Block Beats** | Shows Spotify-only data in a square, sharp-edged Minecraftia music card with independent settings. |
+| **Block Beats** | Shows Spotify-only data in a square, sharp-edged Pixel UI music card with independent settings. |
 | **Match Record** | Displays a transparent win/loss banner with editable title, color, and counters. |
 | **Now Playing Flow** | Presents the active Windows media-session artwork from Spotify, browsers, or other supported apps. |
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
-| **Minecraft Clock Line** | Shows time, timezone, label, and date in one transparent Minecraftia text line. |
-| **Minecraft Countdown Line** | Runs the same persistent countdown in the clean transparent Minecraftia line style. |
-| **Minecraft Stopwatch Line** | Tracks elapsed time in the clean transparent Minecraftia line style. |
+| **Pixel Clock Line** | Shows time, timezone, label, and date in one transparent Pixel UI text line. |
+| **Pixel Countdown Line** | Runs the same persistent countdown in the clean transparent Pixel UI line style. |
+| **Pixel Stopwatch Line** | Tracks elapsed time in the clean transparent Pixel UI line style. |
 | **Rivals Rank Tracker** | Shows a linked Marvel Rivals player's rank, score, and win-loss record for the current session. |
 | **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
 | **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
@@ -111,7 +111,7 @@ or browser extension. When Spotify is paused or closed, the last Spotify track r
 visible as a dimmed, stopped card until Spotify returns.
 
 **Block Beats** uses that same Spotify-only media source in a separate square player.
-Its locally bundled Minecraftia lettering, sharp pixel-cut edges, card size, palette,
+Its locally bundled Pixel UI lettering, sharp pixel-cut edges, card size, palette,
 scale, and optional block shadow are customized independently, so changing it never
 changes the original Spotify Overlay.
 
@@ -129,16 +129,16 @@ glow. The circular fill tracks `current / target` proportionally and caps visual
 restored when Overlay Studio restarts. Every goal editor uses the same currency menu;
 typing while it is focused jumps to currencies by name, such as `C` for Canadian Dollar.
 
-## Minecraft Time Tools
+## Pixel Time Tools
 
-Add **Minecraft Clock Line**, **Minecraft Countdown Line**, or
-**Minecraft Stopwatch Line** from Browse overlays. They share the locally bundled
-Minecraftia typeface, plus the same palette, scale, glow, pixel-shadow, and label
+Add **Pixel Clock Line**, **Pixel Countdown Line**, or
+**Pixel Stopwatch Line** from Browse overlays. They share the locally bundled
+Pixel UI typeface, plus the same palette, scale, glow, pixel-shadow, and label
 controls while keeping separate OBS URLs. Each overlay keeps its label, time, status,
 and supporting detail on one transparent horizontal line. Glow and pixel shadow
 default to off and can be restored with the Studio appearance sliders.
 
-Minecraft Clock follows the selected timezone and automatically changes abbreviations
+Pixel Clock Line follows the selected timezone and automatically changes abbreviations
 for daylight time, such as CST to CDT or PST to PDT. It supports local, Eastern,
 Central, Mountain, Arizona, Pacific, Alaska, Hawaii, and UTC time, plus 12/24-hour,
 seconds, date, and optional custom region-label controls. Countdown starts at a saved
@@ -146,7 +146,7 @@ duration and can show a custom completion message. Stopwatch records elapsed tim
 Countdown and Stopwatch are operated from their Studio customizer with **Start**,
 **Pause**, and **Reset**; their state survives application and overlay restarts. Each
 installed instance remains independent, so multiple activities can be timed at once.
-Minecraft Countdown Line also plays a locally generated block chime when it reaches zero.
+Pixel Countdown Line also plays a locally generated block chime when it reaches zero.
 Use its Studio controls to enable or disable the sound, set its volume, and send an
 immediate test to the live preview and addressed OBS browser source.
 
@@ -329,21 +329,24 @@ Overlay Studio because a local `config.json` may use a different port.
 http://127.0.0.1:8473/overlays/larpdog-dance
 http://127.0.0.1:8473/overlays/spotify
 http://127.0.0.1:8473/overlays/block-beats
-http://127.0.0.1:8473/overlays/minecraft-spotify
+http://127.0.0.1:8473/overlays/pixel-now-playing
 http://127.0.0.1:8473/overlays/win-loss
 http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
 http://127.0.0.1:8473/overlays/goal-bar
 http://127.0.0.1:8473/overlays/goal-pill
-http://127.0.0.1:8473/overlays/minecraft-clock-line
-http://127.0.0.1:8473/overlays/minecraft-countdown-line
-http://127.0.0.1:8473/overlays/minecraft-stopwatch-line
+http://127.0.0.1:8473/overlays/pixel-clock-line
+http://127.0.0.1:8473/overlays/pixel-countdown-line
+http://127.0.0.1:8473/overlays/pixel-stopwatch-line
 http://127.0.0.1:8473/overlays/rivals-rank
 http://127.0.0.1:8473/overlays/social
 http://127.0.0.1:8473/overlays/social-rotator
 http://127.0.0.1:8473/overlays/social-grouped
 http://127.0.0.1:8473/overlays/platform-badge
 ```
+
+Legacy `/overlays/minecraft-*` browser-source URLs for the four renamed Pixel
+overlays continue to work, so existing OBS sources do not need to be replaced.
 
 Those unqualified URLs remain supported for existing OBS scenes. New library instances
 include a validated `i` query parameter, for example:
@@ -365,9 +368,7 @@ Now Playing Flow 760 x 420
 Goal Widget      460 x 520
 Goal Bar         860 x 560
 Goal Pill        720 x 220
-Minecraft Clock  820 x 300
-Minecraft Lines 1200 x 160
-Minecraft Timer  820 x 300
+Pixel Lines     1200 x 160
 Rivals Rank      620 x 190
 Social Bar      1200 x 160
 Social Rotator   640 x 200
@@ -485,8 +486,8 @@ project's packaged executable, and replaces the root `Overlay Studio.exe`.
 - `overlay_studio.pyw`: native WebView desktop shell and Python bridge
 - `studio/`: desktop interface
 - `overlay-studio.html`: Dancing GIF and original Spotify browser sources
-- `overlays/block-beats.html`: standalone square Minecraftia music-card browser source
-- `overlays/minecraft-spotify.html`: standalone horizontal Minecraftia Spotify browser source
+- `overlays/block-beats.html`: standalone square Pixel UI music-card browser source
+- `overlays/pixel-now-playing.html`: standalone horizontal Pixel UI Spotify browser source
 - `overlays/`: standalone overlay pages and the
   [future-overlay authoring guide](overlays/README.md)
 - `assets/`: bundled default media, local overlay fonts, shared social vectors, and

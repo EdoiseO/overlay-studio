@@ -46,7 +46,7 @@ class PngExportRendererTests(unittest.TestCase):
 
     def test_renderer_self_contains_fonts_and_images(self) -> None:
         self.assertIn('fontCssUrl = new URL("./fonts/overlay-fonts.css"', RENDERER)
-        self.assertIn('"Minecraftia"', RENDERER)
+        self.assertIn('"Pixel UI"', RENDERER)
         self.assertIn("(?:woff2?|ttf|otf)", RENDERER)
         self.assertIn("await fetchDataUrl(absolute)", RENDERER)
         self.assertIn("async function inlineImages", RENDERER)
