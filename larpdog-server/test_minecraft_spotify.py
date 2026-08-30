@@ -47,6 +47,13 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn("border-radius: 0", self.source)
         self.assertIn("clip-path: polygon", self.source)
 
+    def test_progress_uses_a_segmented_minecraft_experience_bar(self) -> None:
+        self.assertIn("--xp-cell: 16px", self.source)
+        self.assertIn("--xp-gap: 3px", self.source)
+        self.assertGreaterEqual(self.source.count("repeating-linear-gradient("), 2)
+        self.assertIn("#b9ef72 0 30%", self.source)
+        self.assertIn("#2f681d 68% 100%", self.source)
+
     def test_player_uses_only_strict_spotify_routing(self) -> None:
         self.assertIn('typeof message?.spotifyStatus !== "string"', self.source)
         self.assertIn('message.spotifyStatus === "playing"', self.source)
