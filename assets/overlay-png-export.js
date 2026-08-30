@@ -13,6 +13,7 @@
     "Anton",
     "Archivo Black",
     "Fredoka",
+    "Minecraftia",
     "Montserrat",
     "Nunito",
     "Poppins",
@@ -95,7 +96,9 @@
 
     return (await Promise.all(selected.map(async block => {
       let inlined = block;
-      const matches = [...block.matchAll(/url\(([^)]+\.woff2)\)/g)];
+      const matches = [
+        ...block.matchAll(/url\(([^)]+\.(?:woff2?|ttf|otf))\)/gi),
+      ];
       for (const match of matches) {
         const relative = match[1].trim().replace(/^['\"]|['\"]$/g, "");
         const absolute = new URL(relative, fontCssUrl).href;

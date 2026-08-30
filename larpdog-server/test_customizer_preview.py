@@ -23,6 +23,16 @@ class CustomizerPreviewContractTests(unittest.TestCase):
         self.assertIn('url.searchParams.set("customizer", "1")', script)
         self.assertIn("setCustomizerPreviewExpanded", script)
 
+    def test_minecraft_time_customizer_exposes_digit_shadow(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+
+        self.assertEqual(markup.count('id="timeToolDigitShadow"'), 1)
+        self.assertEqual(markup.count('id="timeToolDigitShadowOutput"'), 1)
+        self.assertIn("Pixel shadow", markup)
+        self.assertIn('"digitShadow"', script)
+        self.assertIn('byId("timeToolDigitShadow").value', script)
+
     def test_preview_iframes_suppress_native_frame_edges(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
@@ -234,6 +244,9 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             "social-rotator": ROOT_DIR / "overlays" / "social-rotator.html",
             "social-grouped": ROOT_DIR / "overlays" / "social-grouped.html",
             "platform-badge": ROOT_DIR / "overlays" / "platform-badge.html",
+            "minecraft-clock-line": ROOT_DIR / "overlays" / "minecraft-clock-line.html",
+            "minecraft-countdown-line": ROOT_DIR / "overlays" / "minecraft-countdown-line.html",
+            "minecraft-stopwatch-line": ROOT_DIR / "overlays" / "minecraft-stopwatch-line.html",
         }
         shared_social = (
             ROOT_DIR / "assets" / "social-platforms.js"
@@ -249,6 +262,10 @@ class CustomizerPreviewContractTests(unittest.TestCase):
                     "platform-badge",
                 }:
                     source += shared_social
+                if overlay_type.startswith("minecraft-"):
+                    source += (
+                        ROOT_DIR / "assets" / "minecraft-time.js"
+                    ).read_text(encoding="utf-8")
                 self.assertIn("overlay-studio-draft", source)
                 self.assertIn(overlay_type, source)
 

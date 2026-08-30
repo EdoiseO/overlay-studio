@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minecraft Countdown Line</title>
+  <script type="application/json" id="overlay-manifest">
+  {
+    "name": "Minecraft Countdown Line",
+    "description": "Transparent single-line Minecraftia countdown with persistent Studio start, pause, and reset controls.",
+    "category": "utility",
+    "canvas": { "w": 1200, "h": 160 },
+    "settings": ["label", "durationSeconds", "finishText", "showTenths", "accentColor", "textColor", "showLabel", "scale", "glow", "digitShadow"],
+    "studioView": "minecraftTimeView"
+  }
+  </script>
+  <link rel="stylesheet" href="/assets/fonts/overlay-fonts.css">
+  <link rel="stylesheet" href="/assets/overlay-surface.css">
+  <link rel="stylesheet" href="/assets/minecraft-time.css">
+  <link rel="stylesheet" href="/assets/minecraft-time-line.css">
+</head>
+<body class="overlay-surface">
+  <main class="overlay-content">
+    <section class="minecraft-time minecraft-time-line" id="minecraftTime" aria-live="polite">
+      <div class="block-frame">
+        <span class="tool-label" id="timeLabel">STARTING IN</span>
+        <span class="line-divider label-divider" aria-hidden="true"></span>
+        <div class="time-value" id="timeValue">00:10:00</div>
+        <span class="line-divider status-divider" aria-hidden="true"></span>
+        <span class="tool-zone" id="timeZone">PAUSED</span>
+        <span class="line-divider date-divider" aria-hidden="true"></span>
+        <span id="timeDetail">TIME REMAINING</span>
+        <span class="tool-mode" id="timeMode">COUNTDOWN</span>
+      </div>
+    </section>
+  </main>
+  <script>
+    window.MINECRAFT_TIME_TOOL = {
+      overlayType: "minecraft-countdown-line",
+      kind: "countdown",
+      layout: "line",
+    };
+  </script>
+  <script src="/assets/minecraft-time.js"></script>
+</body>
+</html>

@@ -117,6 +117,125 @@ class OverlayFontContractTests(unittest.TestCase):
                         / f"{license_name}-OFL.txt"
                     ).is_file()
                 )
+        filename = "Minecraftia-Regular.ttf"
+        self.assertTrue((FONT_STYLESHEET_PATH.parent / filename).is_file())
+        self.assertIn(filename, FONT_STYLESHEET)
+        self.assertTrue(
+            (
+                FONT_STYLESHEET_PATH.parent
+                / "licenses"
+                / "minecraftia-README.txt"
+            ).is_file()
+        )
+        self.assertIn("font-family: 'Minecraftia'", FONT_STYLESHEET)
+
+    def test_minecraft_time_tools_use_bundled_minecraft_typeface(self) -> None:
+        shared_styles = (ROOT_DIR / "assets" / "minecraft-time.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('font-family: "Minecraftia"', shared_styles)
+        self.assertIn("font-synthesis: none", shared_styles)
+        self.assertIn("font-size: clamp(48px, 8.8vw, 72px)", shared_styles)
+        self.assertIn("overflow: visible", shared_styles)
+        self.assertIn(".time-value { font-size: 48px; }", shared_styles)
+        self.assertNotIn("Pixelify Sans", shared_styles)
+        for filename in (
+            "minecraft-clock-line.html",
+            "minecraft-countdown-line.html",
+            "minecraft-stopwatch-line.html",
+        ):
+            with self.subTest(overlay=filename):
+                source = (ROOT_DIR / "overlays" / filename).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("/assets/fonts/overlay-fonts.css", source)
+                self.assertIn("/assets/minecraft-time.css", source)
+
+        for filename in (
+            "minecraft-clock.html",
+            "minecraft-countdown.html",
+            "minecraft-stopwatch.html",
+        ):
+            with self.subTest(removed_overlay=filename):
+                self.assertFalse((ROOT_DIR / "overlays" / filename).exists())
+
+    def test_minecraft_clock_line_is_transparent_and_single_row(self) -> None:
+        overlay = (ROOT_DIR / "overlays" / "minecraft-clock-line.html").read_text(
+            encoding="utf-8"
+        )
+        line_styles = (
+            ROOT_DIR / "assets" / "minecraft-time-line.css"
+        ).read_text(encoding="utf-8")
+        shared_styles = (
+            ROOT_DIR / "assets" / "minecraft-time.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn('overlayType: "minecraft-clock-line"', overlay)
+        self.assertIn('layout: "line"', overlay)
+        self.assertIn("background: none", line_styles)
+        self.assertIn("border: 0", line_styles)
+        self.assertIn("display: flex", line_styles)
+        self.assertIn("align-items: center", line_styles)
+        self.assertIn("--line-main-size: clamp(18px, 2.45vw, 24px)", line_styles)
+        self.assertIn("--line-secondary-size", line_styles)
+        self.assertIn(
+            "--line-secondary-size: clamp(14px, 1.9vw, 18px)", line_styles
+        )
+        self.assertNotIn("--line-secondary-size: var(--line-main-size)", line_styles)
+        self.assertIn("--line-divider-height", line_styles)
+        self.assertIn(
+            "--line-divider-height: var(--line-secondary-size)", line_styles
+        )
+        self.assertIn("--line-main-size: clamp(11px, 3.5vw, 14px)", line_styles)
+        self.assertIn(
+            "--line-secondary-size: clamp(9.5px, 3vw, 12px)", line_styles
+        )
+        self.assertEqual(overlay.count('class="line-divider'), 3)
+        self.assertIn("height: var(--line-divider-height)", line_styles)
+        self.assertIn("--digit-shadow", shared_styles)
+        self.assertIn('"digitShadow"', overlay)
+        self.assertIn("white-space: nowrap", line_styles)
+
+        for overlay_type in (
+            "minecraft-countdown-line",
+            "minecraft-stopwatch-line",
+        ):
+            with self.subTest(overlay_type=overlay_type):
+                source = (
+                    ROOT_DIR / "overlays" / f"{overlay_type}.html"
+                ).read_text(encoding="utf-8")
+                self.assertIn('layout: "line"', source)
+                self.assertIn("/assets/minecraft-time-line.css", source)
+                self.assertEqual(source.count('class="line-divider'), 3)
+
+    def test_minecraft_catalog_timer_preview_can_run_a_bounded_demo(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('query.has("demoSeconds")', runtime)
+        self.assertIn('query.get("demoRunning") === "1"', runtime)
+        self.assertIn('query.get("demoMinimal") === "1"', runtime)
+        self.assertIn('clamp(query.get("demoSeconds"), 1, 359999)', runtime)
+
+    def test_minecraft_minimal_timers_put_green_detail_before_time(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+            encoding="utf-8"
+        )
+        line_styles = (
+            ROOT_DIR / "assets" / "minecraft-time-line.css"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"compact-timer"', runtime)
+        self.assertIn("const compactTimer", runtime)
+        self.assertIn("finished && compactTimer", runtime)
+        self.assertIn('"TIME REMAINING" : "TIME ELAPSED"', runtime)
+        self.assertIn(
+            ".minecraft-time-line.compact-timer #timeDetail", line_styles
+        )
+        self.assertIn(
+            ".minecraft-time-line.compact-timer .time-value", line_styles
+        )
+        self.assertIn(
+            ".minecraft-time-line.compact-timer .tool-zone", line_styles
+        )
 
     def test_font_bundle_is_in_both_frozen_builds(self) -> None:
         desktop_build = (ROOT_DIR / "build-app.bat").read_text(encoding="utf-8")

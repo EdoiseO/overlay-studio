@@ -40,6 +40,12 @@ from rivals_store import (
     update_rivals_record,
 )
 from rivals_worker import RivalsPollWorker
+from time_tool_store import (
+    TIME_TOOL_OVERLAY_TYPES,
+    apply_time_tool_update,
+    load_time_tool_state,
+    save_time_tool_state,
+)
 
 
 APP_NAME = "overlay-studio-server"
@@ -869,6 +875,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     overlay_config_path = base_dir / "overlay-config.json"
     counter_state_path = base_dir / "win-loss.json"
     goal_state_path = base_dir / "goal.json"
+    time_tool_state_path = base_dir / "time-tools.json"
     rivals_state_path = base_dir / "rivals.json"
     overlays_dir = base_dir.parent / "overlays"
     rivals_store_lock = asyncio.Lock()
@@ -878,6 +885,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app["overlay_config_path"] = overlay_config_path
     app["counter_state_path"] = counter_state_path
     app["goal_state_path"] = goal_state_path
+    app["time_tool_state_path"] = time_tool_state_path
     app["rivals_state_path"] = rivals_state_path
     app["rivals_store_lock"] = rivals_store_lock
 
@@ -1114,6 +1122,70 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
         await hub.broadcast(message)
         return web.json_response(saved_state)
 
+    def request_time_tool_context(request: web.Request) -> tuple[str, str]:
+        instance_id, saved_config = request_instance(request)
+        if not instance_id:
+            raise web.HTTPBadRequest(
+                text="Time-tool API requests require an overlay instance"
+            )
+        overlay_type = saved_config["instances"][instance_id]["type"]
+        if overlay_type not in TIME_TOOL_OVERLAY_TYPES:
+            raise web.HTTPNotFound(text="Overlay instance type does not match")
+        return instance_id, overlay_type
+
+    async def get_time_tool(request: web.Request) -> web.Response:
+        instance_id, overlay_type = request_time_tool_context(request)
+        return web.json_response(
+            load_time_tool_state(
+                time_tool_state_path,
+                instance_id,
+                overlay_type,
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def update_time_tool(request: web.Request) -> web.Response:
+        if request.content_length is not None and request.content_length > 16 * 1024:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=16 * 1024,
+                actual_size=request.content_length,
+            )
+        try:
+            submitted = await request.json()
+        except (json.JSONDecodeError, TypeError):
+            raise web.HTTPBadRequest(text="Expected a JSON object") from None
+        if not isinstance(submitted, dict):
+            raise web.HTTPBadRequest(text="Expected a JSON object")
+        instance_id, overlay_type = request_time_tool_context(request)
+        previous = load_time_tool_state(
+            time_tool_state_path,
+            instance_id,
+            overlay_type,
+        )
+        try:
+            state = apply_time_tool_update(
+                previous,
+                submitted,
+                overlay_type,
+            )
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from None
+        saved_state = save_time_tool_state(
+            time_tool_state_path,
+            state,
+            instance_id,
+            overlay_type,
+        )
+        await hub.broadcast(
+            {
+                "type": "time-tool",
+                "overlayType": overlay_type,
+                "instanceId": instance_id,
+                "state": saved_state,
+            }
+        )
+        return web.json_response(saved_state)
+
     def request_rivals_instance(request: web.Request) -> str:
         instance_id, _saved_config = request_instance(request, "rivals-rank")
         if not instance_id:
@@ -1260,6 +1332,8 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_post("/api/win-loss", update_win_loss)
     app.router.add_get("/api/goal", get_goal)
     app.router.add_post("/api/goal", update_goal)
+    app.router.add_get("/api/time-tool", get_time_tool)
+    app.router.add_post("/api/time-tool", update_time_tool)
     app.router.add_get("/api/rivals", get_rivals)
     app.router.add_post("/api/rivals", update_rivals)
     assets_dir = resolve_path(str(config["server"]["overlay_path"]), base_dir).parent / "assets"

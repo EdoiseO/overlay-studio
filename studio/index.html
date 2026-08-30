@@ -754,6 +754,148 @@
         </div>
       </section>
 
+      <section class="view detail-view" id="minecraftTimeView">
+        <div class="detail-heading">
+          <button class="secondary-button library-button" type="button">Library</button>
+          <div class="detail-title">
+            <span id="timeToolTypeLabel">MINECRAFT TIME TOOL</span>
+            <h1 id="timeToolDetailName">Minecraft Clock</h1>
+          </div>
+          <button class="secondary-button push-right" type="button" data-view-target="serverView">Server controls</button>
+        </div>
+        <details class="panel customizer-disclosure" open>
+          <summary><h2>Display</h2></summary>
+          <div class="form-grid">
+            <label for="timeToolLabel">Label</label>
+            <input id="timeToolLabel" type="text" maxlength="32" autocomplete="off">
+            <span>Label visibility</span>
+            <div class="goal-toggle-row">
+              <label><input id="timeToolShowLabel" type="checkbox"> Show the heading label</label>
+            </div>
+          </div>
+          <div class="time-tool-settings" id="timeToolClockSettings">
+            <h3>Clock settings</h3>
+            <div class="form-grid">
+              <label for="timeToolTimezone">Timezone</label>
+              <select id="timeToolTimezone">
+                <option value="local">This computer (automatic)</option>
+                <option value="America/New_York">Eastern (EST / EDT)</option>
+                <option value="America/Chicago">Central (CST / CDT)</option>
+                <option value="America/Denver">Mountain (MST / MDT)</option>
+                <option value="America/Phoenix">Arizona (MST)</option>
+                <option value="America/Los_Angeles">Pacific (PST / PDT)</option>
+                <option value="America/Anchorage">Alaska (AKST / AKDT)</option>
+                <option value="Pacific/Honolulu">Hawaii (HST)</option>
+                <option value="UTC">UTC</option>
+              </select>
+              <div class="field-copy">
+                <label for="timeToolTimezoneLabel">Custom region label</label>
+                <span>Leave blank for EST, CST, PST, and daylight-time equivalents.</span>
+              </div>
+              <input id="timeToolTimezoneLabel" type="text" maxlength="16" autocomplete="off" placeholder="Automatic">
+              <label for="timeToolHourFormat">Hour format</label>
+              <select id="timeToolHourFormat">
+                <option value="12">12-hour (7:42 PM)</option>
+                <option value="24">24-hour (19:42)</option>
+              </select>
+              <span>Clock details</span>
+              <div class="goal-toggle-row wrap">
+                <label><input id="timeToolShowSeconds" type="checkbox"> Seconds</label>
+                <label><input id="timeToolShowDate" type="checkbox"> Date</label>
+              </div>
+            </div>
+          </div>
+          <div class="time-tool-settings" id="timeToolCountdownSettings" hidden>
+            <h3>Countdown settings</h3>
+            <div class="form-grid">
+              <span>Starting duration</span>
+              <div class="time-duration-fields">
+                <label><span>Hours</span><input id="timeToolHours" type="number" min="0" max="99" step="1" inputmode="numeric"></label>
+                <label><span>Minutes</span><input id="timeToolMinutes" type="number" min="0" max="59" step="1" inputmode="numeric"></label>
+                <label><span>Seconds</span><input id="timeToolSeconds" type="number" min="0" max="59" step="1" inputmode="numeric"></label>
+              </div>
+              <label for="timeToolFinishText">Finish message</label>
+              <input id="timeToolFinishText" type="text" maxlength="24" autocomplete="off">
+            </div>
+          </div>
+          <div class="time-tool-settings" id="timeToolPrecisionSettings" hidden>
+            <h3>Timer precision</h3>
+            <div class="form-grid">
+              <span>Sub-second display</span>
+              <div class="goal-toggle-row">
+                <label><input id="timeToolShowTenths" type="checkbox"> Show tenths of a second</label>
+              </div>
+            </div>
+          </div>
+        </details>
+        <div class="panel time-tool-control-panel" id="timeToolControlsPanel" data-customizer-passive hidden>
+          <div class="time-tool-control-heading">
+            <div>
+              <h2>Timer controls</h2>
+              <span id="timeToolStatus">Ready</span>
+            </div>
+            <div class="time-tool-actions">
+              <button class="primary-button compact" type="button" data-time-tool-action="start">Start</button>
+              <button class="secondary-button compact" type="button" data-time-tool-action="pause">Pause</button>
+              <button class="danger-button compact" type="button" data-time-tool-action="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <details class="panel customizer-disclosure">
+          <summary><h2>Appearance</h2></summary>
+          <section class="palette-detail-section" aria-labelledby="timeToolPaletteHeading">
+            <div class="palette-detail-heading">
+              <h3 id="timeToolPaletteHeading">Minecraft palette</h3>
+              <p>Change the accent and pixel lettering; framed tools also expose their block shell.</p>
+            </div>
+            <div class="palette-detail-list">
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy"><strong>Accent</strong><span>Grass strips, separators, status elements, glow, and optional digit depth.</span></span>
+                <span class="color-field compact-color-field"><input id="timeToolAccentColor" type="color" aria-label="Time tool accent color"><span id="timeToolAccentColorLabel">#70B237</span></span>
+              </label>
+              <label class="palette-detail-control" id="timeToolShellControl">
+                <span class="palette-detail-copy"><strong>Block shell</strong><span>Main stone or deepslate surface.</span></span>
+                <span class="color-field compact-color-field"><input id="timeToolShellColor" type="color" aria-label="Time tool shell color"><span id="timeToolShellColorLabel">#292725</span></span>
+              </label>
+              <label class="palette-detail-control">
+                <span class="palette-detail-copy"><strong>Lettering</strong><span>Primary clock and detail text.</span></span>
+                <span class="color-field compact-color-field"><input id="timeToolTextColor" type="color" aria-label="Time tool text color"><span id="timeToolTextColorLabel">#FFFBED</span></span>
+              </label>
+            </div>
+          </section>
+          <div class="form-grid time-tool-range-grid">
+            <label for="timeToolScale">Scale</label>
+            <div class="range-control">
+              <input id="timeToolScale" type="range" min="0.5" max="1.25" step="0.05">
+              <output id="timeToolScaleOutput">1.00</output>
+            </div>
+            <label for="timeToolGlow">Glow</label>
+            <div class="range-control">
+              <input id="timeToolGlow" type="range" min="0" max="2" step="0.05">
+              <output id="timeToolGlowOutput">0.70</output>
+            </div>
+            <label for="timeToolDigitShadow">Pixel shadow</label>
+            <div class="range-control">
+              <input id="timeToolDigitShadow" type="range" min="0" max="1" step="0.05">
+              <output id="timeToolDigitShadowOutput">0.00</output>
+            </div>
+          </div>
+        </details>
+        <div class="panel">
+          <h2>OBS browser source</h2>
+          <div class="source-row">
+            <label id="timeToolSourceLabel" for="timeToolUrl">Minecraft Clock</label>
+            <input id="timeToolUrl" readonly>
+            <button class="primary-button compact" type="button" data-copy-active>Copy</button>
+            <button class="secondary-button compact" type="button" data-open-active>Open</button>
+          </div>
+        </div>
+        <div class="save-row">
+          <button class="secondary-button" id="resetTimeToolFieldsButton" type="button">Reset fields</button>
+          <button class="primary-button" id="saveTimeToolSettingsButton" type="button">Save and apply</button>
+        </div>
+      </section>
+
       <section class="view detail-view" id="platformBadgeView">
         <div class="detail-heading">
           <button class="secondary-button library-button" type="button">Library</button>

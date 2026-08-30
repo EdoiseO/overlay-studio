@@ -18,6 +18,12 @@ local OBS browser-source overlays.
 | **Goal Widget** | Tracks tip, subscriber, follower, or custom goals with a glowing progress ring. |
 | **Goal Bar** | Tracks the same kinds of goals with horizontal, vertical, shelled, and bare progress-bar layouts. |
 | **Goal Pill** | Tracks goals in a compact rounded pill with an icon badge, live value, and proportional fill. |
+| **Minecraft Clock** | Shows the current time in a block-built frame with automatic local or selected US timezone labels. |
+| **Minecraft Clock Line** | Shows time, timezone, label, and date in one transparent Minecraftia text line. |
+| **Minecraft Countdown** | Counts down a saved duration with persistent start, pause, reset, and finish-message behavior. |
+| **Minecraft Countdown Line** | Runs the same persistent countdown in the clean transparent Minecraftia line style. |
+| **Minecraft Stopwatch** | Tracks time spent on an activity with persistent start, pause, and reset controls. |
+| **Minecraft Stopwatch Line** | Tracks elapsed time in the clean transparent Minecraftia line style. |
 | **Rivals Rank Tracker** | Shows a linked Marvel Rivals player's rank, score, and win-loss record for the current session. |
 | **Social Bar** | Shows only selected social platforms in configurable rows, capsules, or labeled layouts. |
 | **Social Rotator** | Cycles through selected social handles with optional labels, timing, and animated transitions. |
@@ -119,6 +125,25 @@ glow. The circular fill tracks `current / target` proportionally and caps visual
 100 percent. Progress is stored independently for every Goal Widget instance and is
 restored when Overlay Studio restarts. Every goal editor uses the same currency menu;
 typing while it is focused jumps to currencies by name, such as `C` for Canadian Dollar.
+
+## Minecraft Time Tools
+
+Add **Minecraft Clock**, **Minecraft Clock Line**, **Minecraft Countdown**,
+**Minecraft Countdown Line**, **Minecraft Stopwatch**, or **Minecraft Stopwatch Line**
+from Browse overlays. They share the locally bundled Minecraftia typeface, plus the
+same palette, scale, glow, pixel-shadow, and label controls while keeping separate OBS
+URLs. The Line variants remove the entire block frame and keep their label, time,
+status, and supporting detail on one transparent horizontal line. Their glow and pixel
+shadow default to off and can be restored with the Studio appearance sliders.
+
+Minecraft Clock follows the selected timezone and automatically changes abbreviations
+for daylight time, such as CST to CDT or PST to PDT. It supports local, Eastern,
+Central, Mountain, Arizona, Pacific, Alaska, Hawaii, and UTC time, plus 12/24-hour,
+seconds, date, and optional custom region-label controls. Countdown starts at a saved
+duration and can show a custom completion message. Stopwatch records elapsed time.
+Countdown and Stopwatch are operated from their Studio customizer with **Start**,
+**Pause**, and **Reset**; their state survives application and overlay restarts. Each
+installed instance remains independent, so multiple activities can be timed at once.
 
 ## Goal Bar
 
@@ -295,6 +320,9 @@ http://127.0.0.1:8473/overlays/now-playing-flow
 http://127.0.0.1:8473/overlays/goal
 http://127.0.0.1:8473/overlays/goal-bar
 http://127.0.0.1:8473/overlays/goal-pill
+http://127.0.0.1:8473/overlays/minecraft-clock-line
+http://127.0.0.1:8473/overlays/minecraft-countdown-line
+http://127.0.0.1:8473/overlays/minecraft-stopwatch-line
 http://127.0.0.1:8473/overlays/rivals-rank
 http://127.0.0.1:8473/overlays/social
 http://127.0.0.1:8473/overlays/social-rotator
@@ -321,6 +349,9 @@ Now Playing Flow 760 x 420
 Goal Widget      460 x 520
 Goal Bar         860 x 560
 Goal Pill        720 x 220
+Minecraft Clock  820 x 300
+Minecraft Lines 1200 x 160
+Minecraft Timer  820 x 300
 Rivals Rank      620 x 190
 Social Bar      1200 x 160
 Social Rotator   640 x 200

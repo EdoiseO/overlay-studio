@@ -22,6 +22,11 @@ class PaletteCustomizerTests(unittest.TestCase):
             "goalPillTrack",
             "goalPillLabelColor",
         ),
+        "Minecraft Time Tools": (
+            "timeToolAccentColor",
+            "timeToolShellColor",
+            "timeToolTextColor",
+        ),
         "Rivals Rank": (
             "rivalsShellColor",
             "rivalsTextColor",
@@ -65,7 +70,7 @@ class PaletteCustomizerTests(unittest.TestCase):
             for control_id in family
         ) + self.SOCIAL_GROUPED_COLORS
 
-        self.assertEqual(len(color_ids), 33)
+        self.assertEqual(len(color_ids), 36)
         self.assertEqual(self.markup.count('type="color"'), len(color_ids))
 
         for control_id in color_ids:

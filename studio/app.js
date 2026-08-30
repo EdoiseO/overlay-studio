@@ -25,6 +25,7 @@ const app = {
   goalKey: "",
   goalBarKey: "",
   goalPillKey: "",
+  timeToolKey: "",
   rivalsSettingsKey: "",
   rivalsManualRefreshUntil: {},
   customizerPreviewTimer: null,
@@ -66,6 +67,19 @@ const isGoalOverlayType = (type) => (
   type === "goal"
   || type === "goal-bar"
   || type === "goal-pill"
+);
+const isClockTimeToolOverlayType = (type) => type === "minecraft-clock-line";
+const isCountdownTimeToolOverlayType = (type) => (
+  type === "minecraft-countdown-line"
+);
+const isStopwatchTimeToolOverlayType = (type) => (
+  type === "minecraft-stopwatch-line"
+);
+const isLineTimeToolOverlayType = (type) => type?.endsWith("-line") === true;
+const isTimeToolOverlayType = (type) => (
+  isClockTimeToolOverlayType(type)
+  || isCountdownTimeToolOverlayType(type)
+  || isStopwatchTimeToolOverlayType(type)
 );
 const GOAL_PILL_PRESETS = new Set([
   "f0b04a",
@@ -175,6 +189,7 @@ const CUSTOMIZER_VIEW_IDS = new Set([
   "goalView",
   "goalBarView",
   "goalPillView",
+  "minecraftTimeView",
   "platformBadgeView",
   "socialView",
   "socialGroupedView",
@@ -217,6 +232,11 @@ function activeViewId() {
 }
 
 function customizerDraftKey(instance = activeInstance()) {
+  if (instance && isTimeToolOverlayType(instance.type)) {
+    return JSON.stringify({
+      state: gatherTimeToolSettings(instance.type),
+    });
+  }
   const draft = customizerDraft(instance);
   return draft ? JSON.stringify(draft) : null;
 }
@@ -347,6 +367,12 @@ async function saveActiveCustomizer() {
   }
   if (instance.type === "goal-pill") {
     return sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  }
+  if (isTimeToolOverlayType(instance.type)) {
+    return sendTimeTool(
+      gatherTimeToolSettings(instance.type),
+      `${manifestFor(instance.type)?.name || "Time tool"} saved and applied`,
+    );
   }
   if (instance.type === "rivals-rank") {
     return sendRivals(
@@ -804,6 +830,9 @@ function customizerDraft(instance) {
   }
   if (instance.type === "goal-pill") {
     return { state: gatherGoalPillSettings() };
+  }
+  if (isTimeToolOverlayType(instance.type)) {
+    return { state: timeToolDraftState(instance) };
   }
   if (instance.type === "rivals-rank") {
     return { config: { rivals: gatherRivalsSettings() } };
@@ -1911,6 +1940,13 @@ function renderActiveIdentity(instance) {
     byId("goalPillDetailName").textContent = instance.name;
     byId("goalPillSourceLabel").textContent = instance.name;
     byId("goalPillUrl").value = source;
+  } else if (isTimeToolOverlayType(instance.type)) {
+    const manifest = manifestFor(instance.type);
+    byId("timeToolTypeLabel").textContent =
+      (manifest?.name || "Minecraft time tool").toUpperCase();
+    byId("timeToolDetailName").textContent = instance.name;
+    byId("timeToolSourceLabel").textContent = instance.name;
+    byId("timeToolUrl").value = source;
   } else if (
     instance.type === "social"
     || instance.type === "social-rotator"
@@ -2585,6 +2621,155 @@ function renderGoalPill(goal, force = false) {
   byId("goalPillGlow").value = Number(goal.glow) || 0;
   byId("goalPillGlowOutput").value = Number(goal.glow || 0).toFixed(2);
   syncGoalPillFormat();
+}
+
+function timeToolSettingsKey(state, overlayType = activeInstance()?.type) {
+  if (!state || !isTimeToolOverlayType(overlayType)) return "";
+  const keys = [
+    "label",
+    "accentColor",
+    "shellColor",
+    "textColor",
+    "showLabel",
+    "scale",
+    "glow",
+    "digitShadow",
+  ];
+  if (isClockTimeToolOverlayType(overlayType)) {
+    keys.push(
+      "timezone",
+      "timezoneLabel",
+      "hour12",
+      "showSeconds",
+      "showDate",
+    );
+  } else {
+    keys.push("showTenths");
+    if (isCountdownTimeToolOverlayType(overlayType)) {
+      keys.push("durationSeconds", "finishText");
+    }
+  }
+  return JSON.stringify(Object.fromEntries(keys.map((key) => [key, state[key]])));
+}
+
+function syncTimeToolControlState(state, overlayType) {
+  const timer = !isClockTimeToolOverlayType(overlayType);
+  byId("timeToolControlsPanel").hidden = !timer;
+  if (!timer) return;
+  const running = state?.running === true;
+  const remaining = Math.max(0, Number(state?.remainingMs) || 0);
+  const elapsed = Math.max(0, Number(state?.elapsedMs) || 0);
+  const complete = isCountdownTimeToolOverlayType(overlayType) && remaining <= 0;
+  const ready = isCountdownTimeToolOverlayType(overlayType)
+    ? remaining >= (Math.max(1, Number(state?.durationSeconds) || 1) * 1000)
+    : elapsed <= 0;
+  byId("timeToolStatus").textContent = running
+    ? "Running"
+    : complete
+      ? "Complete"
+      : ready
+        ? "Ready"
+        : "Paused";
+  const start = document.querySelector('[data-time-tool-action="start"]');
+  const pause = document.querySelector('[data-time-tool-action="pause"]');
+  start.disabled = running || app.busy;
+  pause.disabled = !running || app.busy;
+  document.querySelector('[data-time-tool-action="reset"]').disabled = app.busy;
+}
+
+function renderTimeTool(state, overlayType = activeInstance()?.type, force = false) {
+  if (!state || !isTimeToolOverlayType(overlayType)) return;
+  const clock = isClockTimeToolOverlayType(overlayType);
+  const lineTool = isLineTimeToolOverlayType(overlayType);
+  const countdown = isCountdownTimeToolOverlayType(overlayType);
+  byId("timeToolClockSettings").hidden = !clock;
+  byId("timeToolCountdownSettings").hidden = !countdown;
+  byId("timeToolPrecisionSettings").hidden = clock;
+  byId("timeToolShellControl").hidden = lineTool;
+  syncTimeToolControlState(state, overlayType);
+  const key = timeToolSettingsKey(state, overlayType);
+  if (!force && key === app.timeToolKey) return;
+  app.timeToolKey = key;
+  byId("timeToolLabel").value = state.label || (clock ? "LOCAL TIME" : "TIME SPENT");
+  byId("timeToolShowLabel").checked = state.showLabel !== false;
+  if (clock) {
+    byId("timeToolTimezone").value = state.timezone || "local";
+    byId("timeToolTimezoneLabel").value = state.timezoneLabel || "";
+    byId("timeToolHourFormat").value = state.hour12 === false ? "24" : "12";
+    byId("timeToolShowSeconds").checked = state.showSeconds !== false;
+    byId("timeToolShowDate").checked = state.showDate !== false;
+  } else {
+    byId("timeToolShowTenths").checked = state.showTenths === true;
+    if (countdown) {
+      const duration = Math.max(1, Math.round(Number(state.durationSeconds) || 600));
+      byId("timeToolHours").value = Math.floor(duration / 3600);
+      byId("timeToolMinutes").value = Math.floor(duration / 60) % 60;
+      byId("timeToolSeconds").value = duration % 60;
+      byId("timeToolFinishText").value = state.finishText || "TIME'S UP";
+    }
+  }
+  setColor("timeToolAccentColor", state.accentColor || "70b237");
+  setColor("timeToolShellColor", state.shellColor || "292725");
+  setColor("timeToolTextColor", state.textColor || "fffbed");
+  byId("timeToolScale").value = Number(state.scale) || 1;
+  byId("timeToolScaleOutput").value = Number(state.scale || 1).toFixed(2);
+  byId("timeToolGlow").value = Number(state.glow) || 0;
+  byId("timeToolGlowOutput").value = Number(state.glow || 0).toFixed(2);
+  const digitShadow = Number(
+    state.digitShadow ?? (lineTool ? 0 : 1),
+  );
+  byId("timeToolDigitShadow").value = digitShadow;
+  byId("timeToolDigitShadowOutput").value = digitShadow.toFixed(2);
+}
+
+function gatherTimeToolSettings(overlayType = activeInstance()?.type) {
+  const settings = {
+    label: byId("timeToolLabel").value,
+    accentColor: byId("timeToolAccentColor").value.slice(1),
+    shellColor: byId("timeToolShellColor").value.slice(1),
+    textColor: byId("timeToolTextColor").value.slice(1),
+    showLabel: byId("timeToolShowLabel").checked,
+    scale: Number(byId("timeToolScale").value),
+    glow: Number(byId("timeToolGlow").value),
+    digitShadow: Number(byId("timeToolDigitShadow").value),
+  };
+  if (isClockTimeToolOverlayType(overlayType)) {
+    return {
+      ...settings,
+      timezone: byId("timeToolTimezone").value,
+      timezoneLabel: byId("timeToolTimezoneLabel").value,
+      hour12: byId("timeToolHourFormat").value !== "24",
+      showSeconds: byId("timeToolShowSeconds").checked,
+      showDate: byId("timeToolShowDate").checked,
+    };
+  }
+  settings.showTenths = byId("timeToolShowTenths").checked;
+  if (isCountdownTimeToolOverlayType(overlayType)) {
+    const hours = Math.max(0, Math.min(99, Number(byId("timeToolHours").value) || 0));
+    const minutes = Math.max(0, Math.min(59, Number(byId("timeToolMinutes").value) || 0));
+    const seconds = Math.max(0, Math.min(59, Number(byId("timeToolSeconds").value) || 0));
+    settings.durationSeconds = Math.max(1, Math.round(hours * 3600 + minutes * 60 + seconds));
+    settings.finishText = byId("timeToolFinishText").value;
+  }
+  return settings;
+}
+
+function timeToolDraftState(instance = activeInstance()) {
+  if (!instance || !isTimeToolOverlayType(instance.type)) return null;
+  const current = app.state?.timeTools?.[instance.id]
+    || app.state?.timeToolDefaults?.[instance.type]
+    || {};
+  const settings = gatherTimeToolSettings(instance.type);
+  const draft = { ...current, ...settings };
+  if (
+    isCountdownTimeToolOverlayType(instance.type)
+    && Number(settings.durationSeconds) !== Number(current.durationSeconds)
+  ) {
+    draft.remainingMs = settings.durationSeconds * 1000;
+    draft.running = false;
+    draft.startedAt = 0;
+  }
+  return draft;
 }
 
 function rivalsVisualState(state) {
@@ -3593,6 +3778,13 @@ function renderState(state, hydrate = false) {
       ? state.goals?.[selected.id]
       : state.goalPillDefaults,
   );
+  if (isTimeToolOverlayType(selected?.type)) {
+    renderTimeTool(
+      state.timeTools?.[selected.id]
+        || state.timeToolDefaults?.[selected.type],
+      selected.type,
+    );
+  }
   renderRivals(
     selected?.type === "rivals-rank"
       ? state.rivals?.[selected.id]
@@ -4070,6 +4262,41 @@ async function sendGoal(payload, message = "Goal updated") {
   }
 }
 
+async function sendTimeTool(payload, message = "Time tool updated") {
+  const instance = activeInstance();
+  if (!instance || !isTimeToolOverlayType(instance.type) || app.busy) return false;
+  app.busy = true;
+  syncTimeToolControlState(
+    app.state?.timeTools?.[instance.id],
+    instance.type,
+  );
+  try {
+    const result = await callApi("update_time_tool", payload, instance.id);
+    if (!result.ok) {
+      showToast(result.detail || "Time tool update failed");
+      return false;
+    }
+    app.state.timeTools = app.state.timeTools || {};
+    app.state.timeTools[instance.id] = result.timeTool;
+    app.timeToolKey = "";
+    renderTimeTool(result.timeTool, instance.type, true);
+    scheduleCustomizerDraft(0);
+    logActivity(message);
+    showToast(message);
+    rememberSavedCustomizer();
+    return true;
+  } catch (error) {
+    showToast(String(error.message || error));
+    return false;
+  } finally {
+    app.busy = false;
+    syncTimeToolControlState(
+      app.state?.timeTools?.[instance.id],
+      instance.type,
+    );
+  }
+}
+
 async function copySource(instanceId) {
   const instance = instanceById(instanceId);
   if (!instance) return;
@@ -4114,6 +4341,14 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     app.goalPillKey = "";
     renderGoalPill(
       app.state?.goals?.[instance.id] || app.state?.goalPillDefaults,
+      true,
+    );
+  } else if (isTimeToolOverlayType(instance.type)) {
+    app.timeToolKey = "";
+    renderTimeTool(
+      app.state?.timeTools?.[instance.id]
+        || app.state?.timeToolDefaults?.[instance.type],
+      instance.type,
       true,
     );
   } else if (instance.type === "rivals-rank") {
@@ -4457,6 +4692,18 @@ function bindEvents() {
     byId("goalPillGlowOutput").value =
       Number(byId("goalPillGlow").value).toFixed(2);
   });
+  byId("timeToolScale").addEventListener("input", () => {
+    byId("timeToolScaleOutput").value =
+      Number(byId("timeToolScale").value).toFixed(2);
+  });
+  byId("timeToolGlow").addEventListener("input", () => {
+    byId("timeToolGlowOutput").value =
+      Number(byId("timeToolGlow").value).toFixed(2);
+  });
+  byId("timeToolDigitShadow").addEventListener("input", () => {
+    byId("timeToolDigitShadowOutput").value =
+      Number(byId("timeToolDigitShadow").value).toFixed(2);
+  });
   byId("rivalsScale").addEventListener("input", () => {
     byId("rivalsScaleOutput").value =
       Number(byId("rivalsScale").value).toFixed(2);
@@ -4644,6 +4891,9 @@ function bindEvents() {
     "goalPillShellColor",
     "goalPillTrack",
     "goalPillLabelColor",
+    "timeToolAccentColor",
+    "timeToolShellColor",
+    "timeToolTextColor",
     "rivalsShellColor",
     "rivalsTextColor",
     "rivalsAccentColor",
@@ -4691,6 +4941,14 @@ function bindEvents() {
   });
   byId("saveGoalPillSettingsButton").addEventListener("click", () => {
     sendGoal(gatherGoalPillSettings(), "Goal Pill saved and applied");
+  });
+  byId("saveTimeToolSettingsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    if (!instance) return;
+    sendTimeTool(
+      gatherTimeToolSettings(instance.type),
+      `${manifestFor(instance.type)?.name || "Time tool"} saved and applied`,
+    );
   });
   byId("saveRivalsSettingsButton").addEventListener("click", () => {
     sendRivals(
@@ -4793,6 +5051,21 @@ function bindEvents() {
     app.goalPillKey = JSON.stringify(current || {});
     logActivity("Goal Pill fields reset; save to apply");
   });
+  byId("resetTimeToolFieldsButton").addEventListener("click", () => {
+    const instance = activeInstance();
+    if (!instance || !isTimeToolOverlayType(instance.type)) return;
+    const current = app.state?.timeTools?.[instance.id]
+      || app.state?.timeToolDefaults?.[instance.type]
+      || {};
+    renderTimeTool(
+      app.state?.timeToolDefaults?.[instance.type],
+      instance.type,
+      true,
+    );
+    syncTimeToolControlState(current, instance.type);
+    app.timeToolKey = timeToolSettingsKey(current, instance.type);
+    logActivity(`${manifestFor(instance.type)?.name || "Time tool"} fields reset; save to apply`);
+  });
   byId("resetRivalsFieldsButton").addEventListener("click", () => {
     const instance = activeInstance();
     const current =
@@ -4866,6 +5139,22 @@ function bindEvents() {
         reset: "Goal reset",
       };
       sendGoal(payload, labels[action] || "Goal updated");
+    });
+  });
+  document.querySelectorAll("[data-time-tool-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const instance = activeInstance();
+      if (!instance || !isTimeToolOverlayType(instance.type)) return;
+      const action = button.dataset.timeToolAction;
+      const labels = {
+        start: `${manifestFor(instance.type)?.name || "Timer"} started`,
+        pause: `${manifestFor(instance.type)?.name || "Timer"} paused`,
+        reset: `${manifestFor(instance.type)?.name || "Timer"} reset`,
+      };
+      sendTimeTool(
+        { ...gatherTimeToolSettings(instance.type), action },
+        labels[action] || "Time tool updated",
+      );
     });
   });
 

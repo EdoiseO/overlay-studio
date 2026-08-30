@@ -1660,6 +1660,90 @@ output {
   accent-color: var(--accent);
 }
 
+.goal-toggle-row.wrap {
+  flex-wrap: wrap;
+}
+
+.time-tool-settings {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.time-tool-settings[hidden],
+.time-tool-control-panel[hidden] {
+  display: none;
+}
+
+.time-tool-settings h3 {
+  margin: 0 0 13px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.time-duration-fields {
+  width: min(100%, 360px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.time-duration-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.time-duration-fields span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-transform: uppercase;
+}
+
+.time-duration-fields input {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-tool-control-panel {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.time-tool-control-heading,
+.time-tool-actions {
+  display: flex;
+  align-items: center;
+}
+
+.time-tool-control-heading {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.time-tool-control-heading h2 {
+  margin-bottom: 2px;
+}
+
+.time-tool-control-heading span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.time-tool-actions {
+  gap: 7px;
+}
+
+.time-tool-range-grid {
+  margin-top: 16px;
+}
+
 .social-panel-heading {
   display: flex;
   align-items: flex-start;
@@ -2997,6 +3081,15 @@ dialog .primary-button {
 }
 
 @media (max-width: 620px) {
+  .time-tool-control-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .time-tool-actions button {
+    flex: 1 1 0;
+  }
+
   .save-row {
     flex-wrap: wrap;
   }

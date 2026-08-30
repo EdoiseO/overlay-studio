@@ -41,6 +41,7 @@ OVERLAY_CONFIG_PATH = SERVER_DIR / "overlay-config.json"
 APP_SETTINGS_PATH = SERVER_DIR / "app-settings.json"
 COUNTER_STATE_PATH = SERVER_DIR / "win-loss.json"
 GOAL_STATE_PATH = SERVER_DIR / "goal.json"
+TIME_TOOL_STATE_PATH = SERVER_DIR / "time-tools.json"
 RIVALS_STATE_PATH = SERVER_DIR / "rivals.json"
 USER_ASSETS_DIR = ROOT_DIR / "user-assets"
 PID_PATH = SERVER_DIR / "server.pid"
@@ -87,6 +88,12 @@ from rivals_store import (  # noqa: E402
     RivalsStateFileError,
     load_rivals_studio_state,
     remove_rivals_instance,
+)
+from time_tool_store import (  # noqa: E402
+    DEFAULT_TIME_TOOL_STATES,
+    TIME_TOOL_OVERLAY_TYPES,
+    load_time_tool_states,
+    remove_time_tool_instance,
 )
 
 
@@ -1049,6 +1056,11 @@ class DesktopApi:
             for instance_id, instance in config["instances"].items()
             if instance["type"] == "rivals-rank"
         }
+        time_tool_instances = {
+            instance_id: instance
+            for instance_id, instance in config["instances"].items()
+            if instance["type"] in TIME_TOOL_OVERLAY_TYPES
+        }
         try:
             rivals_runtime = load_rivals_studio_state(
                 RIVALS_STATE_PATH,
@@ -1110,6 +1122,11 @@ class DesktopApi:
                     instance_id: goal_defaults_for_type(instance["type"])
                     for instance_id, instance in goal_instances.items()
                 },
+            ),
+            "timeToolDefaults": DEFAULT_TIME_TOOL_STATES,
+            "timeTools": load_time_tool_states(
+                TIME_TOOL_STATE_PATH,
+                time_tool_instances,
             ),
             "rivalsDefaults": DEFAULT_RIVALS_STATE,
             "rivals": rivals_runtime["states"],
@@ -1467,6 +1484,7 @@ class DesktopApi:
             save_overlay_config_file(OVERLAY_CONFIG_PATH, updated)
             remove_counter_instance(COUNTER_STATE_PATH, instance_id)
             remove_goal_instance(GOAL_STATE_PATH, instance_id)
+            remove_time_tool_instance(TIME_TOOL_STATE_PATH, instance_id)
         except (OSError, RivalsStateFileError, ValueError) as error:
             return {"ok": False, "detail": str(error)}
         return {"ok": True, "state": self.get_state()}
@@ -1602,6 +1620,28 @@ class DesktopApi:
         except (OSError, ValueError, urllib.error.URLError) as exc:
             return {"ok": False, "detail": str(exc)}
         return {"ok": True, "goal": state}
+
+    def update_time_tool(
+        self,
+        submitted: dict[str, Any],
+        instance_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(submitted, dict):
+            return {"ok": False, "detail": "Expected time-tool values"}
+        if not instance_id or not is_valid_instance_id(instance_id):
+            return {"ok": False, "detail": "Invalid overlay instance"}
+        if not is_healthy():
+            success, detail = self._start_server_blocking()
+            if not success:
+                return {"ok": False, "detail": detail}
+        try:
+            state = request_json(
+                f"/api/time-tool?i={urllib.parse.quote(instance_id)}",
+                submitted,
+            )
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            return {"ok": False, "detail": str(exc)}
+        return {"ok": True, "timeTool": state}
 
     def update_rivals(
         self,
