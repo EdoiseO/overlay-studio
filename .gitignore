@@ -2,6 +2,7 @@ larpdog-server/config.json
 larpdog-server/overlay-config.json
 larpdog-server/win-loss.json
 larpdog-server/goal.json
+larpdog-server/time-tools.json
 larpdog-server/rivals.json
 larpdog-server/rivals-request-budget.json
 larpdog-server/app-settings.json

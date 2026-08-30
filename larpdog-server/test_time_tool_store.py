@@ -151,6 +151,31 @@ class TimeToolStoreTests(unittest.TestCase):
         self.assertFalse(changed["running"])
         self.assertEqual(changed["startedAt"], 0)
 
+    def test_countdown_completion_sound_settings_are_bounded_and_testable(self) -> None:
+        state = apply_time_tool_update(
+            {},
+            {
+                "soundEnabled": False,
+                "soundVolume": 9,
+                "action": "test-sound",
+            },
+            "minecraft-countdown-line",
+            now_ms=1_000,
+        )
+
+        self.assertFalse(state["soundEnabled"])
+        self.assertEqual(state["soundVolume"], 1.0)
+        self.assertFalse(state["running"])
+        self.assertEqual(state["remainingMs"], 600_000)
+
+        with self.assertRaisesRegex(ValueError, "only available for countdowns"):
+            apply_time_tool_update(
+                {},
+                {"action": "test-sound"},
+                "minecraft-stopwatch-line",
+                now_ms=1_000,
+            )
+
     def test_stopwatch_accumulates_across_pause_resume_and_reset(self) -> None:
         state = apply_time_tool_update(
             {},

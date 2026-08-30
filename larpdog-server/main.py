@@ -1184,6 +1184,14 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
                 "state": saved_state,
             }
         )
+        if str(submitted.get("action") or "").strip().lower() == "test-sound":
+            await hub.broadcast(
+                {
+                    "type": "time-tool-sound",
+                    "overlayType": overlay_type,
+                    "instanceId": instance_id,
+                }
+            )
         return web.json_response(saved_state)
 
     def request_rivals_instance(request: web.Request) -> str:

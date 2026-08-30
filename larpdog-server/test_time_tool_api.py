@@ -199,6 +199,29 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(countdown_state["digitShadow"], 0)
         self.assertEqual(stopwatch_state["glow"], 0)
 
+    async def test_countdown_sound_test_persists_volume_and_broadcasts_event(self) -> None:
+        websocket = await self.client.ws_connect("/ws")
+        response = await self.client.post(
+            "/api/time-tool?i=line-countdown",
+            json={
+                "action": "test-sound",
+                "soundEnabled": True,
+                "soundVolume": 0.65,
+            },
+        )
+        self.assertEqual(response.status, 200)
+        state = await response.json()
+        self.assertTrue(state["soundEnabled"])
+        self.assertEqual(state["soundVolume"], 0.65)
+
+        state_message = await websocket.receive_json(timeout=2)
+        sound_message = await websocket.receive_json(timeout=2)
+        self.assertEqual(state_message["type"], "time-tool")
+        self.assertEqual(sound_message["type"], "time-tool-sound")
+        self.assertEqual(sound_message["overlayType"], "minecraft-countdown-line")
+        self.assertEqual(sound_message["instanceId"], "line-countdown")
+        await websocket.close()
+
     async def test_stopwatch_is_independent_from_countdown(self) -> None:
         with mock.patch("time_tool_store.time.time", return_value=2_000):
             started = await self.client.post(

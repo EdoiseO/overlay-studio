@@ -236,6 +236,29 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn('query.get("demoMinimal") === "1"', runtime)
         self.assertIn('clamp(query.get("demoSeconds"), 1, 359999)', runtime)
 
+    def test_minecraft_countdown_has_a_local_obs_completion_chime(self) -> None:
+        runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
+            encoding="utf-8"
+        )
+        overlay = (
+            ROOT_DIR / "overlays" / "minecraft-countdown-line.html"
+        ).read_text(encoding="utf-8")
+        studio_markup = (ROOT_DIR / "studio" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        studio_script = (ROOT_DIR / "studio" / "app.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("function playCompletionSound", runtime)
+        self.assertIn("window.AudioContext || window.webkitAudioContext", runtime)
+        self.assertIn('message?.type === "time-tool-sound"', runtime)
+        self.assertIn("completionObservedRunning", runtime)
+        self.assertIn('"soundEnabled"', overlay)
+        self.assertIn('"soundVolume"', overlay)
+        self.assertIn('id="timeToolTestSoundButton"', studio_markup)
+        self.assertIn("testTimeToolCompletionSound", studio_script)
+
     def test_minecraft_minimal_timers_put_green_detail_before_time(self) -> None:
         runtime = (ROOT_DIR / "assets" / "minecraft-time.js").read_text(
             encoding="utf-8"

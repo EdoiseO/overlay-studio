@@ -37,6 +37,8 @@
       startedAt: 0,
       finishText: "TIME'S UP",
       showTenths: false,
+      soundEnabled: true,
+      soundVolume: .8,
     },
     stopwatch: {
       label: "TIME SPENT",
@@ -57,6 +59,10 @@
     digitShadow: lineLayout ? 0 : 1,
     ...defaults,
   };
+  let audioContext = null;
+  let completionObservedRunning = false;
+  let completionSoundPlayed = false;
+  let soundPlayCount = 0;
 
   const clamp = (number, minimum, maximum) => Math.max(
     minimum,
@@ -121,6 +127,8 @@
         durationSeconds,
         remainingMs: Math.round(clamp(next.remainingMs, 0, durationSeconds * 1000)),
         finishText: text(next.finishText, "TIME'S UP", 24),
+        soundEnabled: boolean(next.soundEnabled, true),
+        soundVolume: clamp(next.soundVolume, 0, 1),
       };
     }
     return {
@@ -247,10 +255,88 @@
     }
   }
 
+  async function playCompletionSound(force = false) {
+    if (kind !== "countdown" || (!force && !state.soundEnabled)) return false;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      document.documentElement.dataset.audioState = "unavailable";
+      return false;
+    }
+    try {
+      audioContext ||= new AudioContextClass();
+      audioContext.onstatechange = () => {
+        document.documentElement.dataset.audioState = audioContext.state;
+      };
+      if (audioContext.state === "suspended") {
+        void audioContext.resume().catch(() => {});
+      }
+      const start = audioContext.currentTime + .025;
+      const output = audioContext.createGain();
+      const volume = clamp(state.soundVolume, 0, 1);
+      output.gain.setValueAtTime(Math.max(.0001, volume * .14), start);
+      output.gain.exponentialRampToValueAtTime(.0001, start + .94);
+      output.connect(audioContext.destination);
+      let finalOscillator = null;
+      [
+        { frequency: 523.25, delay: 0, duration: .2 },
+        { frequency: 659.25, delay: .12, duration: .22 },
+        { frequency: 783.99, delay: .27, duration: .26 },
+        { frequency: 1046.5, delay: .46, duration: .42 },
+      ].forEach(note => {
+        const oscillator = audioContext.createOscillator();
+        const envelope = audioContext.createGain();
+        const noteStart = start + note.delay;
+        const noteEnd = noteStart + note.duration;
+        oscillator.type = "square";
+        oscillator.frequency.setValueAtTime(note.frequency, noteStart);
+        envelope.gain.setValueAtTime(.0001, noteStart);
+        envelope.gain.exponentialRampToValueAtTime(1, noteStart + .012);
+        envelope.gain.exponentialRampToValueAtTime(.0001, noteEnd);
+        oscillator.connect(envelope);
+        envelope.connect(output);
+        oscillator.start(noteStart);
+        oscillator.stop(noteEnd + .02);
+        finalOscillator = oscillator;
+      });
+      finalOscillator?.addEventListener(
+        "ended",
+        () => output.disconnect(),
+        { once: true },
+      );
+      soundPlayCount += 1;
+      document.documentElement.dataset.soundPlayCount = String(soundPlayCount);
+      document.documentElement.dataset.audioState = audioContext.state;
+      return true;
+    } catch {
+      document.documentElement.dataset.audioState = "failed";
+      return false;
+    }
+  }
+
   function renderTimer(now) {
     const milliseconds = effectiveMilliseconds(now);
     const finished = kind === "countdown" && milliseconds <= 0;
     const compactTimer = lineLayout && !state.showLabel;
+    if (kind === "countdown") {
+      if (!finished && state.running) {
+        completionObservedRunning = true;
+        completionSoundPlayed = false;
+      } else if (
+        finished
+        && completionObservedRunning
+        && !completionSoundPlayed
+      ) {
+        completionSoundPlayed = true;
+        void playCompletionSound();
+      } else if (
+        !finished
+        && !state.running
+        && milliseconds >= state.durationSeconds * 1000
+      ) {
+        completionObservedRunning = false;
+        completionSoundPlayed = false;
+      }
+    }
     timerMarkup(milliseconds);
     mode.textContent = kind === "countdown" ? "COUNTDOWN" : "STOPWATCH";
     if (finished && compactTimer) {
@@ -298,6 +384,16 @@
     window.addEventListener("message", event => {
       const message = event.data;
       if (
+        event.source === window.parent
+        && message?.type === "overlay-studio-test-sound"
+        && message.overlayType === overlayType
+        && String(message.instanceId || "") === instanceId
+      ) {
+        setState(message.state || {});
+        void playCompletionSound(true);
+        return;
+      }
+      if (
         event.source !== window.parent
         || message?.type !== "overlay-studio-draft"
         || message.overlayType !== overlayType
@@ -318,6 +414,14 @@
       if (typeof event.data !== "string" || event.data.length > 64 * 1024) return;
       let message;
       try { message = JSON.parse(event.data); } catch { return; }
+      if (
+        message?.type === "time-tool-sound"
+        && message.overlayType === overlayType
+        && String(message.instanceId || "") === instanceId
+      ) {
+        void playCompletionSound(true);
+        return;
+      }
       if (
         message?.type !== "time-tool"
         || message.overlayType !== overlayType
@@ -366,10 +470,36 @@
     };
   }
   setState(state);
+  if (kind === "countdown") {
+    document.documentElement.dataset.soundPlayCount = "0";
+    document.documentElement.dataset.audioState = "uninitialized";
+    document.addEventListener("pointerdown", () => {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!audioContext && AudioContextClass) {
+        try {
+          audioContext = new AudioContextClass();
+          audioContext.onstatechange = () => {
+            document.documentElement.dataset.audioState = audioContext.state;
+          };
+        } catch {
+          document.documentElement.dataset.audioState = "failed";
+        }
+      }
+      if (audioContext?.state === "suspended") {
+        void audioContext.resume().catch(() => {});
+      }
+    });
+  }
   scheduleTick();
   if (!customizerMode && !catalogMode) {
     loadInstalledState();
     connect();
   }
-  window.minecraftTimeTool = { get state() { return { ...state }; }, setState };
+  window.minecraftTimeTool = {
+    get state() { return { ...state }; },
+    get soundPlayCount() { return soundPlayCount; },
+    get audioState() { return audioContext?.state || "uninitialized"; },
+    setState,
+    testSound: () => playCompletionSound(true),
+  };
 })();

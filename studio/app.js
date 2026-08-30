@@ -2662,7 +2662,12 @@ function timeToolSettingsKey(state, overlayType = activeInstance()?.type) {
   } else {
     keys.push("showTenths");
     if (isCountdownTimeToolOverlayType(overlayType)) {
-      keys.push("durationSeconds", "finishText");
+      keys.push(
+        "durationSeconds",
+        "finishText",
+        "soundEnabled",
+        "soundVolume",
+      );
     }
   }
   return JSON.stringify(Object.fromEntries(keys.map((key) => [key, state[key]])));
@@ -2722,6 +2727,10 @@ function renderTimeTool(state, overlayType = activeInstance()?.type, force = fal
       byId("timeToolMinutes").value = Math.floor(duration / 60) % 60;
       byId("timeToolSeconds").value = duration % 60;
       byId("timeToolFinishText").value = state.finishText || "TIME'S UP";
+      byId("timeToolSoundEnabled").checked = state.soundEnabled !== false;
+      byId("timeToolSoundVolume").value = Number(state.soundVolume ?? .8);
+      byId("timeToolSoundVolumeOutput").value =
+        Number(state.soundVolume ?? .8).toFixed(2);
     }
   }
   setColor("timeToolAccentColor", state.accentColor || "70b237");
@@ -2766,6 +2775,8 @@ function gatherTimeToolSettings(overlayType = activeInstance()?.type) {
     const seconds = Math.max(0, Math.min(59, Number(byId("timeToolSeconds").value) || 0));
     settings.durationSeconds = Math.max(1, Math.round(hours * 3600 + minutes * 60 + seconds));
     settings.finishText = byId("timeToolFinishText").value;
+    settings.soundEnabled = byId("timeToolSoundEnabled").checked;
+    settings.soundVolume = Number(byId("timeToolSoundVolume").value);
   }
   return settings;
 }
@@ -4369,6 +4380,48 @@ async function sendTimeTool(payload, message = "Time tool updated") {
   }
 }
 
+async function testTimeToolCompletionSound() {
+  const instance = activeInstance();
+  if (
+    !instance
+    || !isCountdownTimeToolOverlayType(instance.type)
+    || app.busy
+  ) return;
+  const draft = timeToolDraftState(instance);
+  postCustomizerDraftToFrame({
+    type: "overlay-studio-test-sound",
+    overlayType: instance.type,
+    instanceId: instance.id,
+    state: draft,
+  });
+  app.busy = true;
+  byId("timeToolTestSoundButton").disabled = true;
+  try {
+    const result = await callApi(
+      "update_time_tool",
+      {
+        action: "test-sound",
+        soundEnabled: draft.soundEnabled,
+        soundVolume: draft.soundVolume,
+      },
+      instance.id,
+    );
+    if (!result.ok) {
+      showToast(result.detail || "Completion sound test failed");
+      return;
+    }
+    app.state.timeTools = app.state.timeTools || {};
+    app.state.timeTools[instance.id] = result.timeTool;
+    logActivity("Completion sound test sent to the preview and OBS");
+    showToast("Completion sound test played");
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+    byId("timeToolTestSoundButton").disabled = false;
+  }
+}
+
 async function copySource(instanceId) {
   const instance = instanceById(instanceId);
   if (!instance) return;
@@ -4776,6 +4829,10 @@ function bindEvents() {
     byId("timeToolDigitShadowOutput").value =
       Number(byId("timeToolDigitShadow").value).toFixed(2);
   });
+  byId("timeToolSoundVolume").addEventListener("input", () => {
+    byId("timeToolSoundVolumeOutput").value =
+      Number(byId("timeToolSoundVolume").value).toFixed(2);
+  });
   byId("blockBeatsScale").addEventListener("input", () => {
     byId("blockBeatsScaleOutput").value =
       Number(byId("blockBeatsScale").value).toFixed(2);
@@ -5059,6 +5116,10 @@ function bindEvents() {
       `${manifestFor(instance.type)?.name || "Time tool"} saved and applied`,
     );
   });
+  byId("timeToolTestSoundButton").addEventListener(
+    "click",
+    testTimeToolCompletionSound,
+  );
   byId("saveRivalsSettingsButton").addEventListener("click", () => {
     sendRivals(
       gatherRivalsSettings(),

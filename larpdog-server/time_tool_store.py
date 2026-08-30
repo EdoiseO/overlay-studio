@@ -33,7 +33,7 @@ TIME_ZONE_CHOICES = {
     "America/Anchorage",
     "Pacific/Honolulu",
 }
-ACTIONS = {"start", "pause", "reset"}
+ACTIONS = {"start", "pause", "reset", "test-sound"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 MAX_DURATION_SECONDS = 359_999
@@ -67,6 +67,8 @@ COUNTDOWN_DEFAULTS: dict[str, Any] = {
     "startedAt": 0,
     "finishText": "TIME'S UP",
     "showTenths": False,
+    "soundEnabled": True,
+    "soundVolume": 0.8,
 }
 STOPWATCH_DEFAULTS: dict[str, Any] = {
     **COMMON_DEFAULTS,
@@ -255,6 +257,19 @@ def normalize_time_tool_state(raw: Any, overlay_type: str) -> dict[str, Any]:
                     defaults["finishText"],
                     24,
                 ),
+                "soundEnabled": _boolean(
+                    source.get("soundEnabled"),
+                    defaults["soundEnabled"],
+                ),
+                "soundVolume": round(
+                    _number(
+                        source.get("soundVolume"),
+                        defaults["soundVolume"],
+                        0.0,
+                        1.0,
+                    ),
+                    2,
+                ),
             }
         )
     elif overlay_type in STOPWATCH_TIME_TOOL_OVERLAY_TYPES:
@@ -345,6 +360,10 @@ def apply_time_tool_update(
     if overlay_type in COUNTDOWN_TIME_TOOL_OVERLAY_TYPES:
         if "finishText" in source:
             state["finishText"] = source["finishText"]
+        if "soundEnabled" in source:
+            state["soundEnabled"] = source["soundEnabled"]
+        if "soundVolume" in source:
+            state["soundVolume"] = source["soundVolume"]
         if "durationSeconds" in source:
             normalized_duration = normalize_time_tool_state(
                 {**state, "durationSeconds": source["durationSeconds"]},
@@ -355,6 +374,11 @@ def apply_time_tool_update(
                 state["remainingMs"] = normalized_duration * 1000
                 state["running"] = False
                 state["startedAt"] = 0
+
+        if action == "test-sound":
+            return normalize_time_tool_state(state, overlay_type)
+    elif action == "test-sound":
+        raise ValueError("Completion sounds are only available for countdowns")
 
     if action == "start":
         if (

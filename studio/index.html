@@ -984,6 +984,16 @@
               </div>
               <label for="timeToolFinishText">Finish message</label>
               <input id="timeToolFinishText" type="text" maxlength="24" autocomplete="off">
+              <span>Completion sound</span>
+              <div class="goal-toggle-row wrap">
+                <label><input id="timeToolSoundEnabled" type="checkbox"> Play a block chime in OBS</label>
+                <button class="secondary-button compact" id="timeToolTestSoundButton" type="button">Test sound</button>
+              </div>
+              <label for="timeToolSoundVolume">Sound volume</label>
+              <div class="range-control">
+                <input id="timeToolSoundVolume" type="range" min="0" max="1" step="0.05">
+                <output id="timeToolSoundVolumeOutput">0.80</output>
+              </div>
             </div>
           </div>
           <div class="time-tool-settings" id="timeToolPrecisionSettings" hidden>

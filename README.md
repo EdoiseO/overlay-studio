@@ -150,6 +150,9 @@ duration and can show a custom completion message. Stopwatch records elapsed tim
 Countdown and Stopwatch are operated from their Studio customizer with **Start**,
 **Pause**, and **Reset**; their state survives application and overlay restarts. Each
 installed instance remains independent, so multiple activities can be timed at once.
+Minecraft Countdown also plays a locally generated block chime when it reaches zero.
+Use its Studio controls to enable or disable the sound, set its volume, and send an
+immediate test to the live preview and addressed OBS browser source.
 
 ## Goal Bar
 
