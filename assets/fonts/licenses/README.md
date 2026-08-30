@@ -17,3 +17,9 @@ license text is stored beside this file as `<family>-OFL.txt`.
 The WOFF2 files and `overlay-fonts.css` were retrieved from the official Google
 Fonts CSS service on 2026-08-15. Source metadata and upstream font files are
 maintained in the [Google Fonts repository](https://github.com/google/fonts).
+
+The Minecraft time-tool overlays bundle `Minecraftia-Regular.ttf` by Andrew Tyler,
+retrieved from [DaFont](https://www.dafont.com/minecraftia.font) on 2026-08-29. The
+project owner confirmed that they hold the separate commercial/app license required
+by the author. The archive's author notice is stored as `minecraftia-README.txt`;
+the purchaser's nontransferable license and receipt are not redistributed here.

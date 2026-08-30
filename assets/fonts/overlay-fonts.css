@@ -1,4 +1,20 @@
-/* Bundled from Google Fonts for offline overlay rendering. See licenses/README.md. */
+/* Bundled for offline overlay rendering. See licenses/README.md. */
+@font-face {
+  font-family: 'Minecraftia';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./Minecraftia-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Minecraftia';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./Minecraftia-Regular.ttf') format('truetype');
+}
+
 /* vietnamese */
 @font-face {
   font-family: 'Anton';
