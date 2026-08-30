@@ -54,6 +54,15 @@ class MinecraftSpotifyPresentationTests(unittest.TestCase):
         self.assertIn("#b9ef72 0 30%", self.source)
         self.assertIn("#2f681d 68% 100%", self.source)
 
+    def test_minecraftia_text_has_unclipped_line_boxes(self) -> None:
+        self.assertIn("row-gap: 3px", self.source)
+        self.assertIn("font-size: 19px;", self.source)
+        self.assertIn("line-height: 30px;", self.source)
+        self.assertIn("font-size: 11px;", self.source)
+        self.assertIn("line-height: 16px;", self.source)
+        self.assertIn("font-size: 15px; line-height: 24px;", self.source)
+        self.assertIn("font-size: 9px; line-height: 14px;", self.source)
+
     def test_player_uses_only_strict_spotify_routing(self) -> None:
         self.assertIn('typeof message?.spotifyStatus !== "string"', self.source)
         self.assertIn('message.spotifyStatus === "playing"', self.source)

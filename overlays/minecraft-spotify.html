@@ -121,7 +121,7 @@
     min-width: 0;
     color: var(--accent);
     font-size: 10px;
-    line-height: 1;
+    line-height: 12px;
     letter-spacing: .04em;
     white-space: nowrap;
   }
@@ -134,8 +134,11 @@
   }
   .track-copy {
     align-self: center;
+    display: grid;
+    align-content: center;
+    row-gap: 3px;
     min-width: 0;
-    padding-top: 3px;
+    padding-block: 2px;
   }
   .track-title,
   .track-artist {
@@ -146,12 +149,12 @@
   .track-title {
     color: var(--text);
     font-size: 19px;
-    line-height: 1.5;
+    line-height: 30px;
   }
   .track-artist {
     color: rgba(255,251,237,.72);
     font-size: 11px;
-    line-height: 1.35;
+    line-height: 16px;
   }
   .progress-track {
     --xp-cell: 16px;
@@ -215,9 +218,10 @@
     }
     .art-frame { width: 92px; height: 92px; }
     .track-panel { grid-template-rows: 16px minmax(0, 1fr) auto auto; }
-    .now-playing { font-size: 8px; }
-    .track-title { font-size: 15px; }
-    .track-artist { font-size: 9px; }
+    .now-playing { font-size: 8px; line-height: 10px; }
+    .track-copy { row-gap: 2px; padding-block: 2px; }
+    .track-title { font-size: 15px; line-height: 24px; }
+    .track-artist { font-size: 9px; line-height: 14px; }
     .progress-track {
       --xp-cell: 13px;
       --xp-gap: 3px;
