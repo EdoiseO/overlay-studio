@@ -51,6 +51,18 @@ class CustomizerPreviewContractTests(unittest.TestCase):
             self.assertIn("outline-offset: -1px", rule)
             self.assertIn("box-shadow: inset 0 0 0 1px #1c2429", rule)
 
+    def test_large_preview_keeps_native_scale_when_canvas_fits(self) -> None:
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        resize_preview = script.split(
+            "function resizeLargePreview()", maxsplit=1
+        )[1].split("function renderLargePreview", maxsplit=1)[0]
+
+        self.assertIn(
+            "const scale = Math.min(\n    1,\n    stage.clientWidth / width,",
+            resize_preview,
+        )
+        self.assertNotIn("* 0.9", resize_preview)
+
     def test_customizer_preview_supports_zoom_pan_and_native_popout(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")

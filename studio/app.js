@@ -2429,7 +2429,11 @@ function resizeLargePreview() {
   const manifest = manifestFor(instance?.type);
   if (!stage || !iframe || !manifest) return;
   const { w: width, h: height } = manifest.canvas;
-  const scale = Math.min(stage.clientWidth / width, stage.clientHeight / height) * 0.9;
+  const scale = Math.min(
+    1,
+    stage.clientWidth / width,
+    stage.clientHeight / height,
+  );
   iframe.style.width = `${width}px`;
   iframe.style.height = `${height}px`;
   iframe.style.left = `${(stage.clientWidth - width * scale) / 2}px`;
