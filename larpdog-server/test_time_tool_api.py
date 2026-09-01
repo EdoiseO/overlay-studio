@@ -48,6 +48,9 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
             "<!doctype html><title>Test</title>",
             encoding="utf-8",
         )
+        self.completion_sound = b"OggS\x00test-challenge-complete"
+        completion_sound_path = root / "challenge-complete.ogg"
+        completion_sound_path.write_bytes(self.completion_sound)
 
         overlay_config = normalize_overlay_config({"instances": {}})
         for overlay_type, instance_id, name in (
@@ -69,7 +72,12 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
 
         config = copy.deepcopy(main.DEFAULT_CONFIG)
         config["server"]["overlay_path"] = "../overlay-studio.html"
-        app = main.create_app(config, server_dir)
+        with mock.patch.object(
+            main,
+            "find_installed_challenge_complete_sound",
+            return_value=completion_sound_path,
+        ):
+            app = main.create_app(config, server_dir)
         self.patches = [
             mock.patch.object(main.AudioLoopbackWorker, "start"),
             mock.patch.object(main.AudioLoopbackWorker, "stop"),
@@ -199,28 +207,54 @@ class TimeToolApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(countdown_state["digitShadow"], 0)
         self.assertEqual(stopwatch_state["glow"], 0)
 
-    async def test_countdown_sound_test_persists_volume_and_broadcasts_event(self) -> None:
+    async def test_countdown_sound_test_uses_draft_without_persisting_it(self) -> None:
+        initial = await self.client.get("/api/time-tool?i=line-countdown")
+        initial_state = await initial.json()
+        self.assertEqual(initial_state["soundPreset"], "challenge-complete")
+        self.assertEqual(initial_state["soundVolume"], 0.8)
+
         websocket = await self.client.ws_connect("/ws")
         response = await self.client.post(
             "/api/time-tool?i=line-countdown",
             json={
                 "action": "test-sound",
                 "soundEnabled": True,
+                "soundPreset": "custom",
+                "customSound": "user-assets/sounds/test-alert.wav",
                 "soundVolume": 0.65,
             },
         )
         self.assertEqual(response.status, 200)
         state = await response.json()
-        self.assertTrue(state["soundEnabled"])
-        self.assertEqual(state["soundVolume"], 0.65)
+        self.assertEqual(state, initial_state)
 
-        state_message = await websocket.receive_json(timeout=2)
         sound_message = await websocket.receive_json(timeout=2)
-        self.assertEqual(state_message["type"], "time-tool")
         self.assertEqual(sound_message["type"], "time-tool-sound")
         self.assertEqual(sound_message["overlayType"], "pixel-countdown-line")
         self.assertEqual(sound_message["instanceId"], "line-countdown")
+        self.assertEqual(sound_message["state"]["soundPreset"], "custom")
+        self.assertEqual(
+            sound_message["state"]["customSound"],
+            "user-assets/sounds/test-alert.wav",
+        )
+        self.assertEqual(sound_message["state"]["soundVolume"], 0.65)
         await websocket.close()
+
+        persisted = await self.client.get("/api/time-tool?i=line-countdown")
+        self.assertEqual(await persisted.json(), initial_state)
+
+    async def test_countdown_completion_sound_is_served_from_fixed_route(self) -> None:
+        response = await self.client.get(
+            "/local-assets/countdown-completion.ogg"
+        )
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.content_type, "audio/ogg")
+        self.assertEqual(await response.read(), self.completion_sound)
+        self.assertEqual(
+            response.headers["X-Content-Type-Options"],
+            "nosniff",
+        )
 
     async def test_stopwatch_is_independent_from_countdown(self) -> None:
         with mock.patch("time_tool_store.time.time", return_value=2_000):

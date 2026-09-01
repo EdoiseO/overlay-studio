@@ -146,9 +146,13 @@ duration and can show a custom completion message. Stopwatch records elapsed tim
 Countdown and Stopwatch are operated from their Studio customizer with **Start**,
 **Pause**, and **Reset**; their state survives application and overlay restarts. Each
 installed instance remains independent, so multiple activities can be timed at once.
-Pixel Countdown Line also plays a locally generated block chime when it reaches zero.
-Use its Studio controls to enable or disable the sound, set its volume, and send an
-immediate test to the live preview and addressed OBS browser source.
+Pixel Countdown Line can play the installed Minecraft Java Challenge Complete sound
+when it reaches zero, with the original generated block chime as an explicit choice
+and automatic fallback. A custom local OGG, MP3, or WAV up to 5 MB can also be copied
+into the app's managed `user-assets/sounds/` folder. Remote URLs and mismatched file
+contents are rejected. Use the Studio controls to choose, enable, adjust, and test a
+sound immediately in both the live preview and addressed OBS browser source; testing
+does not save other draft settings.
 
 Running countdowns and stopwatches persist across application restarts. The first
 timer read after a process starts accepts the elapsed wall-clock time so that real time

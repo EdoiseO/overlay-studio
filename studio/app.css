@@ -1527,6 +1527,18 @@ output {
   gap: 8px;
 }
 
+.file-picker-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+#timeToolCustomSoundCopy[hidden],
+#timeToolCustomSoundFields[hidden] {
+  display: none;
+}
+
 .rivals-status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

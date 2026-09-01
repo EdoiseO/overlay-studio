@@ -35,9 +35,18 @@ TIME_ZONE_CHOICES = {
     "America/Anchorage",
     "Pacific/Honolulu",
 }
+COMPLETION_SOUND_PRESETS = {
+    "challenge-complete",
+    "block-chime",
+    "custom",
+}
 ACTIONS = {"start", "pause", "reset", "test-sound"}
 HEX_COLOR = re.compile(r"^[0-9a-fA-F]{6}$")
 INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+CUSTOM_SOUND_PATH = re.compile(
+    r"^user-assets/sounds/[A-Za-z0-9][A-Za-z0-9._-]{0,95}\.(?:mp3|ogg|wav)$",
+    re.IGNORECASE,
+)
 MAX_DURATION_SECONDS = 359_999
 MAX_TIMER_MILLISECONDS = MAX_DURATION_SECONDS * 1000
 MAX_TIMESTAMP_MILLISECONDS = 4_102_444_800_000
@@ -127,6 +136,8 @@ COUNTDOWN_DEFAULTS: dict[str, Any] = {
     "finishText": "TIME'S UP",
     "showTenths": False,
     "soundEnabled": True,
+    "soundPreset": "challenge-complete",
+    "customSound": "",
     "soundVolume": 0.8,
 }
 STOPWATCH_DEFAULTS: dict[str, Any] = {
@@ -298,6 +309,18 @@ def normalize_time_tool_state(raw: Any, overlay_type: str) -> dict[str, Any]:
                 )
             )
         )
+        sound_preset = str(
+            source.get("soundPreset") or ""
+        ).strip().lower()
+        if sound_preset not in COMPLETION_SOUND_PRESETS:
+            sound_preset = defaults["soundPreset"]
+        custom_sound = str(source.get("customSound") or "").strip().replace(
+            "\\", "/"
+        )
+        if CUSTOM_SOUND_PATH.fullmatch(custom_sound) is None:
+            custom_sound = ""
+        if sound_preset == "custom" and not custom_sound:
+            sound_preset = "block-chime"
         state.update(
             {
                 "durationSeconds": duration,
@@ -323,6 +346,8 @@ def normalize_time_tool_state(raw: Any, overlay_type: str) -> dict[str, Any]:
                     source.get("soundEnabled"),
                     defaults["soundEnabled"],
                 ),
+                "soundPreset": sound_preset,
+                "customSound": custom_sound,
                 "soundVolume": round(
                     _number(
                         source.get("soundVolume"),
@@ -452,6 +477,10 @@ def apply_time_tool_update(
             state["finishText"] = source["finishText"]
         if "soundEnabled" in source:
             state["soundEnabled"] = source["soundEnabled"]
+        if "soundPreset" in source:
+            state["soundPreset"] = source["soundPreset"]
+        if "customSound" in source:
+            state["customSound"] = source["customSound"]
         if "soundVolume" in source:
             state["soundVolume"] = source["soundVolume"]
         if "durationSeconds" in source:

@@ -275,7 +275,7 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn('query.get("demoMinimal") === "1"', runtime)
         self.assertIn('clamp(query.get("demoSeconds"), 1, 359999)', runtime)
 
-    def test_pixel_countdown_has_a_local_obs_completion_chime(self) -> None:
+    def test_pixel_countdown_has_selectable_local_completion_sounds(self) -> None:
         runtime = (ROOT_DIR / "assets" / "pixel-time.js").read_text(
             encoding="utf-8"
         )
@@ -288,6 +288,9 @@ class OverlayFontContractTests(unittest.TestCase):
         studio_script = (ROOT_DIR / "studio" / "app.js").read_text(
             encoding="utf-8"
         )
+        studio_styles = (ROOT_DIR / "studio" / "app.css").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("function playCompletionSound", runtime)
         self.assertIn("window.AudioContext || window.webkitAudioContext", runtime)
@@ -296,11 +299,26 @@ class OverlayFontContractTests(unittest.TestCase):
         self.assertIn("await ensureAudioContextRunning", runtime)
         self.assertIn('audioContext.state === "running"', runtime)
         self.assertIn("activeSoundOutputs.delete(output)", runtime)
+        self.assertIn("loadCompletionSoundBuffer", runtime)
+        self.assertIn(
+            "dataset.soundPreset = playbackState.soundPreset",
+            runtime,
+        )
+        self.assertIn('dataset.soundPreset = "block-chime"', runtime)
         self.assertIn('type: "overlay-studio-test-sound-result"', runtime)
         self.assertIn('"soundEnabled"', overlay)
+        self.assertIn('"soundPreset"', overlay)
+        self.assertIn('"customSound"', overlay)
         self.assertIn('"soundVolume"', overlay)
         self.assertIn('id="timeToolTestSoundButton"', studio_markup)
+        self.assertIn('id="timeToolSoundPreset"', studio_markup)
+        self.assertIn('value="challenge-complete"', studio_markup)
+        self.assertIn('value="block-chime"', studio_markup)
+        self.assertIn('value="custom"', studio_markup)
+        self.assertIn('id="timeToolChooseCustomSoundButton"', studio_markup)
         self.assertIn("testTimeToolCompletionSound", studio_script)
+        self.assertIn("chooseTimeToolCustomSound", studio_script)
+        self.assertIn("#timeToolCustomSoundFields[hidden]", studio_styles)
         self.assertIn("handleTimeToolSoundTestMessage", studio_script)
         self.assertIn("Preview audio is blocked. Click inside", studio_script)
         self.assertNotIn("Completion sound test played", studio_script)

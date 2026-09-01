@@ -38,6 +38,8 @@
       finishText: "TIME'S UP",
       showTenths: false,
       soundEnabled: true,
+      soundPreset: "challenge-complete",
+      customSound: "",
       soundVolume: .8,
     },
     stopwatch: {
@@ -63,8 +65,12 @@
   let completionObservedRunning = false;
   let completionSoundPlayed = false;
   let soundPlayCount = 0;
+  const completionSoundBuffers = new Map();
+  const completionSoundLoads = new Map();
   const activeSoundOutputs = new Set();
   const AUDIO_RESUME_TIMEOUT_MS = 500;
+  const COMPLETION_SOUND_URL = "/local-assets/countdown-completion.ogg";
+  const MAX_COMPLETION_SOUND_BYTES = 5 * 1024 * 1024;
 
   const clamp = (number, minimum, maximum) => Math.max(
     minimum,
@@ -81,6 +87,13 @@
   const boolean = (candidate, fallback) => (
     typeof candidate === "boolean" ? candidate : fallback
   );
+  const customSoundPath = candidate => {
+    const normalized = String(candidate || "").trim().replaceAll("\\", "/");
+    return /^user-assets\/sounds\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}\.(?:mp3|ogg|wav)$/i
+      .test(normalized)
+      ? normalized
+      : "";
+  };
   const timezoneChoices = new Set([
     "local",
     "UTC",
@@ -130,6 +143,11 @@
         remainingMs: Math.round(clamp(next.remainingMs, 0, durationSeconds * 1000)),
         finishText: text(next.finishText, "TIME'S UP", 24),
         soundEnabled: boolean(next.soundEnabled, true),
+        soundPreset: ["block-chime", "challenge-complete", "custom"]
+          .includes(next.soundPreset)
+          ? next.soundPreset
+          : "challenge-complete",
+        customSound: customSoundPath(next.customSound),
         soundVolume: clamp(next.soundVolume, 0, 1),
       };
     }
@@ -286,8 +304,54 @@
     return audioContext.state === "running";
   }
 
-  async function playCompletionSound(force = false) {
-    if (kind !== "countdown" || (!force && !state.soundEnabled)) return false;
+  async function loadCompletionSoundBuffer(soundUrl) {
+    if (!soundUrl) return null;
+    if (completionSoundBuffers.has(soundUrl)) {
+      return completionSoundBuffers.get(soundUrl);
+    }
+    if (completionSoundLoads.has(soundUrl)) {
+      return completionSoundLoads.get(soundUrl);
+    }
+    if (
+      !audioContext
+      || typeof audioContext.decodeAudioData !== "function"
+      || typeof fetch !== "function"
+    ) return null;
+    const pending = (async () => {
+      try {
+        const response = await fetch(soundUrl, {
+          cache: "force-cache",
+          credentials: "same-origin",
+        });
+        if (!response.ok) return null;
+        const declaredSize = Number(response.headers?.get?.("Content-Length") || 0);
+        if (declaredSize > MAX_COMPLETION_SOUND_BYTES) return null;
+        const encoded = await response.arrayBuffer();
+        if (encoded.byteLength > MAX_COMPLETION_SOUND_BYTES) return null;
+        const decoded = await audioContext.decodeAudioData(encoded.slice(0));
+        if (!decoded) return null;
+        if (completionSoundBuffers.size >= 4) completionSoundBuffers.clear();
+        completionSoundBuffers.set(soundUrl, decoded);
+        return decoded;
+      } catch {
+        return null;
+      } finally {
+        completionSoundLoads.delete(soundUrl);
+      }
+    })();
+    completionSoundLoads.set(soundUrl, pending);
+    return pending;
+  }
+
+  async function playCompletionSound(force = false, override = {}) {
+    const playbackState = normalize({
+      ...state,
+      ...(override && typeof override === "object" ? override : {}),
+    });
+    if (
+      kind !== "countdown"
+      || (!force && !playbackState.soundEnabled)
+    ) return false;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) {
       reportAudioState("unavailable");
@@ -296,6 +360,15 @@
     let releaseOutput = null;
     try {
       if (!await ensureAudioContextRunning(AudioContextClass)) return false;
+      const selectedCustomSound = customSoundPath(playbackState.customSound);
+      const soundUrl = playbackState.soundPreset === "challenge-complete"
+        ? COMPLETION_SOUND_URL
+        : (
+          playbackState.soundPreset === "custom"
+            ? (selectedCustomSound ? `/${selectedCustomSound}` : "")
+            : ""
+        );
+      const decodedBuffer = await loadCompletionSoundBuffer(soundUrl);
       const start = audioContext.currentTime + .025;
       const output = audioContext.createGain();
       activeSoundOutputs.add(output);
@@ -310,8 +383,30 @@
         activeSoundOutputs.delete(output);
         reportAudioState();
       };
+      const volume = clamp(playbackState.soundVolume, 0, 1);
+      if (
+        decodedBuffer
+        && typeof audioContext.createBufferSource === "function"
+      ) {
+        const source = audioContext.createBufferSource();
+        source.buffer = decodedBuffer;
+        output.gain.setValueAtTime(Math.max(.0001, volume * .6), start);
+        source.connect(output);
+        output.connect(audioContext.destination);
+        source.addEventListener("ended", releaseOutput, { once: true });
+        cleanupTimer = setTimeout(
+          releaseOutput,
+          Math.max(1_500, Math.ceil((Number(decodedBuffer.duration) + 1) * 1000)),
+        );
+        source.start(start);
+        document.documentElement.dataset.soundPreset = playbackState.soundPreset;
+        soundPlayCount += 1;
+        document.documentElement.dataset.soundPlayCount = String(soundPlayCount);
+        reportAudioState();
+        return true;
+      }
+
       cleanupTimer = setTimeout(releaseOutput, 1_500);
-      const volume = clamp(state.soundVolume, 0, 1);
       output.gain.setValueAtTime(Math.max(.0001, volume * .14), start);
       output.gain.exponentialRampToValueAtTime(.0001, start + .94);
       output.connect(audioContext.destination);
@@ -342,6 +437,7 @@
         releaseOutput,
         { once: true },
       );
+      document.documentElement.dataset.soundPreset = "block-chime";
       soundPlayCount += 1;
       document.documentElement.dataset.soundPlayCount = String(soundPlayCount);
       reportAudioState();
@@ -441,6 +537,7 @@
               instanceId,
               ok,
               audioState: document.documentElement.dataset.audioState,
+              soundPreset: document.documentElement.dataset.soundPreset,
             },
             origin,
           );
@@ -473,7 +570,7 @@
         && message.overlayType === overlayType
         && String(message.instanceId || "") === instanceId
       ) {
-        void playCompletionSound(true);
+        void playCompletionSound(true, message.state || {});
         return;
       }
       if (
@@ -528,6 +625,7 @@
     document.documentElement.dataset.soundPlayCount = "0";
     document.documentElement.dataset.audioState = "uninitialized";
     document.documentElement.dataset.audioOutputCount = "0";
+    document.documentElement.dataset.soundPreset = "uninitialized";
     document.addEventListener("pointerdown", () => {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!audioContext && AudioContextClass) {

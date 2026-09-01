@@ -253,6 +253,7 @@ class TimeToolStoreTests(unittest.TestCase):
             {},
             {
                 "soundEnabled": False,
+                "soundPreset": "block-chime",
                 "soundVolume": 9,
                 "action": "test-sound",
             },
@@ -261,9 +262,45 @@ class TimeToolStoreTests(unittest.TestCase):
         )
 
         self.assertFalse(state["soundEnabled"])
+        self.assertEqual(state["soundPreset"], "block-chime")
         self.assertEqual(state["soundVolume"], 1.0)
         self.assertFalse(state["running"])
         self.assertEqual(state["remainingMs"], 600_000)
+
+        default_state = apply_time_tool_update(
+            {},
+            {"soundPreset": "unknown"},
+            "pixel-countdown-line",
+            now_ms=1_000,
+        )
+        self.assertEqual(default_state["soundPreset"], "challenge-complete")
+
+        custom_state = apply_time_tool_update(
+            {},
+            {
+                "soundPreset": "custom",
+                "customSound": "user-assets/sounds/raid-alert.ogg",
+            },
+            "pixel-countdown-line",
+            now_ms=1_000,
+        )
+        self.assertEqual(custom_state["soundPreset"], "custom")
+        self.assertEqual(
+            custom_state["customSound"],
+            "user-assets/sounds/raid-alert.ogg",
+        )
+
+        unsafe_custom_state = apply_time_tool_update(
+            {},
+            {
+                "soundPreset": "custom",
+                "customSound": "https://example.com/tracker.mp3",
+            },
+            "pixel-countdown-line",
+            now_ms=1_000,
+        )
+        self.assertEqual(unsafe_custom_state["soundPreset"], "block-chime")
+        self.assertEqual(unsafe_custom_state["customSound"], "")
 
         with self.assertRaisesRegex(ValueError, "only available for countdowns"):
             apply_time_tool_update(

@@ -986,8 +986,25 @@
               <input id="timeToolFinishText" type="text" maxlength="24" autocomplete="off">
               <span>Completion sound</span>
               <div class="goal-toggle-row wrap">
-                <label><input id="timeToolSoundEnabled" type="checkbox"> Play a block chime in OBS</label>
+                <label><input id="timeToolSoundEnabled" type="checkbox"> Play a completion sound in OBS</label>
                 <button class="secondary-button compact" id="timeToolTestSoundButton" type="button">Test sound</button>
+              </div>
+              <div class="field-copy">
+                <label for="timeToolSoundPreset">Sound preset</label>
+                <span>Challenge Complete uses the local Java game asset and falls back to the original chime when unavailable.</span>
+              </div>
+              <select id="timeToolSoundPreset">
+                <option value="challenge-complete">Challenge Complete</option>
+                <option value="block-chime">Original block chime</option>
+                <option value="custom">Custom sound</option>
+              </select>
+              <div class="field-copy" id="timeToolCustomSoundCopy" hidden>
+                <label for="timeToolCustomSound">Custom sound file</label>
+                <span>Local OGG, MP3, or WAV only; 5 MB maximum. Invalid files fall back to the original chime.</span>
+              </div>
+              <div class="file-picker-control" id="timeToolCustomSoundFields" hidden>
+                <input id="timeToolCustomSound" type="text" readonly placeholder="No custom sound selected">
+                <button class="secondary-button compact" id="timeToolChooseCustomSoundButton" type="button">Choose file</button>
               </div>
               <label for="timeToolSoundVolume">Sound volume</label>
               <div class="range-control">

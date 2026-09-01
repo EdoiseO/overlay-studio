@@ -1333,6 +1333,7 @@ function handleTimeToolSoundTestMessage(event) {
   pending.resolve({
     ok: message.ok === true,
     audioState: String(message.audioState || "unknown"),
+    soundPreset: String(message.soundPreset || ""),
   });
 }
 
@@ -2746,6 +2747,8 @@ function timeToolSettingsKey(state, overlayType = activeInstance()?.type) {
         "durationSeconds",
         "finishText",
         "soundEnabled",
+        "soundPreset",
+        "customSound",
         "soundVolume",
       );
     }
@@ -2808,6 +2811,14 @@ function renderTimeTool(state, overlayType = activeInstance()?.type, force = fal
       byId("timeToolSeconds").value = duration % 60;
       byId("timeToolFinishText").value = state.finishText || "TIME'S UP";
       byId("timeToolSoundEnabled").checked = state.soundEnabled !== false;
+      byId("timeToolSoundPreset").value =
+        ["block-chime", "challenge-complete", "custom"].includes(
+          state.soundPreset,
+        )
+          ? state.soundPreset
+          : "challenge-complete";
+      byId("timeToolCustomSound").value = String(state.customSound || "");
+      syncTimeToolSoundPreset();
       byId("timeToolSoundVolume").value = Number(state.soundVolume ?? .8);
       byId("timeToolSoundVolumeOutput").value =
         Number(state.soundVolume ?? .8).toFixed(2);
@@ -2856,6 +2867,8 @@ function gatherTimeToolSettings(overlayType = activeInstance()?.type) {
     settings.durationSeconds = Math.max(1, Math.round(hours * 3600 + minutes * 60 + seconds));
     settings.finishText = byId("timeToolFinishText").value;
     settings.soundEnabled = byId("timeToolSoundEnabled").checked;
+    settings.soundPreset = byId("timeToolSoundPreset").value;
+    settings.customSound = byId("timeToolCustomSound").value;
     settings.soundVolume = Number(byId("timeToolSoundVolume").value);
   }
   return settings;
@@ -4477,6 +4490,8 @@ async function testTimeToolCompletionSound() {
       {
         action: "test-sound",
         soundEnabled: draft.soundEnabled,
+        soundPreset: draft.soundPreset,
+        customSound: draft.customSound,
         soundVolume: draft.soundVolume,
       },
       instance.id,
@@ -4489,8 +4504,18 @@ async function testTimeToolCompletionSound() {
     app.state.timeTools[instance.id] = result.timeTool;
     const previewResult = await previewResultPromise;
     let message;
-    if (previewResult.ok) {
-      message = "Preview chime played; OBS test signal sent";
+    if (previewResult.ok && previewResult.soundPreset !== draft.soundPreset) {
+      const selectedName = draft.soundPreset === "custom"
+        ? "The custom sound"
+        : "Challenge Complete";
+      message = `${selectedName} was unavailable; the original block chime played as a fallback, and the OBS test signal was sent`;
+    } else if (previewResult.ok) {
+      const presetName = {
+        "block-chime": "Original block chime",
+        "challenge-complete": "Challenge Complete",
+        custom: "Custom sound",
+      }[draft.soundPreset] || "Completion sound";
+      message = `${presetName} preview played; OBS test signal sent`;
     } else if (previewResult.audioState === "unavailable") {
       message = "Preview audio is unavailable; OBS test signal sent";
     } else {
@@ -4503,6 +4528,39 @@ async function testTimeToolCompletionSound() {
   } finally {
     app.busy = false;
     byId("timeToolTestSoundButton").disabled = false;
+  }
+}
+
+function syncTimeToolSoundPreset() {
+  const custom = byId("timeToolSoundPreset").value === "custom";
+  byId("timeToolCustomSoundCopy").hidden = !custom;
+  byId("timeToolCustomSoundFields").hidden = !custom;
+}
+
+async function chooseTimeToolCustomSound() {
+  if (app.busy) return;
+  app.busy = true;
+  byId("timeToolChooseCustomSoundButton").disabled = true;
+  try {
+    const result = await callApi("choose_countdown_sound");
+    if (!result.ok) {
+      if (!result.cancelled) {
+        showToast(result.detail || "Could not import that sound");
+      }
+      return;
+    }
+    byId("timeToolCustomSound").value = result.path;
+    byId("timeToolSoundPreset").value = "custom";
+    syncTimeToolSoundPreset();
+    scheduleCustomizerChange(0);
+    const message = `Custom countdown sound selected: ${result.name}`;
+    logActivity(message);
+    showToast(message);
+  } catch (error) {
+    showToast(String(error.message || error));
+  } finally {
+    app.busy = false;
+    byId("timeToolChooseCustomSoundButton").disabled = false;
   }
 }
 
@@ -5210,6 +5268,14 @@ function bindEvents() {
   byId("timeToolTestSoundButton").addEventListener(
     "click",
     testTimeToolCompletionSound,
+  );
+  byId("timeToolSoundPreset").addEventListener(
+    "change",
+    syncTimeToolSoundPreset,
+  );
+  byId("timeToolChooseCustomSoundButton").addEventListener(
+    "click",
+    chooseTimeToolCustomSound,
   );
   byId("saveRivalsSettingsButton").addEventListener("click", () => {
     sendRivals(

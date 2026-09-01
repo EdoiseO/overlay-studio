@@ -7,6 +7,7 @@ import contextlib
 import datetime as dt
 import ipaddress
 import json
+import os
 import sys
 import threading
 import time
@@ -51,6 +52,10 @@ from time_tool_store import (
 
 
 APP_NAME = "overlay-studio-server"
+CHALLENGE_COMPLETE_ASSET = (
+    "minecraft/sounds/ui/toast/challenge_complete.ogg"
+)
+MAX_MINECRAFT_ASSET_INDEX_BYTES = 64 * 1024 * 1024
 LEGACY_GOAL_OVERLAY_TYPE = "goal"
 OVERLAY_ROUTE_PATTERN = (
     OVERLAY_NAME.pattern.removeprefix("^").removesuffix("$")
@@ -93,6 +98,61 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "timeout_seconds": 12,
     },
 }
+
+
+def find_installed_challenge_complete_sound(
+    appdata_dir: Path | None = None,
+) -> Path | None:
+    if appdata_dir is None:
+        appdata_value = os.environ.get("APPDATA")
+        if not appdata_value:
+            return None
+        appdata_dir = Path(appdata_value)
+    assets_dir = appdata_dir / ".minecraft" / "assets"
+    indexes_dir = assets_dir / "indexes"
+    objects_dir = assets_dir / "objects"
+    if not indexes_dir.is_dir() or not objects_dir.is_dir():
+        return None
+    indexed_paths: list[tuple[int, str, Path]] = []
+    try:
+        index_paths = indexes_dir.glob("*.json")
+        for index_path in index_paths:
+            try:
+                indexed_paths.append(
+                    (index_path.stat().st_mtime_ns, index_path.name, index_path)
+                )
+            except OSError:
+                continue
+    except OSError:
+        return None
+    indexes = [item[2] for item in sorted(indexed_paths, reverse=True)]
+    for index_path in indexes:
+        try:
+            if index_path.stat().st_size > MAX_MINECRAFT_ASSET_INDEX_BYTES:
+                continue
+            manifest = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        objects = manifest.get("objects")
+        entry = objects.get(CHALLENGE_COMPLETE_ASSET) if isinstance(objects, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        asset_hash = str(entry.get("hash") or "").lower()
+        if len(asset_hash) != 40 or any(
+            character not in "0123456789abcdef" for character in asset_hash
+        ):
+            continue
+        candidate = objects_dir / asset_hash[:2] / asset_hash
+        try:
+            if not candidate.is_file():
+                continue
+            expected_size = int(entry.get("size") or 0)
+            if expected_size > 0 and candidate.stat().st_size != expected_size:
+                continue
+        except (OSError, TypeError, ValueError):
+            continue
+        return candidate
+    return None
 
 
 def _normalize_loopback_hostname(value: str | None) -> str | None:
@@ -878,6 +938,7 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     counter_state_path = base_dir / "win-loss.json"
     goal_state_path = base_dir / "goal.json"
     time_tool_state_path = base_dir / "time-tools.json"
+    countdown_completion_sound = find_installed_challenge_complete_sound()
     time_tool_clock_guard = WallClockGuard()
     rivals_state_path = base_dir / "rivals.json"
     overlays_dir = base_dir.parent / "overlays"
@@ -936,6 +997,22 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             ),
             content_type="application/javascript",
             headers={"Cache-Control": "no-store"},
+        )
+
+    async def serve_countdown_completion_sound(
+        _request: web.Request,
+    ) -> web.StreamResponse:
+        if countdown_completion_sound is None:
+            raise web.HTTPNotFound(
+                text="Installed Challenge Complete sound was not found"
+            )
+        return web.FileResponse(
+            countdown_completion_sound,
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "Content-Type": "audio/ogg",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     async def get_overlay_config(request: web.Request) -> web.Response:
@@ -1177,6 +1254,21 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
             )
         except ValueError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from None
+        if str(submitted.get("action") or "").strip().lower() == "test-sound":
+            await hub.broadcast(
+                {
+                    "type": "time-tool-sound",
+                    "overlayType": overlay_type,
+                    "instanceId": instance_id,
+                    "state": {
+                        "soundEnabled": state["soundEnabled"],
+                        "soundPreset": state["soundPreset"],
+                        "customSound": state["customSound"],
+                        "soundVolume": state["soundVolume"],
+                    },
+                }
+            )
+            return web.json_response(previous)
         saved_state = save_time_tool_state(
             time_tool_state_path,
             state,
@@ -1191,14 +1283,6 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
                 "state": saved_state,
             }
         )
-        if str(submitted.get("action") or "").strip().lower() == "test-sound":
-            await hub.broadcast(
-                {
-                    "type": "time-tool-sound",
-                    "overlayType": overlay_type,
-                    "instanceId": instance_id,
-                }
-            )
         return web.json_response(saved_state)
 
     def request_rivals_instance(request: web.Request) -> str:
@@ -1329,6 +1413,10 @@ def create_app(config: dict[str, Any], base_dir: Path) -> web.Application:
     app.router.add_get("/overlays/spotify.html", serve_overlay)
     app.router.add_get("/larpdog-overlay.html", serve_overlay)
     app.router.add_get("/overlay-config.js", serve_overlay_config)
+    app.router.add_get(
+        "/local-assets/countdown-completion.ogg",
+        serve_countdown_completion_sound,
+    )
     app.router.add_get("/api/config", get_overlay_config)
     app.router.add_post("/api/config", update_overlay_config)
     app.router.add_get("/api/overlays", get_overlays)

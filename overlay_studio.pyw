@@ -112,6 +112,8 @@ ALLOWED_DANCE_EXTENSIONS = {
 ALLOWED_REST_EXTENSIONS = {".gif", ".webp", ".apng", ".png", ".jpg", ".jpeg"}
 DANCE_VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov"}
 MAX_DRAG_IMPORT_BYTES = 25 * 1024 * 1024
+MAX_COUNTDOWN_SOUND_BYTES = 5 * 1024 * 1024
+ALLOWED_COUNTDOWN_SOUND_EXTENSIONS = {".mp3", ".ogg", ".wav"}
 MAX_SHORTCUT_BYTES = 64 * 1024
 MAX_SHORTCUT_PAGE_BYTES = 1024 * 1024
 MAX_PNG_EXPORT_ITEMS = 16
@@ -276,6 +278,53 @@ def copy_user_asset(
     if not destination.exists():
         shutil.copy2(source, destination)
     return f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
+
+
+def validate_countdown_sound(extension: str, content: bytes) -> None:
+    if extension not in ALLOWED_COUNTDOWN_SOUND_EXTENSIONS:
+        raise ValueError("Choose an OGG, MP3, or WAV audio file")
+    signatures = {
+        ".ogg": content.startswith(b"OggS"),
+        ".wav": (
+            len(content) >= 12
+            and content.startswith(b"RIFF")
+            and content[8:12] == b"WAVE"
+        ),
+        ".mp3": (
+            content.startswith(b"ID3")
+            or (
+                len(content) >= 2
+                and content[0] == 0xFF
+                and content[1] & 0xE0 == 0xE0
+            )
+        ),
+    }
+    if not signatures[extension]:
+        raise ValueError(f"File contents do not match the {extension} extension")
+
+
+def countdown_sound_destination(filename: str, content: bytes) -> Path:
+    destination_dir = USER_ASSETS_DIR / "sounds"
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    supplied_name = Path(filename).name
+    extension = Path(supplied_name).suffix.lower()
+    cleaned_stem = re.sub(
+        r"[^A-Za-z0-9._-]+",
+        "-",
+        Path(supplied_name).stem,
+    ).strip(".-")[:64]
+    base_name = cleaned_stem or "countdown-sound"
+    destination = destination_dir / f"{base_name}{extension}"
+    suffix = 2
+    while destination.exists():
+        if (
+            destination.stat().st_size == len(content)
+            and destination.read_bytes() == content
+        ):
+            return destination
+        destination = destination_dir / f"{base_name}-{suffix}{extension}"
+        suffix += 1
+    return destination
 
 
 def prepare_legacy_asset_migration(
@@ -1211,6 +1260,45 @@ class DesktopApi:
             "path": relative_path,
             "name": source.name,
             "library": media_library(load_overlay_config(OVERLAY_CONFIG_PATH)),
+        }
+
+    def choose_countdown_sound(self) -> dict[str, Any]:
+        if self._window is None:
+            return {"ok": False, "detail": "The Studio window is unavailable"}
+        selected = self._window.create_file_dialog(
+            webview.FileDialog.OPEN,
+            allow_multiple=False,
+            file_types=("Audio files (*.ogg;*.mp3;*.wav)",),
+        )
+        if not selected:
+            return {"ok": False, "cancelled": True}
+
+        source = Path(selected[0])
+        extension = source.suffix.lower()
+        try:
+            size = source.stat().st_size
+            if size < 12 or size > MAX_COUNTDOWN_SOUND_BYTES:
+                raise ValueError("Custom sounds must be between 12 bytes and 5 MB")
+            with source.open("rb") as sound_file:
+                content = sound_file.read(MAX_COUNTDOWN_SOUND_BYTES + 1)
+            if len(content) != size:
+                raise ValueError("The selected sound changed while it was being read")
+            validate_countdown_sound(extension, content[:16])
+            destination = countdown_sound_destination(source.name, content)
+            if not destination.exists():
+                temporary = destination.with_suffix(f"{destination.suffix}.tmp")
+                temporary.write_bytes(content)
+                os.replace(temporary, destination)
+        except (OSError, ValueError) as error:
+            return {"ok": False, "detail": str(error)}
+
+        relative_path = (
+            f"user-assets/{destination.relative_to(USER_ASSETS_DIR).as_posix()}"
+        )
+        return {
+            "ok": True,
+            "path": relative_path,
+            "name": source.name,
         }
 
     def import_asset(
