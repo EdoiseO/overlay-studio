@@ -7,6 +7,15 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 class RangeControlContractTests(unittest.TestCase):
+    def test_every_slider_uses_the_shared_range_control(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            markup.count('type="range"'),
+            markup.count('class="range-control"'),
+        )
+        self.assertNotIn('class="range-field"', markup)
+
     def test_every_slider_has_an_editable_value_source(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         sliders = re.findall(
