@@ -2513,6 +2513,17 @@ function renderLargePreview(state) {
   byId("overlayPreviewDialog").classList.toggle("server-running", state.running);
 }
 
+function availableCustomizerViewId(manifest) {
+  const viewId = typeof manifest?.studioView === "string"
+    ? manifest.studioView
+    : "";
+  const view = viewId ? byId(viewId) : null;
+  return CUSTOMIZER_VIEW_IDS.has(viewId)
+    && view?.classList.contains("detail-view")
+    ? viewId
+    : "";
+}
+
 function openOverlayPreview(instanceId) {
   const instance = instanceById(instanceId);
   const manifest = manifestFor(instance?.type);
@@ -2522,7 +2533,12 @@ function openOverlayPreview(instanceId) {
     `${manifest.name.toUpperCase()} / LIVE OBS PREVIEW`;
   byId("overlayPreviewTitle").textContent = instance.name;
   byId("largeOverlayPreview").title = `Live ${instance.name} preview`;
-  byId("customizePreviewButton").hidden = !manifest.studioView;
+  const customizeButton = byId("customizePreviewButton");
+  const customizerAvailable = Boolean(availableCustomizerViewId(manifest));
+  customizeButton.hidden = !manifest.studioView;
+  customizeButton.title = customizerAvailable
+    ? `Customize ${instance.name}`
+    : "Update Overlay Studio to customize this overlay";
   renderLargePreview(app.state || { running: false });
   byId("overlayPreviewDialog").showModal();
   requestAnimationFrame(resizeLargePreview);
@@ -4506,7 +4522,12 @@ function openSource(instanceId) {
 function openInstanceSettings(instanceId, skipWarning = false) {
   const instance = instanceById(instanceId);
   const manifest = manifestFor(instance?.type);
-  if (!instance || !manifest?.studioView) return;
+  if (!instance || !manifest?.studioView) return false;
+  const viewId = availableCustomizerViewId(manifest);
+  if (!viewId) {
+    showToast("Update Overlay Studio to customize this overlay");
+    return false;
+  }
   const switchingCustomizer =
     CUSTOMIZER_VIEW_IDS.has(activeViewId())
     && app.activeInstanceId !== instance.id;
@@ -4514,7 +4535,7 @@ function openInstanceSettings(instanceId, skipWarning = false) {
     requestUnsavedAction(
       () => openInstanceSettings(instanceId, true),
     );
-    return;
+    return true;
   }
   app.activeInstanceId = instance.id;
   fillConfig(materializeInstanceConfig(instance));
@@ -4570,8 +4591,9 @@ function openInstanceSettings(instanceId, skipWarning = false) {
       materializeInstanceConfig(instance).socialGrouped,
     );
   }
-  showView(manifest.studioView);
+  showView(viewId);
   rememberSavedCustomizer();
+  return true;
 }
 
 async function addOverlayType(overlayType) {
@@ -5587,8 +5609,7 @@ function bindEvents() {
   });
   byId("customizePreviewButton").addEventListener("click", () => {
     const instanceId = app.previewInstanceId;
-    closeOverlayPreview();
-    openInstanceSettings(instanceId);
+    if (openInstanceSettings(instanceId)) closeOverlayPreview();
   });
   previewDialog.addEventListener("click", (event) => {
     if (event.target === previewDialog) closeOverlayPreview();

@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -10,6 +11,60 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 class CustomizerPreviewContractTests(unittest.TestCase):
+    def test_each_manifest_customizer_view_exists_in_the_studio_bundle(self) -> None:
+        markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        customizer_ids = script.split(
+            "const CUSTOMIZER_VIEW_IDS = new Set([", maxsplit=1
+        )[1].split("]);", maxsplit=1)[0]
+
+        for path in sorted((ROOT_DIR / "overlays").glob("*.html")):
+            source = path.read_text(encoding="utf-8")
+            match = re.search(
+                r'<script type="application/json" id="overlay-manifest">'
+                r"\s*(\{.*?\})\s*</script>",
+                source,
+                re.DOTALL,
+            )
+            if not match:
+                continue
+            manifest = json.loads(match.group(1))
+            view_id = manifest.get("studioView")
+            if not view_id:
+                continue
+            with self.subTest(overlay=path.name, view_id=view_id):
+                self.assertEqual(markup.count(f'id="{view_id}"'), 1)
+                self.assertIn(f'"{view_id}"', customizer_ids)
+
+    def test_missing_customizer_view_fails_with_an_update_message(self) -> None:
+        script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
+        resolver = script.split(
+            "function availableCustomizerViewId(manifest)", maxsplit=1
+        )[1].split("function openOverlayPreview", maxsplit=1)[0]
+        open_settings = script.split(
+            "function openInstanceSettings(instanceId, skipWarning = false)",
+            maxsplit=1,
+        )[1].split("async function addOverlayType", maxsplit=1)[0]
+        preview_handler = script.split(
+            'byId("customizePreviewButton").addEventListener("click",',
+            maxsplit=1,
+        )[1].split("previewDialog.addEventListener", maxsplit=1)[0]
+
+        self.assertIn("CUSTOMIZER_VIEW_IDS.has(viewId)", resolver)
+        self.assertIn('view?.classList.contains("detail-view")', resolver)
+        self.assertIn(
+            "const viewId = availableCustomizerViewId(manifest)",
+            open_settings,
+        )
+        self.assertIn(
+            'showToast("Update Overlay Studio to customize this overlay")',
+            open_settings,
+        )
+        self.assertIn(
+            "if (openInstanceSettings(instanceId)) closeOverlayPreview()",
+            preview_handler,
+        )
+
     def test_studio_has_one_shared_draft_preview(self) -> None:
         markup = (ROOT_DIR / "studio" / "index.html").read_text(encoding="utf-8")
         script = (ROOT_DIR / "studio" / "app.js").read_text(encoding="utf-8")
