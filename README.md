@@ -462,3 +462,7 @@ Server configuration and standalone development details are in
   [Custom media](#custom-media).
 - **The desktop window is blank:** Install or repair the Microsoft Edge WebView2
   Runtime.
+
+## How I built this
+
+I designed and built Overlay Studio with AI coding assistants (ChatGPT/Codex and Claude) to speed up implementation and review; I am responsible for the architecture and can walk through the code.
